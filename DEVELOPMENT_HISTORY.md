@@ -22,6 +22,10 @@ products: weak hierarchy, 15-px text and 12-px tables, a neon "volt" green that 
 **Bugs found while doing it:** the suppliers table had no scroll wrapper and spilled out of its card on a 360-px phone (the
 layout sweep caught it once text became readable) — wrapped, and any bare table in a card now scrolls inside it.
 
+**UI Lab (same machine, main → this change, 1366 px):** all 20 page/screen runs within budget, 0 accessibility findings;
+first paint 300–440 → 72–136 ms (the splash draws before any script); largest paint equal or better on most pages (stock
+840 → 404, watch 832 → 372, customers 772 → 368, reports 792 → 380 ms); frames stay at 60 fps.
+
 **Behaviour:** no server, database, money or stock logic changed. **Tests:** new `DesignSystem` checks (WCAG AA contrast of
 every token pair in both themes, one mark geometry in four places, no leftover of the old identity, base geometry);
 full suite including the browser journey and layout sweep passes.
