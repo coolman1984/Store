@@ -1,5 +1,13 @@
 # Development history (newest first)
 
+## 2026-10-08 — Stock count: a sale in the same millisecond as the count line made a phantom surplus
+**Found by:** the GitHub runner failing `test_sale_after_counting_a_product_is_not_a_false_surplus` on PR #2 (it passed on
+slower PCs by luck). **Why:** times have millisecond precision; when the count line and the sale fell in the same
+millisecond, `m.at <= cl.at` counted the sale as *before* the count, so closing the count added a false +2.
+**Fix:** `ids.iso()` ("now") is strictly increasing inside the program — a second record in the same millisecond gets the
+next millisecond; a clock moved back by more than a second is believed, so time never freezes. No schema or stock-logic
+change. **Tests:** the count scenario and the ordering run under a frozen clock (both failed before the fix).
+
 ## 2026-10-08 — Design system v2: the Mizan (ميزان) identity across the whole program
 **Why:** the program worked and passed its checks but did not look like software a shop would pay for next to international
 products: weak hierarchy, 15-px text and 12-px tables, a neon "volt" green that failed contrast as text, floating glass,
