@@ -158,7 +158,7 @@ class MutationTests(unittest.TestCase):
                                                                          'guarantor': {'name': 'G', 'phone': '010', 'national_id': '29001010101010'}}},
             '/api/purchase': {'idem_key': 'b', 'location_id': P.shop, 'supplier_id': P.sup, 'paid': 10000, 'invoice_no': 'A1',
                               'lines': [{'product_id': P.pid, 'qty': 2, 'unit_cost': 70000}]},
-            '/api/transfer': {'idem_key': 't', 'from_location_id': P.shop, 'to_location_id': P.store, 'note': 'x',
+            '/api/transfer': {'idem_key': 't', 'from_id': P.shop, 'to_id': P.store, 'note': 'x',
                               'lines': [{'product_id': P.pid, 'qty': 1}]},
             '/api/product/save': {'name': 'Kettle', 'retail': 50000, 'min': 40000, 'barcodes': ['12345'], 'sku': 'K1',
                                   'warranty_months': 12, 'track_serial': False},
@@ -176,6 +176,25 @@ class MutationTests(unittest.TestCase):
             '/api/settings/save': {'settings': {'shop_name': 'S', 'return_days': 14}},
             '/api/watch/review': {'key': 'k', 'note': 'n'},
         }
+
+    def test_user_routes_with_junk(self):
+        _, staff, _ = self.c.post('/api/user/save', {'username': 'staff1', 'full_name': 'Staff', 'role': 'cashier', 'password': 'Strong Pass 9'})
+        add = {'username': 'new', 'full_name': 'New', 'role': 'cashier', 'password': 'Strong Pass 9', 'max_discount_pct': 5,
+               'extra_perms': ['pos.credit'], 'denied_perms': []}
+        edit = {'id': staff['id'], 'full_name': 'Staff', 'role': 'cashier', 'max_discount_pct': 5, 'extra_perms': [], 'denied_perms': [],
+                'active': True, 'password': 'Another Pass 7'}
+        crashes = []
+        for name, template in (('add', add), ('edit', edit)):
+            for where in paths(template) if False else [(k,) for k in template]:
+                for junk in JUNK:
+                    body = mutate(template, where, junk)
+                    if name == 'add' and where != ('username',):
+                        self.__class__.n += 1
+                        body['username'] = f'new{self.n}'
+                    st, d, _ = self.c.call('POST', '/api/user/save', body)
+                    if st >= 500:
+                        crashes.append((name, where, str(junk)[:20], d.get('error') if isinstance(d, dict) else d))
+        self.assertEqual(crashes, [], '\n'.join(map(str, crashes)))
 
     def test_one_junk_field_at_a_time(self):
         crashes = []

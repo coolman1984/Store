@@ -276,6 +276,19 @@ class CashTests(Base):
         self.assertEqual(cash.drawer_expected(self.s.db, shift['id']), 0)
         self.assertIn('drawer_short', {i['kind'] for i in reports.watch(self.s.db)})
 
+    def test_float_comes_out_of_the_safe_so_the_safe_never_grows_from_nothing(self):
+        owner = self.s.users['owner']['id']
+        first = cash.open_shift_of(self.s.db, owner)
+        self.s.do(cash.close_shift, first['id'], 10000)  # the 100 EGP float goes to the safe
+        self.assertEqual(cash.safe_balance(self.s.db), 10000)
+        second = self.s.do(cash.open_shift, 10000)  # taken from the safe: nothing is added from thin air
+        self.assertEqual(cash.safe_balance(self.s.db), 0)
+        self.s.do(cash.close_shift, second, 10000)
+        self.assertEqual(cash.safe_balance(self.s.db), 10000)  # still exactly the money that exists
+        third = self.s.do(cash.open_shift, 30000)  # more than the safe holds: the owner adds the rest
+        self.assertEqual(cash.safe_balance(self.s.db), 0)
+        self.assertEqual(cash.drawer_expected(self.s.db, third), 30000)
+
     def test_expense_rules_and_reversal(self):
         with self.assertRaises(Problem):
             self.s.do(cash.expense, {'idem_key': 'e0', 'amount': 500, 'category': 'other', 'note': ''})
@@ -346,6 +359,15 @@ class StockTests(Base):
         self.s.do(stock.close_count, cid, 'monthly count')
         self.assertEqual(stock.on_hand(self.s.db, pid), 7)
         self.assertIn('stock_loss', {i['kind'] for i in reports.watch(self.s.db)})
+
+
+    def test_sale_after_counting_a_product_is_not_a_false_surplus(self):
+        pid = self.s.product(qty=10, cost=500)
+        cid = self.s.do(stock.start_count, self.s.shop)
+        self.s.do(stock.count_line, cid, pid, 10)       # counted all 10 on the shelf
+        sale(self.s, [{'product_id': pid, 'qty': 2}])   # then 2 are sold while the count is still open
+        self.s.do(stock.close_count, cid, 'busy day')
+        self.assertEqual(stock.on_hand(self.s.db, pid), 8)  # the books stay right: no phantom +2
 
 
 class PriceTests(Base):

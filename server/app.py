@@ -380,7 +380,7 @@ class Handler(BaseHTTPRequestHandler):
                 'finance_providers', 'expense_categories', 'tax_number')},
                  'users': db.all('SELECT id, full_name, role FROM users WHERE active = 1 ORDER BY full_name')}
         elif path == '/api/products':
-            d = catalog.search(db, qs.get('q', ''), int(qs.get('limit', 200)), True, qs.get('location_id'),
+            d = catalog.search(db, qs.get('q', ''), qint(qs, 'limit', 200, 1, 1000), True, qs.get('location_id'),
                                qs.get('hidden') == '1', {'category_id': qs.get('category_id'), 'brand_id': qs.get('brand_id')})
             if can_cost:
                 for r in d['items']:
@@ -434,7 +434,7 @@ class Handler(BaseHTTPRequestHandler):
             d = stock.overview(db, can_cost, qs.get('q', ''), qs.get('only', 'all'), qs.get('location_id'))
         elif path == '/api/stock/value':
             ctx.need('cost.view')
-            d = {'value': stock.stock_value(db), 'slow': stock.slow_movers(db, int(qs.get('days', 60)), 30)}
+            d = {'value': stock.stock_value(db), 'slow': stock.slow_movers(db, qint(qs, 'days', 60, 1, 3650), 30)}
         elif path == '/api/counts':
             d = db.all('SELECT c.*, l.name AS place, u.full_name AS by_name FROM counts c JOIN locations l ON l.id = c.location_id '
                        'JOIN users u ON u.id = c.started_by ORDER BY c.started_at DESC LIMIT 50')
@@ -470,7 +470,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/reports':
             ctx.need('reports.view')
             f, t = qs.get('from') or ids.local_day(), qs.get('to') or ids.local_day()
-            d = {'summary': reports.summary(db, f, t, can_cost), 'series': reports.daily_series(db, int(qs.get('days', 30)), can_cost),
+            d = {'summary': reports.summary(db, f, t, can_cost), 'series': reports.daily_series(db, qint(qs, 'days', 30, 1, 366), can_cost),
                  'by_category': reports.by_group(db, f, t, 'category', can_cost), 'by_brand': reports.by_group(db, f, t, 'brand', can_cost),
                  'by_product': reports.by_group(db, f, t, 'product', can_cost, 30), 'by_user': reports.by_group(db, f, t, 'user', can_cost),
                  'year': reports.year_turnover(db), 'balances': reports.balances(db)}
@@ -479,10 +479,10 @@ class Handler(BaseHTTPRequestHandler):
                 d['slow'] = stock.slow_movers(db, 60, 15)
         elif path == '/api/watch':
             ctx.need('watch.view')
-            d = reports.watch(db, int(qs.get('days', 7)), qs.get('all') == '1')
+            d = reports.watch(db, qint(qs, 'days', 7, 1, 400), qs.get('all') == '1')
         elif path == '/api/audit':
             ctx.need('audit.view')
-            d = db.all('SELECT * FROM audit ORDER BY at DESC LIMIT ?', min(int(qs.get('limit', 300)), 2000))
+            d = db.all('SELECT * FROM audit ORDER BY at DESC LIMIT ?', qint(qs, 'limit', 300, 1, 2000))
         elif path == '/api/users':
             ctx.need('users.manage')
             d = {'users': [auth_mod.public(x) for x in db.all('SELECT * FROM users ORDER BY active DESC, full_name')],
@@ -664,6 +664,15 @@ class Handler(BaseHTTPRequestHandler):
             hits.append(now)
         APP.failed_ips[ip] = hits
         return len(hits) >= 20
+
+
+def qint(qs, name, default, low, high):
+    """A whole number from the address bar, kept inside sane bounds (a huge `days` must not hang the shop PC)."""
+    try:
+        value = int(qs.get(name, default))
+    except (TypeError, ValueError):
+        value = default
+    return max(low, min(high, value))
 
 
 def _is_private_ip(host):

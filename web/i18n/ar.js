@@ -49,7 +49,7 @@ export default {
   'lic.howTitle': 'إزاي تاخد كود التشغيل', 'lic.how1': 'انسخ «رقم الجهاز» اللي هنا.', 'lic.how2': 'ابعته للشركة على واتساب.',
   'lic.how3': 'هيوصلك كود طويل. انسخه زي ما هو.', 'lic.how4': 'الصقه في المربع ودوس «شغّل بالكود». النسخة التجريبية مدتها أسبوعين.',
   'lic.safe': 'الكود مربوط بالجهاز ده بس، ومحدش يقدر يغيّر مدته. ولو المدة خلصت بياناتك مش بتتمسح ولا بتتقفل.',
-  'lic.err.generic': 'الكود ده مش شغال على الجهاز ده.', 'lic.err.other_device': 'الكود ده متعمل لجهاز تاني. ابعت «رقم الجهاز» ده للشركة.',
+  'lic.err.no_code': 'اكتب الكود الأول.', 'lic.err.generic': 'الكود ده مش شغال على الجهاز ده.', 'lic.err.other_device': 'الكود ده متعمل لجهاز تاني. ابعت «رقم الجهاز» ده للشركة.',
   'lic.err.expired': 'الكود ده مدته خلصت. اطلب كود جديد.', 'lic.err.bad_signature': 'في حرف غلط في الكود. انسخه تاني زي ما هو بالظبط.',
   'lic.err.wrong_length': 'الكود ناقص أو زيادة. انسخه كامل.', 'lic.err.bad_character': 'فيه رموز غريبة في الكود. انسخه تاني.',
   'lic.err.unknown_key': 'الكود ده مش من الشركة.', 'lic.err.wrong_product': 'الكود ده لبرنامج تاني.', 'lic.err.no_keys': 'البرنامج مش متظبط بمفتاح الشركة. كلّم الدعم.',
@@ -180,7 +180,7 @@ export default {
   'cash.openedAt': 'اتفتحت', 'cash.closedAt': 'اتقفلت', 'cash.noShifts': 'مفيش ورديات لسه', 'cash.shift': 'وردية', 'cash.safeBalance': 'في الخزنة الرئيسية',
   'cash.withdraw': 'سحب', 'cash.deposit': 'إيداع', 'cash.financeDue': 'عند شركات التقسيط', 'cash.settle': 'وصلت الفلوس', 'cash.noFinanceDue': 'مفيش فلوس عند شركات التقسيط.',
   'cash.settleText': 'الشركة حوّلت {m}؟', 'cash.safeMoves': 'حركة الخزنة',
-  'cashk.float': 'فكة', 'cashk.sale': 'بيع', 'cashk.collection': 'تحصيل', 'cashk.deposit': 'إيداع', 'cashk.drop_in': 'توريد', 'cashk.drop_out': 'توريد للخزنة',
+  'cashk.float_out': 'عهدة للدرج', 'cashk.float': 'فكة', 'cashk.sale': 'بيع', 'cashk.collection': 'تحصيل', 'cashk.deposit': 'إيداع', 'cashk.drop_in': 'توريد', 'cashk.drop_out': 'توريد للخزنة',
   'cashk.over_short': 'فرق عدّ', 'cashk.expense': 'مصروف', 'cashk.refund': 'مرتجع', 'cashk.supplier': 'مورد', 'cashk.purchase': 'شرا', 'cashk.withdraw': 'سحب', 'cashk.reversal': 'عكس',
   'exp.rent': 'إيجار', 'exp.electricity': 'كهربا', 'exp.salaries': 'مرتبات', 'exp.transport': 'نقل وتوصيل', 'exp.maintenance': 'صيانة', 'exp.hospitality': 'ضيافة', 'exp.other': 'تاني',
 
@@ -264,7 +264,7 @@ export default {
   'err.tooBig': 'الرقم كبير زيادة. اتأكد منه.', 'err.totalChanged': 'مبلغ التقسيط اتغير. راجع الإجمالي تاني.', 'err.unit': 'الوحدة مش معروفة.', 'err.unknownSetting': 'إعداد مش معروف.',
   'err.zero': 'اكتب المبلغ.',
   'auth.err.disabled': 'الحساب ده موقوف. كلّم صاحب المحل.', 'auth.err.fullName': 'اكتب اسم الشخص.', 'auth.err.lastOwner': 'لازم يفضل صاحب محل واحد على الأقل شغال.',
-  'auth.err.locked': 'محاولات غلط كتير. استنى شوية وجرّب تاني.', 'auth.err.noUser': 'المستخدم مش موجود.', 'auth.err.role': 'الدور مش معروف.',
+  'auth.err.locked': 'محاولات غلط كتير. استنى شوية وجرّب تاني.', 'auth.err.pct': 'حد الخصم رقم من 0 لـ 100.', 'auth.err.noUser': 'المستخدم مش موجود.', 'auth.err.role': 'الدور مش معروف.',
   'auth.err.sameAsName': 'كلمة السر مينفعش تبقى زي اسم المستخدم.', 'auth.err.short': 'كلمة السر لازم تبقى {n} حروف على الأقل.', 'auth.err.taken': 'اسم المستخدم ده موجود فعلًا.',
   'auth.err.username': 'اسم المستخدم من 2 لـ 40 حرف من غير مسافات.', 'auth.err.weak': 'كلمة السر دي سهلة قوي.', 'auth.err.wrong': 'اسم المستخدم أو كلمة السر غلط.',
 };

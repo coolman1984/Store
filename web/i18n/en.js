@@ -49,7 +49,7 @@ export default {
   'lic.howTitle': 'How to get your activation code', 'lic.how1': 'Copy the "Device code" shown here.', 'lic.how2': 'Send it to the vendor on WhatsApp.',
   'lic.how3': 'You receive a long code. Copy it exactly.', 'lic.how4': 'Paste it in the box and press "Activate". The trial lasts two weeks.',
   'lic.safe': 'The code is tied to this PC and nobody can change its dates. When it ends, your data is never deleted or locked.',
-  'lic.err.generic': 'This code does not work on this PC.', 'lic.err.other_device': 'This code was made for another PC. Send this "Device code" to the vendor.',
+  'lic.err.no_code': 'Type the code first.', 'lic.err.generic': 'This code does not work on this PC.', 'lic.err.other_device': 'This code was made for another PC. Send this "Device code" to the vendor.',
   'lic.err.expired': 'This code has ended. Ask for a new one.', 'lic.err.bad_signature': 'A character in the code is wrong. Copy it again exactly.',
   'lic.err.wrong_length': 'The code is incomplete or too long. Copy all of it.', 'lic.err.bad_character': 'The code has unexpected symbols. Copy it again.',
   'lic.err.unknown_key': 'This code is not from the vendor.', 'lic.err.wrong_product': 'This code is for another program.', 'lic.err.no_keys': "The program is not set up with the vendor's key. Contact support.",
@@ -180,7 +180,7 @@ export default {
   'cash.openedAt': 'Opened', 'cash.closedAt': 'Closed', 'cash.noShifts': 'No shifts yet', 'cash.shift': 'Shift', 'cash.safeBalance': 'In the main safe',
   'cash.withdraw': 'Withdraw', 'cash.deposit': 'Deposit', 'cash.financeDue': 'Due from finance companies', 'cash.settle': 'Money received', 'cash.noFinanceDue': 'Finance companies owe nothing.',
   'cash.settleText': 'Did the company transfer {m}?', 'cash.safeMoves': 'Safe moves',
-  'cashk.float': 'Float', 'cashk.sale': 'Sale', 'cashk.collection': 'Collection', 'cashk.deposit': 'Deposit', 'cashk.drop_in': 'Handed in', 'cashk.drop_out': 'To the safe',
+  'cashk.float_out': 'Float to the drawer', 'cashk.float': 'Float', 'cashk.sale': 'Sale', 'cashk.collection': 'Collection', 'cashk.deposit': 'Deposit', 'cashk.drop_in': 'Handed in', 'cashk.drop_out': 'To the safe',
   'cashk.over_short': 'Count difference', 'cashk.expense': 'Expense', 'cashk.refund': 'Refund', 'cashk.supplier': 'Supplier', 'cashk.purchase': 'Purchase', 'cashk.withdraw': 'Withdrawal', 'cashk.reversal': 'Reversal',
   'exp.rent': 'Rent', 'exp.electricity': 'Electricity', 'exp.salaries': 'Salaries', 'exp.transport': 'Transport & delivery', 'exp.maintenance': 'Maintenance', 'exp.hospitality': 'Hospitality', 'exp.other': 'Other',
 
@@ -264,7 +264,7 @@ export default {
   'err.tooBig': 'The number is too big. Check it.', 'err.totalChanged': 'The instalment amount changed. Check the total again.', 'err.unit': 'Unknown unit.', 'err.unknownSetting': 'Unknown setting.',
   'err.zero': 'Write the amount.',
   'auth.err.disabled': 'This account is switched off. Ask the owner.', 'auth.err.fullName': "Write the person's name.", 'auth.err.lastOwner': 'The shop must keep at least one active owner.',
-  'auth.err.locked': 'Too many wrong tries. Wait a few minutes and try again.', 'auth.err.noUser': 'User not found.', 'auth.err.role': 'Unknown role.',
+  'auth.err.locked': 'Too many wrong tries. Wait a few minutes and try again.', 'auth.err.pct': 'The discount limit is a number from 0 to 100.', 'auth.err.noUser': 'User not found.', 'auth.err.role': 'Unknown role.',
   'auth.err.sameAsName': 'The password must not be the user name.', 'auth.err.short': 'Use at least {n} characters.', 'auth.err.taken': 'This user name is already used.',
   'auth.err.username': 'User name: 2 to 40 characters without spaces.', 'auth.err.weak': 'This password is too easy to guess.', 'auth.err.wrong': 'Wrong user name or password.',
 };

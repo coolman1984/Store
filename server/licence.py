@@ -134,7 +134,10 @@ def _check(code, dev, today):
 def activate(db, code):
     """Check a pasted code before saving it. Returns the new status, or raises ValueError with the reason."""
     dev = device(db)
+    code = code if isinstance(code, str) else ''
     result = _check(code, dev, date.fromisoformat(ids.local_day()))
+    if result['state'] == 'none':  # an empty box must never wipe the working code
+        raise ValueError('no_code')
     if result['state'] in ('invalid', 'no_keys'):
         raise ValueError(result['reason'] or 'invalid')
     if result['state'] == 'expired':

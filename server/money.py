@@ -53,7 +53,11 @@ def open_shift(ctx, opening_float):
     ctx.db.insert('shifts', {'id': sid, 'org_id': ctx.org_id, 'branch_id': ctx.branch_id, 'number': number, 'user_id': ctx.uid,
                              'opened_at': ids.iso(), 'opening_float': amount, 'closed_at': None, 'closed_by': None,
                              'expected': None, 'counted': None, 'close_note': ''})
-    if amount:
+    if amount:  # the float is real cash that leaves the safe; if the safe holds less, the owner is adding the rest
+        short = amount - max(safe_balance(ctx.db), 0)
+        if short > 0:
+            cash_move(ctx, 'safe', 'deposit', short, sid, note=number)
+        cash_move(ctx, 'safe', 'float_out', -amount, sid, note=number)
         cash_move(ctx, 'drawer', 'float', amount, sid, note=number)
     ctx.audit('shift.open', 'shift', sid, {'number': number, 'float': amount})
     return sid
@@ -219,6 +223,8 @@ def save_customer(ctx, data):
         old = ctx.db.one('SELECT * FROM customers WHERE id = ?', data['id'])
         if not old:
             raise NotFound('customer')
+        if phone and ctx.db.value('SELECT 1 FROM customers WHERE phone = ? AND active = 1 AND id != ?', phone, data['id']):
+            raise Problem('err.phoneTaken', 'A customer with this phone already exists. Search for them.')
         sets = ', '.join(f'{k} = ?' for k in fields)
         ctx.db.run(f'UPDATE customers SET {sets} WHERE id = ?', *fields.values(), data['id'])
         ctx.audit('customer.edit', 'customer', data['id'], {k: v for k, v in fields.items() if k != 'national_id'})
@@ -387,12 +393,11 @@ def customers_list(db, q='', only='all', limit=200):
     if q:
         where.append('(c.name LIKE ? OR c.phone LIKE ?)')
         args += [f'%{q}%', f'%{q}%']
-    rows = db.all('SELECT c.id, c.name, c.phone, c.address, c.credit_limit, COALESCE((SELECT SUM(amount) FROM ar_entries a '
+    if only == 'owing':  # filtered in SQL: filtering after the LIMIT would hide the owing customers past the first page
+        where.append('COALESCE((SELECT SUM(amount) FROM ar_entries a WHERE a.customer_id = c.id), 0) > 0')
+    return db.all('SELECT c.id, c.name, c.phone, c.address, c.credit_limit, COALESCE((SELECT SUM(amount) FROM ar_entries a '
                   'WHERE a.customer_id = c.id), 0) AS balance, (SELECT MAX(at) FROM sales s WHERE s.customer_id = c.id) AS last_sale '
                   f"FROM customers c WHERE {' AND '.join(where)} ORDER BY c.name LIMIT ?", *args, limit)
-    if only == 'owing':
-        rows = [r for r in rows if r['balance'] > 0]
-    return rows
 
 
 def instalments_due(db, today=None, limit=200):

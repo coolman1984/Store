@@ -32,6 +32,14 @@ class ApiTests(unittest.TestCase):
         c.login(username, PW)
         return c
 
+    def test_activation_and_restore_with_junk_never_crash(self):
+        for junk in (None, 1, 1.5, True, [], ['a'], {}, 'x' * 3000, '\u0000', '0' * 144):
+            for path, body in (('/api/licence/activate', {'code': junk}),
+                               ('/api/backup/restore', {'name': junk, 'password': OWNER[1]})):  # (a wrong password would lock the owner: that is tested apart)
+                st, d, _ = self.owner.post(path, body)
+                self.assertLess(st, 500, (path, str(junk)[:20], d))
+        self.assertEqual(self.owner.get('/api/licence')[1]['state'], 'trial')  # nothing above may wipe the working code
+
     def test_boot_and_security_headers(self):
         st, d, h = self.S.client().get('/api/boot')
         self.assertEqual(st, 200)

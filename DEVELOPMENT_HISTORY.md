@@ -17,6 +17,16 @@ purchase, transfer… It found 20 places where a strange request made the server
 5. Restore wrote the database file in place — a power cut mid-copy could leave half a file. It now copies beside it and swaps
    in one step; the backup name must match the pattern exactly (the old `$` allowed a trailing newline).
 6. Receipt code had an unused variable; one unused import removed.
+7. **Empty code wiped the licence:** pressing "Activate" with an empty box saved an empty code over the working one and locked
+   the shop. An empty box is now refused ("type the code first"); the factory's code reader also refuses non-text input.
+8. **The safe grew from nothing:** a shift's opening float appeared in the drawer without leaving the safe, so every shift
+   inflated the safe by the float. Now the float comes out of the safe (if the safe holds less, the owner is adding the rest).
+9. **Stock count + a sale = false surplus:** a product sold after it was counted turned into a phantom +N when the count was
+   closed. "Expected" is now what the books said at the moment of counting.
+10. **"Owing customers" list hid people past the 200th:** the filter ran after the page limit; now it runs in the query.
+11. A serial written on two lines of one purchase put one piece in stock twice; a customer's phone could be duplicated by
+    editing; the daily profit chart ignored the cost of returned goods (the summary did not); huge `days`/`limit` in the
+    address could hang the PC (now clamped).
 
 **Lesson:** validate at the edge, once (`core.whole / rows / obj / day`, `db._plain`), then let the rules work with clean
 data. The junk test costs 40 s and is worth keeping in every product (factory QA-01).

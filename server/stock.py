@@ -4,6 +4,7 @@ Stock is never stored: it is the sum of append-only moves. A serial number's sta
 Receiving updates the moving average cost (append-only cost history) so profit uses the real cost of goods.
 """
 import json
+import math
 from datetime import timedelta
 
 import catalog
@@ -106,13 +107,16 @@ def receive(ctx, data):
     if not lines or len(lines) > 500:
         raise Problem('err.noLines', 'Add at least one product.')
     pid = ids.uuid7()
-    total, prepared = 0, []
+    total, prepared, seen = 0, [], set()
     for line in lines:
         product = catalog.find(ctx.db, line.get('product_id'))
         qty = quantity(line.get('qty'), product['fractional'])
         cost = money(line.get('unit_cost'), 'unit_cost')
         serials = _serials(line.get('serials'), qty, product)
         for s in serials:
+            if s in seen:  # the same serial on two lines of one invoice would put one piece in stock twice
+                raise Problem('err.serialTwice', 'The same serial number is written twice.')
+            seen.add(s)
             st = serial_state(ctx.db, s)
             if st and st['in_stock']:
                 raise Problem('err.serialInStock', f'Serial {s} is already in stock.', serial=s)
@@ -216,6 +220,8 @@ def count_line(ctx, count_id, product_id, counted):
     if not c or c['closed_at']:
         raise Problem('err.countClosed', 'This count is closed.')
     product = catalog.find(ctx.db, product_id)
+    if isinstance(counted, bool) or not isinstance(counted, (int, float)) or not math.isfinite(counted):
+        raise Problem('err.qty', 'Write the number you counted.')
     counted = float(counted)
     if counted < 0 or (not product['fractional'] and counted != int(counted)):
         raise Problem('err.qty', 'Write the number you counted.')
@@ -228,8 +234,11 @@ def count_view(db, count_id, can_cost=False):
     c = db.one('SELECT c.*, l.name AS location FROM counts c JOIN locations l ON l.id = c.location_id WHERE c.id = ?', count_id)
     if not c:
         raise NotFound('count')
+    # "expected" is what the books said at the moment this product was counted: a sale made after counting it
+    # must not turn into a false surplus when the count is closed
     rows = db.all('SELECT p.id, p.sku, p.name, p.unit, pl.shelf, ROUND(COALESCE((SELECT SUM(qty) FROM stock_moves m WHERE '
-                  'm.product_id = p.id AND m.location_id = ?), 0), 3) AS expected, cl.counted FROM products p '
+                  'm.product_id = p.id AND m.location_id = ? AND (cl.at IS NULL OR m.at <= cl.at)), 0), 3) AS expected, '
+                  'cl.counted FROM products p '
                   'LEFT JOIN count_lines cl ON cl.count_id = ? AND cl.product_id = p.id '
                   'LEFT JOIN places pl ON pl.product_id = p.id AND pl.location_id = ? '
                   'WHERE p.active = 1 OR cl.counted IS NOT NULL ORDER BY pl.shelf IS NULL, pl.shelf, p.name',
