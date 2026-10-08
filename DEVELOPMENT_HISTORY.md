@@ -1,5 +1,18 @@
 # Development history (newest first)
 
+## 2026-10-08 — 1.0.1 measured by the factory's UI Lab
+**What:** every main page measured cold, with the CPU slowed ×4 (an old shop PC), at 1366 px and 390 px: first paint
+~0.35–0.45 s, LCP ≤ 1.1 s (products on a phone 2.1 s), CLS ≤ 0.01, no long blocking, 30–60 fps while scrolling, zero serious
+accessibility findings, ≤ 53 kB JavaScript per page. Report: docs/ui-lab/REPORT.md.
+
+**Fixed because the lab found it:** grey hint text (`--ink-3`) was 3.9:1 contrast → darkened to 5.2:1; an icon-only button had no
+name; sideways-scrolling tables were not reachable by keyboard; two navigation landmarks had the same name; the counter had no
+page heading; on phones the receipt jumped down while results loaded (CLS 0.57 → 0) — results now scroll inside their own
+area; backdrop blur on the side rail and top bar cost ~20 ms a frame → replaced by an opaque gradient.
+
+**Lesson:** a design that "looks premium" in a screenshot can still be slow and unreadable; the factory now measures both
+before a release (factory PERF-01, A11Y-01).
+
 ## 2026-10-08 — 1.0.0 pilot core
 **What:** first version of Al-Store, built with the Apps Factory: research, spec, stdlib server, SQLite ledger, new design system,
 licence codes from the factory's Licence Studio, practice shop, 63 automated checks including real-browser journeys.

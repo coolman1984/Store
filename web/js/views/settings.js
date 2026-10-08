@@ -13,7 +13,7 @@ export default async function view(page, params) {
   const tabs = TABS.filter(([, , p]) => !p || can(p));
   const tab = tabs.find(([k]) => k === params.tab)?.[0] || tabs[0][0];
   put(page, html`<div class="page-head"><div class="titles"><h1>${t('nav.settings')}</h1><p>${t('settings.sub')}</p></div></div>
-    <nav class="tabs">${tabs.map(([k, ic]) => html`<a href="#/settings?tab=${k}" ${tab === k ? CUR : ''}>${icon(ic)}${t('settings.tab.' + k)}</a>`)}</nav><div id="set-body">${skeleton(5)}</div>`);
+    <nav class="tabs" data-lab-scroll>${tabs.map(([k, ic]) => html`<a href="#/settings?tab=${k}" ${tab === k ? CUR : ''}>${icon(ic)}${t('settings.tab.' + k)}</a>`)}</nav><div id="set-body">${skeleton(5)}</div>`);
   const body = $('#set-body', page);
   const again = () => view(page, params);
   ({ shop, licence, users, places, backup, device })[tab](body, again);

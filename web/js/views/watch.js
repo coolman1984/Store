@@ -25,7 +25,7 @@ export default async function view(page, params) {
           <div><b>${t('watch.k.' + i.kind, { ...i.detail, amount: money(i.amount) })}</b>
           <div class="small muted">${date(i.at, true)}${i.who ? ' · ' + i.who : ''}${i.detail.reason ? ' · ' + i.detail.reason : ''}${i.detail.note ? ' · ' + i.detail.note : ''}${i.detail.approver ? ' · ' + t('sales.approvedBy', { n: i.detail.approver }) : ''}
           ${i.reviewed ? html` · <span class="badge ok">${t('watch.seenBy', { note: i.reviewed.note })}</span>` : ''}</div></div>
-          <div class="row">${i.amount ? html`<b class="money num">${money(i.amount)}</b>` : ''}${i.ref?.sale ? html`<button class="btn sm ghost" data-sale="${i.ref.sale}">${icon('receipt')}</button>` : ''}
+          <div class="row">${i.amount ? html`<b class="money num">${money(i.amount)}</b>` : ''}${i.ref?.sale ? html`<button class="btn sm ghost" data-sale="${i.ref.sale}" aria-label="${t('sales.openInvoice')}">${icon('receipt')}</button>` : ''}
           ${i.reviewed ? '' : html`<button class="btn sm" data-seen="${i.key}">${icon('check')}${t('watch.seen')}</button>`}</div></div>`)}</div>`);
       $$('[data-sale]', box).forEach((b) => b.addEventListener('click', () => saleFile(b.dataset.sale)));
       $$('[data-seen]', box).forEach((b) => b.addEventListener('click', () => open({

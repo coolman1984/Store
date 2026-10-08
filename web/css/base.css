@@ -5,7 +5,7 @@ body { margin: 0; font-family: var(--font-ui); line-height: var(--lh); color: va
   font-feature-settings: "tnum" 1, "lnum" 1; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased;
   min-height: 100dvh; overflow-x: hidden; }
 body::before { /* the showroom floor: two soft lights and a fine grain made of gradients only */
-  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; transform: translateZ(0); /* own layer: no repaint on scroll */
   background:
     radial-gradient(60rem 40rem at 85% -10%, color-mix(in oklab, var(--volt) 14%, transparent), transparent 60%),
     radial-gradient(50rem 36rem at -10% 110%, color-mix(in oklab, var(--copper) 10%, transparent), transparent 60%),
@@ -45,16 +45,16 @@ bdi.ltr, .ltr { direction: ltr; unicode-bidi: isolate; }
 .shell { display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); min-height: 100dvh; }
 .rail { position: sticky; inset-block-start: 0; block-size: 100dvh; padding: var(--s-3); z-index: 20; }
 .rail-in { block-size: 100%; display: flex; flex-direction: column; gap: var(--s-1); padding: var(--s-4) var(--s-3);
-  border-radius: var(--r-xl); background: var(--glass-dark); color: #e9ecef; box-shadow: var(--shadow-3);
-  -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3); overflow-y: auto; scrollbar-width: none; }
+  border-radius: var(--r-xl); background: linear-gradient(170deg, #1a1f26, #0f1317); color: #e9ecef; box-shadow: var(--shadow-3);
+  overflow-y: auto; scrollbar-width: none; contain: layout paint; }  /* no backdrop blur: it costs 20 ms a frame on an old PC (UI Lab) */
 .brand { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-1) var(--s-2) var(--s-4); }
 .brand-mark { inline-size: 40px; block-size: 40px; border-radius: 13px; display: grid; place-items: center; color: var(--volt-ink);
   background: linear-gradient(140deg, var(--volt), #9fd60f); box-shadow: 0 6px 22px -6px var(--volt-glow), inset 0 1px 0 rgb(255 255 255 / .6); }
 .brand-mark .i { inline-size: 22px; block-size: 22px; stroke-width: 2; }
 .brand-name { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; letter-spacing: -.02em; }
-.brand-shop { font-size: var(--fs-xs); color: #9aa3ad; max-inline-size: 140px; }
+.brand-shop { font-size: var(--fs-xs); color: #a9b2bc; max-inline-size: 140px; }
 .nav { display: grid; gap: 2px; }
-.nav-label { font-size: var(--fs-xs); color: #7d8792; padding: var(--s-3) var(--s-3) var(--s-1); letter-spacing: .02em; }
+.nav-label { font-size: var(--fs-xs); color: #9ea8b3; padding: var(--s-3) var(--s-3) var(--s-1); letter-spacing: .02em; }
 .nav a { position: relative; display: flex; align-items: center; gap: var(--s-3); min-block-size: 40px; padding: 0 var(--s-3);
   border-radius: var(--r-md); text-decoration: none; color: #c3cad2; transition: background var(--t-fast), color var(--t-fast); }
 .nav a:hover { background: rgb(255 255 255 / .06); color: #fff; }
@@ -75,8 +75,7 @@ bdi.ltr, .ltr { direction: ltr; unicode-bidi: isolate; }
 .main { min-width: 0; display: flex; flex-direction: column; }
 .top { position: sticky; inset-block-start: 0; z-index: 15; display: flex; align-items: center; gap: var(--s-3);
   padding: var(--s-3) var(--s-6) var(--s-3) var(--s-4); min-block-size: var(--top-h); }
-.top::before { content: ""; position: absolute; inset: 0; z-index: -1; background: color-mix(in oklab, var(--canvas) 72%, transparent);
-  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); mask-image: linear-gradient(to bottom, #000 70%, transparent); }
+.top::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(to bottom, var(--canvas) 65%, transparent); }
 .search-pill { display: flex; align-items: center; gap: var(--s-2); flex: 1 1 auto; min-width: 0; max-inline-size: 520px; min-block-size: 42px;
   padding: 0 var(--s-4); border-radius: var(--r-pill); background: var(--surface); box-shadow: var(--shadow-1); color: var(--ink-3);
   border: 1px solid var(--line); cursor: text; text-align: start; }
@@ -132,7 +131,7 @@ button.chip { cursor: pointer; }
 
 /* ---------------------------------------------------------------- surfaces */
 .card { position: relative; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-2);
-  border: 1px solid var(--line); padding: var(--s-5); min-width: 0; isolation: isolate; }
+  border: 1px solid var(--line); padding: var(--s-5); min-width: 0; isolation: isolate; contain: layout; }
 .card.flat { box-shadow: var(--shadow-1); }
 .card.pad-0 { padding: 0; overflow: hidden; }
 .card > .card-head { display: flex; align-items: center; gap: var(--s-2); margin-block-end: var(--s-4); min-width: 0; }
@@ -141,7 +140,8 @@ button.chip { cursor: pointer; }
   content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; opacity: 0; transition: opacity var(--t-base);
   background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), color-mix(in oklab, var(--volt) 16%, transparent), transparent 45%); }
 .card.spot:hover::after { opacity: 1; }
-.tilt { transform-style: preserve-3d; transition: transform var(--t-slow) var(--ease-out), box-shadow var(--t-base); will-change: transform; }
+.tilt { transform-style: preserve-3d; transition: transform var(--t-slow) var(--ease-out), box-shadow var(--t-base); }
+.tilt:hover { will-change: transform; }
 .tilt:hover { box-shadow: var(--shadow-3); }
 .ink-card { background: linear-gradient(160deg, #1b2027, #0f1216); color: #eef0f2; border-color: rgb(255 255 255 / .06); }
 .ink-card .muted { color: #a4adb7; }

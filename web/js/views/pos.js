@@ -43,15 +43,15 @@ export default async function view(page) {
     return;
   }
   const cats = S.lookups?.categories || [];
-  put(page, html`<div class="pos">
+  put(page, html`<h1 class="sr">${t('nav.pos')}</h1><div class="pos">
     <section class="pos-catalog">
       <div class="pos-search card flat">
         ${icon('barcode')}<input id="pos-q" class="input" autocomplete="off" placeholder="${t('pos.search')}" aria-label="${t('pos.search')}"
           aria-controls="pos-results" aria-autocomplete="list"><span class="kbd hide-phone">F2</span>
       </div>
-      <div class="pos-cats" id="pos-cats"><button class="chip" aria-pressed="true" data-cat="">${t('pos.all')}</button>
+      <div class="pos-cats" id="pos-cats" data-lab-scroll><button class="chip" aria-pressed="true" data-cat="">${t('pos.all')}</button>
         ${cats.map((c) => html`<button class="chip" aria-pressed="false" data-cat="${c.id}">${c.name}</button>`)}</div>
-      <div class="pos-results" id="pos-results" role="listbox" aria-label="${t('pos.results')}"></div>
+      <div class="pos-results" id="pos-results" data-lab-scroll role="listbox" aria-label="${t('pos.results')}">${Array.from({ length: 8 }, () => html`<div class="tile sk"></div>`)}</div>
     </section>
     <aside class="pos-cart" aria-label="${t('pos.cart')}">
       <div class="paper">

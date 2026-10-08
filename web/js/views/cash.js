@@ -9,7 +9,7 @@ export default async function view(page, params) {
   const tabs = [['drawer', 'cash', can('pos.sell') || can('cash.expense')], ['shifts', 'clock', can('shifts.manage')], ['safe', 'safe', can('cash.safe')]].filter((x) => x[2]);
   const tab = tabs.find((x) => x[0] === params.tab)?.[0] || tabs[0]?.[0];
   put(page, html`<div class="page-head"><div class="titles"><h1>${t('nav.cash')}</h1><p>${t('cash.sub')}</p></div></div>
-    <nav class="tabs">${tabs.map(([k, ic]) => html`<a href="#/cash?tab=${k}" ${tab === k ? CUR : ''}>${icon(ic)}${t('cash.tab.' + k)}</a>`)}</nav><div id="cash-body"></div>`);
+    <nav class="tabs" data-lab-scroll>${tabs.map(([k, ic]) => html`<a href="#/cash?tab=${k}" ${tab === k ? CUR : ''}>${icon(ic)}${t('cash.tab.' + k)}</a>`)}</nav><div id="cash-body"></div>`);
   const body = $('#cash-body', page);
   const again = () => view(page, params);
   if (tab === 'shifts') return shifts(body);

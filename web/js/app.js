@@ -29,7 +29,11 @@ export const can = (...perms) => !!S.me && perms.some((p) => S.me.perms.includes
 const allowed = (r) => !ROUTES[r].perm || can(...ROUTES[r].perm);
 export const fmtCount = (v, f) => (f === 'money' ? money(v, { whole: true }) : new Intl.NumberFormat('en-US').format(v));
 /** call after a view puts content that arrived later (numbers count up, cards get depth, bars get their width) */
-export const settle = (el) => after(el, fmtCount);
+export const settle = (el) => { after(el, fmtCount); scrollables(el); };
+/** a table that scrolls sideways must be reachable by keyboard (WCAG 2.1.1) */
+function scrollables(root) {
+  root.querySelectorAll('.table-wrap').forEach((w) => { if (!w.hasAttribute('tabindex')) { w.tabIndex = 0; w.setAttribute('role', 'region'); w.setAttribute('aria-label', t('a11y.table')); } });
+}
 
 export function go(route, params = {}) {
   const q = new URLSearchParams(params).toString();
@@ -200,7 +204,7 @@ function renderShell() {
       <div id="banners"></div>
       <main class="page" id="page" tabindex="-1"></main>
     </div>
-    <nav class="dock" aria-label="${t('nav.main')}">${['home', 'pos', 'sales', 'customers'].filter(allowed).map((r) =>
+    <nav class="dock" aria-label="${t('nav.quick')}">${['home', 'pos', 'sales', 'customers'].filter(allowed).map((r) =>
       html`<a href="#/${r}" data-route="${r}">${icon(ROUTES[r].icon)}<span>${t('nav.' + r)}</span></a>`)}
       <a href="#" data-more>${icon('dots-grid')}<span>${t('nav.more')}</span></a></nav>
   </div>`);
@@ -279,7 +283,7 @@ async function route() {
     return mod.default(page, S.params);
   });
   if (current !== token) return;
-  after(page, fmtCount);
+  settle(page);
   page.focus({ preventScroll: true });
   window.scrollTo({ top: 0 });
   document.title = t('nav.' + name) + ' · ' + t('app.name');

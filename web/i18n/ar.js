@@ -7,6 +7,7 @@ export default {
   'nav.main': 'القايمة الرئيسية', 'nav.more': 'المزيد', 'nav.pos': 'البيع', 'nav.home': 'النهارده', 'nav.sales': 'المبيعات', 'nav.customers': 'العملاء والأقساط',
   'nav.products': 'الأصناف والأسعار', 'nav.stock': 'المخزن والرفوف', 'nav.receive': 'استلام بضاعة', 'nav.cash': 'الخزنة والوردية', 'nav.watch': 'عين صاحب المحل',
   'nav.reports': 'التقارير', 'nav.settings': 'الإعدادات', 'nav.help': 'المساعدة',
+  'nav.quick': 'الوصول السريع', 'a11y.table': 'جدول (اسحب للجنب)',
   'nav.g.sell': 'البيع والعملاء', 'nav.g.goods': 'البضاعة', 'nav.g.money': 'الفلوس والمتابعة', 'nav.g.shop': 'المحل',
 
   'act.ok': 'تمام', 'act.cancel': 'إلغاء', 'act.close': 'إغلاق', 'act.save': 'حفظ', 'act.edit': 'تعديل', 'act.remove': 'شيل', 'act.apply': 'تطبيق', 'act.back': 'رجوع',

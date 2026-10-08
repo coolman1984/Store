@@ -12,7 +12,7 @@ export default async function view(page, params) {
   const tab = params.tab === 'warranty' ? 'warranty' : 'list';
   put(page, html`<div class="page-head"><div class="titles"><h1>${t('nav.sales')}</h1><p>${t('sales.sub')}</p></div>
     <div class="actions">${can('pos.sell') ? html`<a class="btn volt" href="#/pos">${icon('cart')}${t('home.newSale')}</a>` : ''}</div></div>
-    <nav class="tabs"><a href="#/sales" ${tab === 'list' ? CUR : ''}>${icon('receipt')}${t('sales.tab.list')}</a>
+    <nav class="tabs" data-lab-scroll><a href="#/sales" ${tab === 'list' ? CUR : ''}>${icon('receipt')}${t('sales.tab.list')}</a>
     <a href="#/sales?tab=warranty" ${tab === 'warranty' ? CUR : ''}>${icon('shield')}${t('sales.tab.warranty')}</a></nav>
     <div id="sales-body"></div>`);
   const body = $('#sales-body', page);
