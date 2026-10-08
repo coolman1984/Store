@@ -35,7 +35,12 @@ purchase, transfer… It found 20 places where a strange request made the server
     payment now keeps its key so "press Pay again after a lost answer" can never sell twice; the instalment quote is awaited
     before paying; the cart is cleared at sign-out; dialogs no longer steal focus 30 ms after opening (it moved typed text
     from the password box into the user-name box — caught as a 1-in-4 flaky test).
-14. **New:** Windows installer pipeline, opt-in support heartbeat, Code 128 barcode on the receipt and sticker labels.
+14. **Backups:** the safety copy made before every restore (`…-before-restore.db`) did not match the file-name pattern, so it
+    was never listed, could not be restored from the page and was never cleaned; two copies in the same second overwrote each
+    other (a restore right after a backup destroyed the safety copy); the USB copy could be left half-written under a real name.
+    Fixed, and a restore round trip over HTTP (backup → change → restore → restore the safety copy) is now a test.
+15. A product's serial tracking could be switched on or off after goods were received (pieces without serials); now locked.
+16. **New:** Windows installer pipeline, opt-in support heartbeat, Code 128 barcode on the receipt and sticker labels.
 
 **Lesson:** validate at the edge, once (`core.whole / rows / obj / day`, `db._plain`), then let the rules work with clean
 data. The junk test costs 40 s and is worth keeping in every product (factory QA-01).

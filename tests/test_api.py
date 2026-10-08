@@ -141,6 +141,34 @@ class ApiTests(unittest.TestCase):
         self.assertNotIn(b'import', _ if isinstance(_, bytes) else b'')
 
 
+class RestoreTests(unittest.TestCase):
+    """A backup that cannot be restored is not a backup: the whole round trip over HTTP, with the safety copy."""
+
+    def test_restore_brings_back_the_data_and_keeps_a_listed_safety_copy(self):
+        S = Server()
+        try:
+            c = S.client()
+            c.login()
+            st, a, _ = c.post('/api/product/save', {'name': 'Before backup', 'retail': 10000})
+            self.assertEqual(st, 200, a)
+            st, b, _ = c.post('/api/backup/now')
+            self.assertEqual(st, 200, b)
+            c.post('/api/product/save', {'name': 'After backup', 'retail': 20000})
+            self.assertGreaterEqual(c.post('/api/backup/restore', {'name': b['name'], 'password': 'wrong'})[0], 400)  # step-up: the owner types the password
+            st, d, _ = c.post('/api/backup/restore', {'name': b['name'], 'password': OWNER[1]})
+            self.assertEqual(st, 200, d)
+            names = [p['name'] for p in c.get('/api/products?q=backup')[1]['items']]
+            self.assertEqual(names, ['Before backup'])
+            st, settings, _ = c.get('/api/settings')
+            safety = [x['name'] for x in settings['backups'] if 'before-restore' in x['name']]
+            self.assertTrue(safety, 'the copy made before the restore must be listed')
+            self.assertEqual(c.post('/api/backup/restore', {'name': safety[0], 'password': OWNER[1]})[0], 200)  # and it can be restored
+            names = sorted(p['name'] for p in c.get('/api/products?q=backup')[1]['items'])
+            self.assertEqual(names, ['After backup', 'Before backup'])
+        finally:
+            S.stop()
+
+
 @unittest.skipUnless(HAVE_CRYPTO, 'cryptography is needed to sign test licence codes')
 class LicenceGateTests(unittest.TestCase):
     def setUp(self):

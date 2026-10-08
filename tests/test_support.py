@@ -5,7 +5,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from harness import OWNER, Server
+from harness import Server
 import support
 
 SEEN = []

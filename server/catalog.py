@@ -80,6 +80,14 @@ def _sku(ctx):
     return f'{n:05d}'
 
 
+def _reorder(value):
+    if value is None or value == '':
+        return 0.0
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value or value < 0 or value > 1_000_000:
+        raise Problem('err.qty', 'Quantity must be a number.')
+    return float(value)
+
+
 def save_product(ctx, data):
     """Create (no id) or edit a product. Prices given here start today."""
     ctx.need('products.edit')
@@ -98,7 +106,7 @@ def save_product(ctx, data):
         'fractional': 1 if data.get('fractional', old and old['fractional']) else 0,
         'track_serial': 1 if data.get('track_serial', old and old['track_serial']) else 0,
         'warranty_months': max(0, min(120, whole(data.get('warranty_months', old['warranty_months'] if old else 0), 'warranty_months'))),
-        'reorder_level': max(0.0, float(data.get('reorder_level', old['reorder_level'] if old else 0) or 0)),
+        'reorder_level': _reorder(data.get('reorder_level', old['reorder_level'] if old else 0)),
         'notes': text(data.get('notes', old and old['notes']), 'notes', 500),
         'category_id': _name_table(ctx, 'categories', data['category']) if data.get('category') else (old and old['category_id']),
         'brand_id': _name_table(ctx, 'brands', data['brand']) if data.get('brand') else (old and old['brand_id']),
@@ -106,6 +114,9 @@ def save_product(ctx, data):
     }
     if row['track_serial'] and row['fractional']:
         raise Problem('err.serialFraction', 'A product with serial numbers is sold in whole pieces.')
+    if old and row['track_serial'] != old['track_serial'] and ctx.db.value('SELECT 1 FROM stock_moves WHERE product_id = ? LIMIT 1', pid):
+        # switching it on or off after goods were received would leave pieces without a serial (or serials without a piece)
+        raise Problem('err.serialLocked', 'Serial numbers cannot be switched on or off after goods were received.', 409)
     codes = _clean_barcodes(ctx, data.get('barcodes'), pid) if 'barcodes' in data else None
     sku = text(data.get('sku'), 'sku', 30)
     if old:

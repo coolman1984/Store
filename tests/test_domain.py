@@ -370,6 +370,22 @@ class StockTests(Base):
         self.assertEqual(stock.on_hand(self.s.db, pid), 8)  # the books stay right: no phantom +2
 
 
+class ProductTests(Base):
+    def test_serial_tracking_cannot_change_once_goods_were_received(self):
+        pid = self.s.product('Fan', qty=3)
+        with self.assertRaises(Problem) as e:
+            self.s.do(catalog.save_product, {'id': pid, 'track_serial': True})
+        self.assertEqual(e.exception.key, 'err.serialLocked')
+        fresh = self.s.product('New fan', qty=0)
+        self.s.do(catalog.save_product, {'id': fresh, 'track_serial': True})  # nothing received yet: fine
+
+    def test_reorder_level_must_be_a_number(self):
+        pid = self.s.product('Fan2', qty=0)
+        for junk in ('abc', [1], {}, True, -1, float('nan')):
+            with self.assertRaises(Problem):
+                self.s.do(catalog.save_product, {'id': pid, 'reorder_level': junk})
+
+
 class PriceTests(Base):
     def test_bulk_price_preview_apply_and_dated_start(self):
         a = self.s.product('A', retail=123400, brand='Fresh')

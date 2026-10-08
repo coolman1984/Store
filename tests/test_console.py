@@ -4,8 +4,10 @@ import io
 import sys
 import unittest
 
-import harness  # noqa: F401  (puts server/ on the path)
+from harness import ROOT
 import app
+
+assert ROOT  # importing harness puts server/ on the path
 
 
 class Ascii(io.TextIOBase):
