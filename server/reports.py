@@ -9,7 +9,7 @@ from datetime import timedelta
 import ids
 import money as cash
 import stock
-from core import settings
+from core import settings, text
 
 
 def _range(day_from, day_to):
@@ -182,7 +182,8 @@ def watch(db, days=7, include_reviewed=False):
 
 def review(ctx, key, note):
     ctx.need('watch.view')
-    note = (note or '').strip()[:300] or '✓'
+    key = text(key, 'item', 120, True)
+    note = text(note, 'note', 300) or '✓'
     ctx.db.run('INSERT INTO watch_reviews(item, note, at, by_user) VALUES (?, ?, ?, ?) ON CONFLICT(item) DO UPDATE SET '
                'note = excluded.note, at = excluded.at, by_user = excluded.by_user', key, note, ids.iso(), ctx.uid)
     ctx.audit('watch.review', 'watch', key, {'note': note})

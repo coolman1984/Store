@@ -280,10 +280,12 @@ def instalment_amount(financed, months):
 
 def create_plan(ctx, sale_id, customer_id, financed, months, first_due, guarantor, at):
     cfg = settings(ctx.db)
-    months = int(months or 0)
+    from core import whole
+    months = whole(months, 'months')
     if not 1 <= months <= int(cfg['max_instalment_months']):
         raise Problem('err.months', f'Choose 1 to {cfg["max_instalment_months"]} months.', max=cfg['max_instalment_months'])
-    if not first_due or first_due < ids.local_day():
+    from core import day as valid_day
+    if not first_due or valid_day(first_due, 'first_due') < ids.local_day():
         raise Problem('err.firstDue', 'The first instalment date cannot be in the past.')
     monthly = instalment_amount(financed, months)
     guarantor = guarantor or {}

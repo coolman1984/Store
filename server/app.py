@@ -16,6 +16,7 @@ import logging
 import logging.handlers
 import mimetypes
 import os
+import shutil
 import socket
 import sys
 import threading
@@ -134,7 +135,7 @@ class App:
         return item
 
     def restore(self, name):
-        if not backup.NAME.match(name or ''):
+        if not isinstance(name, str) or not backup.NAME.fullmatch(name):
             raise Problem('err.backupName', 'Choose a backup from the list.')
         path = os.path.join(self.backup_dir, name)
         if not os.path.exists(path) or not backup.check(path):
@@ -150,8 +151,12 @@ class App:
                     os.remove(target + suffix)
                 except OSError:
                     pass
-            with open(path, 'rb') as src, open(target, 'wb') as dst:
-                dst.write(src.read())
+            staged = target + '.restoring'  # copy beside the database, then swap in one step: a power cut never leaves half a file
+            with open(path, 'rb') as src, open(staged, 'wb') as dst:
+                shutil.copyfileobj(src, dst)
+                dst.flush()
+                os.fsync(dst.fileno())
+            os.replace(staged, target)
             fresh = Database(target, self.backup_dir)
             self.db.conn = fresh.conn
         self.auth = auth_mod.Auth(self.db, self.org_id)
@@ -260,7 +265,10 @@ class Handler(BaseHTTPRequestHandler):
             raise Problem('err.tooLarge', 'The request is too large.', 413)
         n = int(raw)
         data = self.rfile.read(n) if n else b''
-        return json.loads(data.decode('utf-8')) if data else {}
+        parsed = json.loads(data.decode('utf-8')) if data else {}
+        if not isinstance(parsed, dict):
+            raise Problem('err.badRequest', 'The request is not understood.', 400)
+        return parsed
 
     def user(self, touch=True):
         u = APP.auth.session(self.token(), touch)
@@ -296,6 +304,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send(e.status, {'error': str(e), 'key': e.key, 'vars': e.vars})
         except (json.JSONDecodeError, UnicodeDecodeError):
             self.send(400, {'error': 'Bad request.', 'key': 'err.badRequest'})
+        except (ValueError, OverflowError):  # a number or date in the request that cannot be read: calm 400, kept in the log
+            log.warning('BAD INPUT %s\n%s', self.path, traceback.format_exc())
+            self.send(400, {'error': 'A number or date in the request is not valid.', 'key': 'err.badRequest'})
         except (ConnectionError, BrokenPipeError):
             pass
         except Exception as e:  # a bug: log the details on this PC, show a calm message
@@ -636,7 +647,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/settings/save':
             ctx.need('settings.edit')
             changed = {}
-            for key, value in (data.get('settings') or {}).items():
+            for key, value in (data.get('settings') if isinstance(data.get('settings'), dict) else {}).items():
                 core.set_setting(db, key, value)
                 changed[key] = value
             ctx.audit('settings', 'shop', '', changed)

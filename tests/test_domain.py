@@ -222,6 +222,25 @@ class ReturnTests(Base):
         self.assertEqual(stock.on_hand(self.s.db, pid, self.s.damaged), 2)
         self.assertEqual(stock.on_hand(self.s.db, pid), 3)  # damaged pieces are not for sale
 
+    def test_same_line_twice_in_one_return_cannot_refund_twice(self):
+        pid = self.s.product(retail=100000, qty=5)
+        r = sale(self.s, [{'product_id': pid, 'qty': 2}])
+        line = sales.sale_view(self.s.db, r['id'])['lines'][0]
+        with self.assertRaises(Problem) as e:
+            self.s.do(sales.take_return, {'idem_key': 'dbl', 'sale_id': r['id'], 'reason': 'twice', 'refund_method': 'cash',
+                                          'lines': [{'sale_line_id': line['id'], 'qty': 2}, {'sale_line_id': line['id'], 'qty': 2}]})
+        self.assertEqual(e.exception.key, 'err.returnTooMuch')
+        ok = self.s.do(sales.take_return, {'idem_key': 'dbl2', 'sale_id': r['id'], 'reason': 'two halves', 'refund_method': 'cash',
+                                           'lines': [{'sale_line_id': line['id'], 'qty': 1}, {'sale_line_id': line['id'], 'qty': 1}]})
+        self.assertEqual(ok['total'], 200000)  # the two halves add up to exactly what was paid
+
+    def test_bad_setting_values_are_refused(self):
+        import core
+        for key, bad in (('instalment_markup_pct', 'abc'), ('shop_name', 5), ('finance_providers', 'valU'), ('onboarded', 'yes')):
+            with self.assertRaises(Problem, msg=key) as e:
+                core.set_setting(self.s.db, key, bad)
+            self.assertEqual(e.exception.key, 'err.settingType')
+
     def test_cashier_return_needs_approval_by_someone_else(self):
         pid = self.s.product()
         cashier = self.s.user('cashier', 'rc')

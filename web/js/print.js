@@ -23,7 +23,6 @@ const METHOD = (m, p) => t('pay.' + m) + (p ? ` (${p})` : '');
 export function receiptHTML(sale) {
   const cfg = S.lookups?.settings || {};
   const practice = S.boot?.practice;
-  const paidCash = sale.tenders.filter((x) => x.method === 'cash').reduce((a, b) => a + b.amount, 0);
   const warranty = sale.lines.filter((l) => l.warranty_until);
   return html`<div class="rc">
     ${practice ? html`<div class="rc-practice">${t('app.practice')} — ${t('print.notReceipt')}</div>` : ''}

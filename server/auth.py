@@ -186,9 +186,9 @@ class Auth:
     # ---------------------------------------------------------------- login
     def verify(self, username, password):
         """Returns the user or raises AuthError. Locks after MAX_FAILED wrong passwords."""
-        user = self.db.one('SELECT * FROM users WHERE username = ?', (username or '').strip())
+        user = self.db.one('SELECT * FROM users WHERE username = ?', str(username or '').strip())
         if not user:
-            check_password(password or '', _DUMMY)
+            check_password(str(password or ''), _DUMMY)
             raise AuthError('auth.err.wrong', 'Wrong user name or password.')
         now = ids.utcnow()
         if user['locked_until'] and ids.parse(user['locked_until']) > now:

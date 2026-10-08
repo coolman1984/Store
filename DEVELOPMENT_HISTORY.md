@@ -1,5 +1,26 @@
 # Development history (newest first)
 
+## 2026-10-08 — 1.0.2 review round: the junk-input test
+**What:** a new test (`tests/test_fuzz.py`) sends junk to every write route (wrong types, huge numbers, lists where an id
+belongs, bad dates, 1,500-letter texts) — first everywhere at once, then one field at a time inside a valid sale, return,
+purchase, transfer… It found 20 places where a strange request made the server answer "unexpected problem" (500).
+
+**Real bugs fixed:**
+1. **Double refund:** the same sale line written twice in one return request was checked against the old returned quantity,
+   so 2 pieces could be refunded twice. Now each line's earlier rows in the same request count. Test added.
+2. **Poisoned settings:** any value could be saved for any setting (`instalment_markup_pct = "abc"` would crash every later
+   instalment sale). Settings are now type-checked.
+3. A list or object where an id belongs reached SQLite and crashed; huge numbers overflowed SQLite. The database layer now
+   refuses them as bad input (400).
+4. A non-object JSON body, a non-list `lines`, a bad date (`first_due`, report range), `NaN` quantities, bad barcodes, bad
+   warranty/rounding numbers, an empty watch-review key: each now gives a calm, translated message.
+5. Restore wrote the database file in place — a power cut mid-copy could leave half a file. It now copies beside it and swaps
+   in one step; the backup name must match the pattern exactly (the old `$` allowed a trailing newline).
+6. Receipt code had an unused variable; one unused import removed.
+
+**Lesson:** validate at the edge, once (`core.whole / rows / obj / day`, `db._plain`), then let the rules work with clean
+data. The junk test costs 40 s and is worth keeping in every product (factory QA-01).
+
 ## 2026-10-08 — 1.0.1 measured by the factory's UI Lab
 **What:** every main page measured cold, with the CPU slowed ×4 (an old shop PC), at 1366 px and 390 px: first paint
 ~0.35–0.45 s, LCP ≤ 1.1 s (products on a phone 2.1 s), CLS ≤ 0.01, no long blocking, 30–60 fps while scrolling, zero serious

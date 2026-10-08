@@ -238,6 +238,7 @@ export default {
   'help.k.ctrlk': 'Search everything', 'help.k.esc': 'Close',
 
   'err.signIn': 'Please sign in first.', 'err.licence': 'The activation code does not allow changes now. Your data is safe.', 'err.forbidden': 'This action is not in your permissions.',
+  'err.date': 'Write the date as year-month-day (example 2026-10-31).', 'err.number': 'Write a whole number without fractions.', 'err.settingType': 'This setting has a value that does not fit.',
   'err.badRequest': 'The request was not understood. Refresh the page and try again.', 'err.origin': 'The request came from an unknown place and was refused.', 'err.notFound': 'Not found. It may have been removed or the number is wrong.',
   'err.tooLarge': 'The data is too large.', 'err.alreadyReversed': 'This entry was already reversed.', 'err.approverLimit': "This discount is above the approver's limit too.",
   'err.backupBad': 'This copy is damaged. Choose another.', 'err.backupName': 'Choose a copy from the list.', 'err.backupOtherShop': 'This copy belongs to another shop.',

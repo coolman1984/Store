@@ -8,7 +8,7 @@ from datetime import timedelta
 
 import catalog
 import ids
-from core import NotFound, Problem, money, quantity, text
+from core import NotFound, Problem, money, quantity, text, rows
 
 
 def move(ctx, product_id, location_id, qty, kind, ref_type, ref_id, unit_cost=0, serial=None, note='', at=None):
@@ -102,7 +102,7 @@ def receive(ctx, data):
     supplier_id = data.get('supplier_id') or None
     if supplier_id and not ctx.db.value('SELECT 1 FROM suppliers WHERE id = ?', supplier_id):
         raise NotFound('supplier')
-    lines = data.get('lines') or []
+    lines = rows(data.get('lines'))
     if not lines or len(lines) > 500:
         raise Problem('err.noLines', 'Add at least one product.')
     pid = ids.uuid7()
@@ -164,7 +164,7 @@ def transfer(ctx, data):
     src, dst = location(ctx.db, data.get('from_id')), location(ctx.db, data.get('to_id'))
     if src['id'] == dst['id']:
         raise Problem('err.samePlace', 'Choose two different places.')
-    lines = data.get('lines') or []
+    lines = rows(data.get('lines'))
     if not lines:
         raise Problem('err.noLines', 'Add at least one product.')
     tid, at = ids.uuid7(), ids.iso()
