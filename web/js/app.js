@@ -208,7 +208,7 @@ function renderShell() {
       html`<a href="#/${r}" data-route="${r}">${icon(ROUTES[r].icon)}<span>${t('nav.' + r)}</span></a>`)}
       <a href="#" data-more>${icon('dots-grid')}<span>${t('nav.more')}</span></a></nav>
   </div>`);
-  $('[data-logout]').addEventListener('click', async () => { await api.post('/api/logout').catch(() => {}); S.me = null; location.hash = ''; showAuth(); });
+  $('[data-logout]').addEventListener('click', async () => { await api.post('/api/logout').catch(() => {}); S.me = null; try { sessionStorage.removeItem('store.cart'); } catch { /* ignore */ } location.hash = ''; showAuth(); });
   $('[data-cmdk]').addEventListener('click', palette);
   $('[data-theme-toggle]').addEventListener('click', () => {
     const night = document.documentElement.dataset.theme === 'night';

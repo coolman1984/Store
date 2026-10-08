@@ -740,9 +740,9 @@ def serve(app, open_browser=None):
     if not app.practice:
         threading.Thread(target=support.loop, args=(app,), daemon=True).start()
     url = f'http://127.0.0.1:{app.cfg["port"]}/'
-    print(f'{PRODUCT_AR} {VERSION}{" (تدريب)" if app.practice else ""} يعمل الآن: {url}')
+    say(f'{PRODUCT_AR} {VERSION}{" (تدريب)" if app.practice else ""} يعمل الآن: {url}')
     for ip in _lan_ips():
-        print(f'  من الموبايل على نفس الشبكة: http://{ip}:{app.cfg["port"]}/')
+        say(f'  من الموبايل على نفس الشبكة: http://{ip}:{app.cfg["port"]}/')
     if open_browser if open_browser is not None else app.cfg.get('open_browser'):
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:
@@ -753,7 +753,24 @@ def serve(app, open_browser=None):
         httpd.server_close()
 
 
+def say(text):
+    """Print for the person at the console. A Windows console or redirected output may not speak Arabic, and a program started
+    by a double click may have no console at all: neither may ever stop the shop's server."""
+    try:
+        print(text, flush=True)
+    except (UnicodeEncodeError, AttributeError, OSError, ValueError):
+        try:
+            print(text.encode('ascii', 'replace').decode('ascii'), flush=True)
+        except Exception:
+            pass
+
+
 def main(argv=None):
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except (AttributeError, ValueError, OSError):
+            pass
     parser = argparse.ArgumentParser(prog='al-store')
     parser.add_argument('--practice', action='store_true', help='practice shop with sample data')
     parser.add_argument('--home', help='folder for data, backups and config')
@@ -763,7 +780,7 @@ def main(argv=None):
     parser.add_argument('--version', action='store_true')
     args = parser.parse_args(argv)
     if args.version:
-        print(f'{PRODUCT} {VERSION}')
+        say(f'{PRODUCT} {VERSION}')
         return 0
     home = args.home or default_home(args.practice)
     os.makedirs(home, exist_ok=True)
@@ -772,7 +789,7 @@ def main(argv=None):
     try:
         app = build(home, args.practice, args.port, args.host)
     except NewerData:
-        print('هذه البيانات من نسخة أحدث من البرنامج. ثبّت النسخة الأحدث.')
+        say('هذه البيانات من نسخة أحدث من البرنامج. ثبّت النسخة الأحدث.')
         return 2
     serve(app, False if args.no_browser else None)
     return 0

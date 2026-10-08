@@ -12,7 +12,7 @@ import {
 
 const CART_KEY = 'store.cart';
 const PARK_KEY = 'store.parked';
-let cart, results = [], focus = 0, root, searchTimer, lastQuote = null;
+let cart, results = [], focus = 0, root, searchTimer, lastQuote = null, searchSeq = 0, pending = null;
 
 const blankCart = () => ({ lines: [], discount: 0, customer: null, location_id: null, note: '' });
 function loadCart() { try { return JSON.parse(sessionStorage.getItem(CART_KEY)) || blankCart(); } catch { return blankCart(); } }
@@ -22,6 +22,12 @@ const setParked = (v) => { try { localStorage.setItem(PARK_KEY, JSON.stringify(v
 
 const subtotal = () => cart.lines.reduce((a, l) => a + Math.round(l.qty * l.unit_price), 0);
 const total = () => subtotal() - cart.discount;
+// an unfinished payment keeps its key: if the answer was lost and the cashier presses Pay again, the server returns the same sale
+function idemFor(body) {
+  const sig = JSON.stringify(body);
+  if (!pending || pending.sig !== sig) pending = { sig, key: key() };
+  return pending.key;
+}
 const sellable = () => (S.lookups?.locations || []).filter((l) => l.sellable);
 
 export default async function view(page) {
@@ -138,8 +144,10 @@ async function search(q, cat) {
   const catId = cat ?? $('[data-cat][aria-pressed="true"]', root)?.dataset.cat ?? '';
   const box = $('#pos-results', root);
   if (!box) return;
+  const mine = ++searchSeq;  // a slow old answer must never replace a newer one (a scanner could then add the wrong product)
   try {
     const r = await api.get(q || !catId ? '/api/pos/search' : '/api/products', { q, location_id: cart.location_id, category_id: catId, limit: 24 });
+    if (mine !== searchSeq) return;
     results = r.items;
     focus = 0;
     drawResults();
@@ -400,7 +408,6 @@ const METHODS = [['cash', 'cash'], ['card', 'card'], ['wallet', 'phone'], ['inst
 function pay() {
   if (!cart.lines.length || document.querySelector('.scrim')) return;
   const cfg = S.lookups?.settings || {};
-  const idem = key();
   const state = { method: 'cash', received: null, provider: (cfg.finance_providers || [])[0] || '', months: 12, down: null, first_due: null,
     guarantor: {}, split: [{ method: 'cash', amount: null }, { method: 'card', amount: null }] };
   const methods = METHODS.filter(([m]) => (['account', 'installment'].includes(m) ? can('pos.credit') : true));
@@ -466,7 +473,8 @@ function pay() {
             <div class="cols"><div class="field"><label for="g-n">${t('pos.guarantor')}</label><input id="g-n" class="input" value="${state.guarantor.name || ''}"></div>
             <div class="field"><label for="g-p">${t('pos.guarantorPhone')}</label><input id="g-p" class="input num" inputmode="tel" value="${state.guarantor.phone || ''}"></div></div>
             <div class="plan-sum" id="plan-sum">${t('state.loading')}</div></div>`);
-          const recalc = async () => {
+          const recalc = () => { state.quoting = requote(); return state.quoting; };
+          const requote = async () => {
             state.down = parseMoney($('#down', body).value || '0') ?? 0;
             try {
               lastQuote = await api.post('/api/pos/quote', { lines: payloadLines(), discount: cart.discount, location_id: cart.location_id,
@@ -528,6 +536,7 @@ function pay() {
         } else if (m === 'finance') payments = [{ method: 'finance', provider: state.provider, amount: tot }];
         else if (m === 'installment') {
           if (!cart.customer) return;
+          await state.quoting;  // the down payment may have just been edited: use the quote that matches it
           if (!lastQuote) { $('#pay-err', box).textContent = t('state.loading'); return; }
           payments = [...(state.down ? [{ method: 'cash', amount: state.down }] : []), { method: 'installment', amount: lastQuote.total - state.down }];
           extra.instalment = { months: state.months, first_due: state.first_due, guarantor: state.guarantor };
@@ -537,9 +546,10 @@ function pay() {
         } else payments = [{ method: m, amount: tot }];
         btn.setAttribute('aria-busy', 'true');
         try {
-          const r = await withApproval((approval) => api.post('/api/pos/sell', {
-            idem_key: idem, lines: payloadLines(), discount: cart.discount, payments, customer_id: cart.customer?.id,
-            location_id: cart.location_id, approval, ...extra }));
+          const base = { lines: payloadLines(), discount: cart.discount, payments, customer_id: cart.customer?.id,
+            location_id: cart.location_id, ...(extra.instalment ? { instalment: extra.instalment } : {}) };
+          const idem = idemFor(base);
+          const r = await withApproval((approval) => api.post('/api/pos/sell', { idem_key: idem, ...base, approval, ...extra }));
           close();
           done(r, extra.cash_received);
         } catch (e) {
@@ -555,6 +565,7 @@ function pay() {
 const payloadLines = () => cart.lines.map((l) => ({ product_id: l.product_id, qty: l.qty, unit_price: l.unit_price, serial: l.serial || undefined }));
 
 async function done(r, received) {
+  pending = null;
   const customer = cart.customer;
   cart = { ...blankCart(), location_id: cart.location_id };
   changed();
