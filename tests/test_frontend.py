@@ -176,6 +176,21 @@ class DesignSystem(unittest.TestCase):
         for path in JS + CSS:
             self.assertNotIn('volt', read(path), path)
 
+    def test_no_backdrop_blur(self):
+        """A backdrop blur costs ~20 ms a frame on an old shop PC (UI Lab, 1.0.1); a sticky bar repaints it on every scroll."""
+        for path in CSS:
+            self.assertNotIn('backdrop-filter', read(path), path)
+
+    def test_endless_animations_stop_when_motion_is_reduced(self):
+        """Durations from tokens drop to 1 ms on their own; a literal endless one needs its own off switch in both places."""
+        css = ''.join(read(p) for p in CSS)
+        loops = set(re.findall(r'animation:\s*([\w-]+)\s+[\d.]+m?s[^;]*infinite', css)) - {'spin', 'shimmer'}  # busy indicators stay
+        self.assertTrue(loops)
+        for name in loops:
+            owner = re.search(r'([.\w-]+(?:::?[\w-]+)?)\s*\{[^}]*animation:\s*' + name, css).group(1)
+            self.assertIn('prefers-reduced-motion: reduce) { ' + owner + ' { animation: none', css, name)
+            self.assertIn('[data-motion="off"] ' + owner + ' { animation: none', css, name)
+
     def test_icons_and_controls_follow_the_geometry(self):
         tokens = read(os.path.join(WEB, 'css', 'tokens.css'))
         for rule in ('--fs: 16px', '--icon: 20px', '--tap: 44px'):

@@ -19,6 +19,11 @@ products: weak hierarchy, 15-px text and 12-px tables, a neon "volt" green that 
    cash, reports (six KPIs in one row, Arabic names cut at their own end in English mode).
 5. **Removed:** 3D tilt, pointer spotlight, blur-in, background glows (decoration with a per-frame cost).
 
+**Review fixes (Codex, PR #2):** the new top bar had brought back a backdrop blur (the 1.0.1 UI Lab measured ~20 ms a
+frame for it on an old PC) — the bar is opaque again; the splash/boot-error bar kept moving with "reduce motion" on — it
+stops now. Both are guarded by tests (`no backdrop-filter`; every endless animation has an off switch for the system
+setting and the in-app "motion off").
+
 **Bugs found while doing it:** the suppliers table had no scroll wrapper and spilled out of its card on a 360-px phone (the
 layout sweep caught it once text became readable) — wrapped, and any bare table in a card now scrolls inside it.
 
