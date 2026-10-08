@@ -28,8 +28,21 @@ def main(*cmd):
     port = s.getsockname()[1]
     s.close()
     home = tempfile.mkdtemp(prefix='store-smoke-')
+    log_path = os.path.join(home, 'smoke-output.txt')
+    log_file = open(log_path, 'w', encoding='utf-8', errors='replace')
     proc = subprocess.Popen([*cmd, '--practice', '--no-browser', '--port', str(port), '--host', '127.0.0.1', '--home', home],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            stdout=log_file, stderr=subprocess.STDOUT)
+
+    def fail(message):
+        log_file.flush()
+        print(open(log_path, encoding='utf-8', errors='replace').read()[-4000:])
+        for name in ('store.log',):
+            path = os.path.join(home, name)
+            if os.path.exists(path):
+                print(f'--- {name} ---')
+                print(open(path, encoding='utf-8', errors='replace').read()[-3000:])
+        sys.exit(message)
+
     try:
         for _ in range(120):
             try:
@@ -37,10 +50,10 @@ def main(*cmd):
                 break
             except OSError:
                 if proc.poll() is not None:
-                    sys.exit(f'the program stopped early with code {proc.returncode}')
+                    fail(f'the program stopped early with code {proc.returncode}')
                 time.sleep(0.5)
         else:
-            sys.exit('the program did not answer in 60 seconds')
+            fail('the program did not answer in 60 seconds')
         boot = json.loads(body)
         assert boot.get('practice') is True, boot
         st, headers, page = get(port, '/')

@@ -230,3 +230,5 @@ details.card[open] > summary { margin-block-end: var(--s-3); }
 }
 html[data-print="r80"] { --page: 80mm; } html[data-print="r58"] { --page: 58mm; }
 @page { margin: 4mm; }
+.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s-2); }
+.plain li { display: flex; align-items: center; gap: var(--s-2); }

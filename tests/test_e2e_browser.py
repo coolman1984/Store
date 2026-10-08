@@ -19,7 +19,7 @@ CHROMIUM = os.environ.get('STORE_CHROMIUM', '/opt/pw-browsers/chromium')
 SKIP = unittest.skipIf(sync_playwright is None or not os.path.exists(CHROMIUM), 'Playwright or Chromium not available')
 ROUTES = ['home', 'pos', 'sales', 'sales?tab=warranty', 'customers', 'customers?tab=due', 'products', 'stock', 'stock?tab=count',
           'stock?tab=value', 'receive', 'receive?tab=suppliers', 'cash', 'cash?tab=safe', 'cash?tab=shifts', 'watch', 'reports',
-          'settings', 'settings?tab=licence', 'settings?tab=users', 'settings?tab=backup', 'settings?tab=device', 'help']
+          'settings', 'settings?tab=licence', 'settings?tab=users', 'settings?tab=backup', 'settings?tab=support', 'settings?tab=device', 'help']
 OVERFLOW = """() => {
   const vw = document.documentElement.clientWidth, out = [];
   if (document.documentElement.scrollWidth > vw + 1) out.push('page wider than screen: ' + document.documentElement.scrollWidth + ' > ' + vw);

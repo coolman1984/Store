@@ -7,7 +7,7 @@ import { prefs } from '../prefs.js';
 import { CUR, raw, $, $$, html, put, icon, date, open, empty, skeleton, errorText, toast, run, confirm, seg, bindSeg, initials, download, parseMoney } from '../ui.js';
 
 const TABS = [['shop', 'store', 'settings.edit'], ['licence', 'key', 'settings.edit'], ['users', 'users', 'users.manage'], ['places', 'warehouse', 'settings.edit'],
-  ['backup', 'download', 'settings.edit'], ['device', 'sun', null]];
+  ['backup', 'download', 'settings.edit'], ['support', 'help', 'settings.edit'], ['device', 'sun', null]];
 
 export default async function view(page, params) {
   const tabs = TABS.filter(([, , p]) => !p || can(p));
@@ -16,7 +16,7 @@ export default async function view(page, params) {
     <nav class="tabs" data-lab-scroll>${tabs.map(([k, ic]) => html`<a href="#/settings?tab=${k}" ${tab === k ? CUR : ''}>${icon(ic)}${t('settings.tab.' + k)}</a>`)}</nav><div id="set-body">${skeleton(5)}</div>`);
   const body = $('#set-body', page);
   const again = () => view(page, params);
-  ({ shop, licence, users, places, backup, device })[tab](body, again);
+  ({ shop, licence, users, places, backup, support, device })[tab](body, again);
 }
 
 async function shop(body) {
@@ -136,6 +136,28 @@ async function places(body, again) {
     if (!name) { shake($('#ln', body)); return; }
     if (await run(api.post('/api/location/save', { name, kind }), t('saved'), e.currentTarget)) { S.lookups = await api.get('/api/lookups'); again(); }
   });
+}
+
+async function support(body, again) {
+  const d = await api.get('/api/support').catch((e) => { put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); });
+  if (!d) return;
+  const last = d.last?.at ? html`<div class="tip ${d.last.ok ? 'ok' : 'warn'}">${icon(d.last.ok ? 'check-circle' : 'alert')}<div>${d.last.ok
+    ? t('support.sentOk', { when: date(d.last.at, true) }) : t('support.sentFailed', { when: date(d.last.at, true), why: d.last.error })}</div></div>` : html`<p class="small muted">${t('support.never')}</p>`;
+  put(body, html`<div class="two"><div class="card form"><div class="card-head"><h2>${t('support.title')}</h2></div><p class="small muted">${t('support.intro')}</p>
+      <label class="check"><input type="checkbox" id="sp-on" ${d.enabled ? raw('checked') : ''}> ${t('support.enable')}</label>
+      <div class="field"><label for="sp-url">${t('support.url')}</label><input id="sp-url" class="input ltr" dir="ltr" value="${d.url}" placeholder="https://"></div>
+      <div class="field"><label for="sp-token">${t('support.token')}</label><input id="sp-token" class="input ltr" dir="ltr" type="password" autocomplete="off"
+        placeholder="${d.has_token ? t('support.tokenKept') : ''}"></div>
+      <div class="row wrap"><button class="btn volt" data-save>${icon('check')}${t('act.save')}</button><button class="btn" data-ping ${d.enabled ? '' : raw('disabled')}>${icon('refresh')}${t('support.ping')}</button></div>
+      ${last}</div>
+    <div class="card"><div class="card-head"><h2>${t('support.sends')}</h2></div><ul class="plain">${d.fields.map((f) => html`<li>${icon('check')} ${t('support.field.' + f)}</li>`)}</ul>
+      <div class="tip">${icon('shield')}<div>${t('support.never_shared')}</div></div></div></div>`);
+  $('[data-save]', body).addEventListener('click', async (e) => {
+    const token = $('#sp-token', body).value.trim();
+    const r = await run(api.post('/api/support/save', { enabled: $('#sp-on', body).checked, url: $('#sp-url', body).value, ...(token ? { token } : {}) }), t('saved'), e.currentTarget);
+    if (r) again();
+  });
+  $('[data-ping]', body).addEventListener('click', async (e) => { if (await run(api.post('/api/support/ping'), t('support.pinged'), e.currentTarget)) again(); });
 }
 
 async function backup(body, again) {

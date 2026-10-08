@@ -19,6 +19,7 @@ DYNAMIC = {  # prefixes built in code: every listed suffix must exist
     'lic.state.': ['none', 'trial', 'active', 'grace', 'expired', 'not_yet_valid', 'invalid', 'clock_back', 'no_keys', 'practice'],
     'lic.err.': ['no_code', 'other_device', 'expired', 'bad_signature', 'wrong_length', 'bad_character', 'unknown_key', 'wrong_product', 'no_keys',
                  'unknown_version', 'invalid'],
+    'support.field.': ['version', 'licence_state', 'last_backup_at', 'error_count', 'disk_free_mb'],
     'watch.k.': ['discount', 'under_cost', 'after_hours', 'return', 'drawer_short', 'drawer_over', 'big_expense', 'reversal', 'withdraw',
                  'price_change', 'stock_loss', 'negative_stock', 'payment_reversed', 'denied'],
 }

@@ -39,6 +39,7 @@ import money as cash  # noqa: E402
 import reports  # noqa: E402
 import sales  # noqa: E402
 import stock  # noqa: E402
+import support  # noqa: E402
 from auth import AuthError, Forbidden  # noqa: E402
 from core import Ctx, Problem  # noqa: E402
 from db import Database, NewerData  # noqa: E402
@@ -53,7 +54,7 @@ TYPES = {'.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf
          '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon'}
 # writes allowed while the licence does not give full access: reading, keeping data safe, and getting a new code
 OPEN_WRITES = {'/api/setup', '/api/login', '/api/logout', '/api/password', '/api/licence/activate', '/api/backup/now',
-               '/api/shift/close', '/api/watch/review'}
+               '/api/shift/close', '/api/watch/review', '/api/support/save', '/api/support/ping'}
 log = logging.getLogger('store')
 
 
@@ -94,6 +95,7 @@ class App:
         self._static = {}
         self.started = time.time()
         self.failed_ips = {}
+        self._errors = []
 
     def _meta_id(self, key):
         value = self.db.value('SELECT value FROM meta WHERE key = ?', key)
@@ -101,6 +103,12 @@ class App:
             value = ids.uuid7()
             self.db.run('INSERT OR IGNORE INTO meta(key, value) VALUES (?, ?)', key, value)
         return self.db.value('SELECT value FROM meta WHERE key = ?', key)
+
+    def note_error(self):
+        self._errors = [t for t in self._errors if time.time() - t < 86400][-200:] + [time.time()]
+
+    def recent_errors(self):
+        return len([t for t in self._errors if time.time() - t < 86400])
 
     def licence(self):
         if self.practice:
@@ -310,6 +318,7 @@ class Handler(BaseHTTPRequestHandler):
             pass
         except Exception as e:  # a bug: log the details on this PC, show a calm message
             log.error('ERROR %s\n%s', self.path, traceback.format_exc())
+            APP.note_error()
             self.send(500, {'error': f'Unexpected problem: {e.__class__.__name__}', 'key': 'err.server'})
 
     # ------------------------------------------------------------ routing
@@ -494,6 +503,9 @@ class Handler(BaseHTTPRequestHandler):
                  'locations': db.all('SELECT * FROM locations ORDER BY active DESC, kind DESC, name')}
         elif path == '/api/licence':
             d = APP.licence()
+        elif path == '/api/support':
+            ctx.need('settings.edit')
+            d = support.public(APP.home)
         elif path == '/api/export':
             ctx.need('settings.edit')
             body = backup.export_zip(db)
@@ -543,6 +555,9 @@ class Handler(BaseHTTPRequestHandler):
             with APP.db.tx():
                 ctx.audit('backup', 'backup', item['name'])
             return self.send(200, item)
+        if path == '/api/support/ping':  # network call: never while the database is locked for a write
+            ctx.need('settings.edit')
+            return self.send(200, support.send(APP))
         if path == '/api/backup/restore':  # outside a transaction: the restore swaps the database file
             ctx.need('settings.edit')
             APP.auth.verify(u['username'], data.get('password'))  # step-up: the owner types the password again
@@ -628,6 +643,11 @@ class Handler(BaseHTTPRequestHandler):
             return cash.pay_supplier(ctx, data)
         if path == '/api/finance/settle':
             return cash.finance_settle(ctx, data)
+        if path == '/api/support/save':
+            ctx.need('settings.edit')
+            support.save(APP.home, data.get('enabled'), data.get('url'), data.get('token'))
+            ctx.audit('support.save', 'support', '', {'enabled': bool(data.get('enabled'))})  # the address and code are never logged
+            return support.public(APP.home)
         if path == '/api/watch/review':
             reports.review(ctx, data.get('key'), data.get('note'))
             return {'ok': True}
@@ -717,6 +737,8 @@ def serve(app, open_browser=None):
             time.sleep(600)
 
     threading.Thread(target=keep_backing_up, daemon=True).start()
+    if not app.practice:
+        threading.Thread(target=support.loop, args=(app,), daemon=True).start()
     url = f'http://127.0.0.1:{app.cfg["port"]}/'
     print(f'{PRODUCT_AR} {VERSION}{" (تدريب)" if app.practice else ""} يعمل الآن: {url}')
     for ip in _lan_ips():
