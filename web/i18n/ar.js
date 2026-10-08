@@ -248,6 +248,8 @@ export default {
   'support.field.version': 'رقم نسخة البرنامج', 'support.field.licence_state': 'حالة الترخيص (شغال / منتهي...)', 'support.field.last_backup_at': 'وقت آخر نسخة احتياطية',
   'support.field.error_count': 'عدد الأعطال في آخر ٢٤ ساعة', 'support.field.disk_free_mb': 'المساحة الفاضية على القرص',
   'err.supportUrl': 'عنوان الدعم لازم يبدأ بـ https://', 'err.supportToken': 'كود الدعم مش صحيح.', 'err.supportIncomplete': 'اكتب عنوان الدعم والكود الأول.', 'err.supportOff': 'مشاركة الحالة مقفولة.',
+  'products.labels': 'اطبع ملصقات', 'products.labelsTitle': 'ملصقات {name}', 'products.labelsHint': 'ملصق صغير فيه الاسم والسعر والباركود، 4 جنب بعض على ورقة A4.',
+  'products.labelsMode': 'اطبع', 'products.perCopy': 'نسخ بعدد', 'products.perSerial': 'ملصق لكل سيريال ({n})', 'products.copies': 'عدد الملصقات',
   'err.badRequest': 'الطلب فيه مشكلة. حدّث الصفحة وجرّب تاني.', 'err.origin': 'الطلب جه من مكان مش معروف واترفض.', 'err.notFound': 'مش لاقيه. يمكن اتمسح أو الرقم غلط.',
   'err.tooLarge': 'البيانات كبيرة زيادة.', 'err.alreadyReversed': 'الحركة دي اتعكست قبل كده.', 'err.approverLimit': 'الخصم ده أكبر من حد المدير نفسه.',
   'err.backupBad': 'النسخة دي مش سليمة. اختار نسخة تانية.', 'err.backupName': 'اختار نسخة من القايمة.', 'err.backupOtherShop': 'النسخة دي بتاعة محل تاني.',

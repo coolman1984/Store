@@ -68,6 +68,17 @@ class Browser(unittest.TestCase):
         pg.wait_for_selector('.shell')
         return pg
 
+    def until(self, pg, expression, seconds=10):
+        """Poll an expression until it is truthy (the page's security policy forbids wait_for_function's string)."""
+        import time
+        end = time.time() + seconds
+        while time.time() < end:
+            value = pg.evaluate(expression)
+            if value:
+                return value
+            pg.wait_for_timeout(100)
+        self.fail('timed out waiting for ' + expression)
+
     def go(self, pg, route):
         pg.goto(self.S.base + '/#/' + route)
         pg.wait_for_selector('#page')
@@ -115,6 +126,29 @@ class CoreJourney(Browser):
         pg.locator('.dialog [data-ok]').last.click()
         pg.wait_for_selector('.toast')
         self.assertIn('R-', pg.inner_text('.toasts'))
+        self.assertEqual(self.errors, [])
+
+    def test_receipt_and_labels_carry_barcodes(self):
+        pg = self.open('manager')
+        pg.add_init_script("window.print = () => { window.__printed = document.getElementById('print-area').innerHTML; }")
+        pg.reload()
+        pg.wait_for_selector('.shell')
+        self.go(pg, 'sales')
+        pg.click('tr[data-id]')
+        pg.wait_for_selector('[data-print], [data-reprint], .dialog')
+        pg.evaluate("import('/js/print.js').then((m) => fetch('/api/sales').then((r) => r.json()).then((rows) => fetch('/api/sale?id=' + rows[0].id).then((r) => r.json()).then((sale) => m.printReceipt(sale))))")
+        receipt = self.until(pg, 'window.__printed')
+        self.assertIn('class="barcode"', receipt)  # the receipt number is a real Code 128 barcode now
+        pg.evaluate('window.__printed = null')
+        pg.keyboard.press('Escape')
+        self.go(pg, 'products')
+        pg.click('tr[data-id]')
+        pg.click('[data-labels]')
+        pg.fill('#lb-n', '3')
+        pg.click('.dialog [data-ok]')
+        self.until(pg, 'window.__printed')
+        labels = pg.evaluate("document.querySelectorAll('#print-area .label svg.barcode').length")
+        self.assertEqual(labels, 3)
         self.assertEqual(self.errors, [])
 
     def test_language_switch_and_direction(self):

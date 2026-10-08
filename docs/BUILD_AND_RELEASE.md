@@ -1,6 +1,6 @@
 # Build and release
 
-**Status:** pipeline written from Hessa's proven one; `verified` only after the workflow `windows installer` is green on a real Windows runner (see the run history). A clean-PC install by a person is still a separate gate (factory DELIVERY_GATES).
+**Status:** `verified` by the workflow `windows installer` on a real Windows runner (build → start the program folder → silent install → start the installed program → uninstall keeps the data; first green run: Actions run 3 of 2026-10-08). A clean-PC install by a person is still a separate gate (factory DELIVERY_GATES).
 
 1. Change `server/version.py` (VERSION) and describe the version in `docs/RELEASE_NOTES.md` (the build refuses otherwise).
 2. Put the vendor's **public** key line(s) in `licence_keys.txt` (from Licence Studio → Keys). Never a private key.

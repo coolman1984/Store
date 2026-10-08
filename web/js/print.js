@@ -1,7 +1,8 @@
 // Paper: the 80 mm / 58 mm receipt and A4 pages. Printed from a hidden area; the page's print style shows only it.
 import { S } from './app.js';
 import { t } from './i18n.js';
-import { html, put, money, date, num } from './ui.js';
+import { barcodeSVG } from './barcode.js';
+import { html, put, money, date, num, raw } from './ui.js';
 
 function area() {
   let el = document.getElementById('print-area');
@@ -12,8 +13,8 @@ function area() {
 export function printHTML(content, kind = 'receipt') {
   const el = area();
   const width = String(S.lookups?.settings?.receipt_width || '80');
-  el.className = kind === 'receipt' ? `receipt w${width}` : 'a4';
-  document.documentElement.dataset.print = kind === 'receipt' ? `r${width}` : 'a4';
+  el.className = kind === 'receipt' ? `receipt w${width}` : kind === 'labels' ? 'labels' : 'a4';
+  document.documentElement.dataset.print = kind === 'receipt' ? `r${width}` : kind === 'labels' ? 'labels' : 'a4';
   put(el, content);
   setTimeout(() => { window.print(); }, 60);
 }
@@ -49,8 +50,20 @@ export function receiptHTML(sale) {
     <div class="rc-policy">${t('print.policy', { r: cfg.return_days ?? 14, d: cfg.defect_days ?? 30 })}</div>
     ${cfg.wallet_number ? html`<div class="rc-policy">${t('print.wallet')}: <span class="num">${cfg.wallet_number}</span></div>` : ''}
     <div class="rc-foot">${cfg.receipt_footer || ''}</div>
-    <div class="rc-barcode num">${sale.number}</div>
+    <div class="rc-barcode">${raw(barcodeSVG(sale.number, { height: 36, module: 1.4 }))}<span class="num">${sale.number}</span></div>
   </div>`;
 }
 
 export function printReceipt(sale) { printHTML(receiptHTML(sale), 'receipt'); }
+
+/** Sticker labels (4 across on A4): one per copy, or one per serial number for appliances. Barcode = the product's first barcode, else its SKU. */
+export function labelsHTML(p, { copies = 1, serials = false } = {}) {
+  const shop = S.lookups?.settings?.shop_name || '';
+  const code = p.barcodes?.[0] || p.sku;
+  const items = serials ? p.serials.map((x) => ({ code: x.serial, caption: x.serial })) : Array.from({ length: copies }, () => ({ code, caption: code }));
+  return html`<div class="labels-sheet">${items.map((it) => html`<div class="label">
+    <div class="label-shop ellipsis">${shop}</div><div class="label-name">${p.name}</div>
+    <div class="label-price num">${money(p.prices.retail)}</div>
+    <div class="label-code">${raw(barcodeSVG(it.code, { height: 30, module: 1.2 }))}<span class="num">${it.caption}</span></div></div>`)}</div>`;
+}
+export function printLabels(p, opts) { printHTML(labelsHTML(p, opts), 'labels'); }

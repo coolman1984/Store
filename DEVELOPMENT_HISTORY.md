@@ -28,6 +28,15 @@ purchase, transfer… It found 20 places where a strange request made the server
     editing; the daily profit chart ignored the cost of returned goods (the summary did not); huge `days`/`limit` in the
     address could hang the PC (now clamped).
 
+12. **The first Windows build stopped at start-up:** printing the Arabic "running now" line to a redirected Windows console
+    (code page 1252) raised `UnicodeEncodeError` and the server exited. Found only because the Windows workflow starts the
+    built program. Output now goes through `say()` (UTF-8, falls back to ASCII, tolerates no console at all).
+13. **Counter:** a slow old search answer could replace a newer one (a scanner could add the wrong product); an unfinished
+    payment now keeps its key so "press Pay again after a lost answer" can never sell twice; the instalment quote is awaited
+    before paying; the cart is cleared at sign-out; dialogs no longer steal focus 30 ms after opening (it moved typed text
+    from the password box into the user-name box — caught as a 1-in-4 flaky test).
+14. **New:** Windows installer pipeline, opt-in support heartbeat, Code 128 barcode on the receipt and sticker labels.
+
 **Lesson:** validate at the edge, once (`core.whole / rows / obj / day`, `db._plain`), then let the rules work with clean
 data. The junk test costs 40 s and is worth keeping in every product (factory QA-01).
 

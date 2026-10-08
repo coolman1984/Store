@@ -248,6 +248,8 @@ export default {
   'support.field.version': 'The program version', 'support.field.licence_state': 'Licence state (working / expired...)', 'support.field.last_backup_at': 'Time of the last backup',
   'support.field.error_count': 'Number of faults in the last 24 hours', 'support.field.disk_free_mb': 'Free space on the disk',
   'err.supportUrl': 'The support address must start with https://', 'err.supportToken': 'The support code is not valid.', 'err.supportIncomplete': 'Write the support address and code first.', 'err.supportOff': 'Sharing is switched off.',
+  'products.labels': 'Print labels', 'products.labelsTitle': 'Labels for {name}', 'products.labelsHint': 'A small sticker with the name, price and barcode, 4 across on A4 paper.',
+  'products.labelsMode': 'Print', 'products.perCopy': 'A number of copies', 'products.perSerial': 'One per serial ({n})', 'products.copies': 'Number of labels',
   'err.badRequest': 'The request was not understood. Refresh the page and try again.', 'err.origin': 'The request came from an unknown place and was refused.', 'err.notFound': 'Not found. It may have been removed or the number is wrong.',
   'err.tooLarge': 'The data is too large.', 'err.alreadyReversed': 'This entry was already reversed.', 'err.approverLimit': "This discount is above the approver's limit too.",
   'err.backupBad': 'This copy is damaged. Choose another.', 'err.backupName': 'Choose a copy from the list.', 'err.backupOtherShop': 'This copy belongs to another shop.',
