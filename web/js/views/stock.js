@@ -10,7 +10,7 @@ export default async function view(page, params) {
   const tab = ['transfer', 'count', 'value'].includes(params.tab) ? params.tab : 'stock';
   put(page, html`<div class="page-head"><div class="titles"><h1>${t('nav.stock')}</h1><p>${t('stock.sub')}</p></div>
     <div class="actions">${can('stock.transfer') ? html`<button class="btn primary" data-move>${icon('swap')}${t('stock.move')}</button>` : ''}</div></div>
-    <nav class="tabs" data-lab-scroll><a href="#/stock" ${tab === 'stock' ? CUR : ''}>${icon('warehouse')}${t('stock.tab.stock')}</a>
+    <nav class="tabs" data-lab-scroll aria-label="${t('nav.sections')}"><a href="#/stock" ${tab === 'stock' ? CUR : ''}>${icon('warehouse')}${t('stock.tab.stock')}</a>
       ${can('stock.transfer') ? html`<a href="#/stock?tab=transfer" ${tab === 'transfer' ? CUR : ''}>${icon('swap')}${t('stock.tab.transfer')}</a>` : ''}
       ${can('stock.count') ? html`<a href="#/stock?tab=count" ${tab === 'count' ? CUR : ''}>${icon('clipboard')}${t('stock.tab.count')}</a>` : ''}
       ${can('cost.view') ? html`<a href="#/stock?tab=value" ${tab === 'value' ? CUR : ''}>${icon('chart')}${t('stock.tab.value')}</a>` : ''}</nav>

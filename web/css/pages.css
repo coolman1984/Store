@@ -108,8 +108,8 @@ body[data-route="pos"] .page { max-inline-size: none; padding-block-end: var(--s
   .pos-mbar .btn { min-block-size: 40px; border-radius: var(--r-pill); }
   .pos-cart { position: static; }
   .paper { max-block-size: none; }
-  .pos-results { grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); max-block-size: 62vh; overflow-y: auto;
-    padding: 2px; overscroll-behavior: contain; }  /* the receipt below never jumps while results load (CLS) */
+  .pos-results { grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); block-size: 62vh; align-content: start; overflow-y: auto;
+    padding: 2px; overscroll-behavior: contain; }  /* a fixed-height area: the receipt below never moves while results load or a search narrows them (CLS) */
 }
 
 /* pay sheet */

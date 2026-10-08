@@ -7,6 +7,7 @@ export default {
   'nav.main': 'Main menu', 'nav.more': 'More', 'nav.pos': 'Sell', 'nav.home': 'Today', 'nav.sales': 'Sales', 'nav.customers': 'Customers & instalments',
   'nav.products': 'Products & prices', 'nav.stock': 'Stock & shelves', 'nav.receive': 'Receive goods', 'nav.cash': 'Cash & shifts', 'nav.watch': "Owner's eye",
   'nav.reports': 'Reports', 'nav.settings': 'Settings', 'nav.help': 'Help',
+  'nav.main': 'Main menu', 'nav.sections': 'Page sections', 'nav.notices': 'Notices',
   'nav.quick': 'Quick access', 'a11y.table': 'Table (scroll sideways)',
   'nav.g.sell': 'Selling', 'nav.g.goods': 'Goods', 'nav.g.money': 'Money & control', 'nav.g.shop': 'Shop',
 
