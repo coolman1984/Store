@@ -1,5 +1,48 @@
 # Development history (newest first)
 
+## 2026-10-08 — Stock count: a sale in the same millisecond as the count line made a phantom surplus
+**Found by:** the GitHub runner failing `test_sale_after_counting_a_product_is_not_a_false_surplus` on PR #2 (it passed on
+slower PCs by luck). **Why:** times have millisecond precision; when the count line and the sale fell in the same
+millisecond, `m.at <= cl.at` counted the sale as *before* the count, so closing the count added a false +2.
+**Fix:** `ids.iso()` ("now") is strictly increasing inside the program — a second record in the same millisecond gets the
+next millisecond; a clock moved back by more than a second is believed, so time never freezes. No schema or stock-logic
+change. **Tests:** the count scenario and the ordering run under a frozen clock (both failed before the fix).
+
+## 2026-10-08 — Design system v2: the Mizan (ميزان) identity across the whole program
+**Why:** the program worked and passed its checks but did not look like software a shop would pay for next to international
+products: weak hierarchy, 15-px text and 12-px tables, a neon "volt" green that failed contrast as text, floating glass,
+3D tilt and pointer spotlights that cost frames on an old PC, inconsistent buttons and icon sizes.
+
+**What:** a new identity and one design system, applied to every screen (details and rules in `docs/DESIGN.md`).
+1. **Brand:** display name ميزان · Mizan (provisional — not legally cleared; program id, licence product, data folder and
+   installer name deliberately unchanged so existing shops keep working). New mark (balanced bars on a fulcrum) used by the
+   rail, sign-in, phone top bar, splash, favicon, manifest and the Windows icon; outlined logo files in `docs/brand/`
+   (`tools/make_brand.py`).
+2. **Tokens:** navy / ivory / copper palette for light and dark, 16-px body, 14-px data, 20-px icons, 44-px controls, 4-px
+   rhythm, quiet shadows, 120–240 ms motion. `volt` renamed `accent` everywhere.
+3. **Components rebuilt:** flush navy rail, sticky top bar, buttons, inputs, tabs, tables, KPIs (money never wraps — container
+   query), dialogs, sheets, toasts, palette, empty/error states, a branded splash and a calmer "cannot reach the shop PC" screen.
+4. **Screens:** new sign-in (promise + three proof points), navy "today" hero with a copper chart, counter with a sticky pay
+   button on phones (the pay sheet's confirm no longer scrolls away), clearer pay methods and sale-done, spacing fixes in
+   cash, reports (six KPIs in one row, Arabic names cut at their own end in English mode).
+5. **Removed:** 3D tilt, pointer spotlight, blur-in, background glows (decoration with a per-frame cost).
+
+**Review fixes (Codex, PR #2):** the new top bar had brought back a backdrop blur (the 1.0.1 UI Lab measured ~20 ms a
+frame for it on an old PC) — the bar is opaque again; the splash/boot-error bar kept moving with "reduce motion" on — it
+stops now. Both are guarded by tests (`no backdrop-filter`; every endless animation has an off switch for the system
+setting and the in-app "motion off").
+
+**Bugs found while doing it:** the suppliers table had no scroll wrapper and spilled out of its card on a 360-px phone (the
+layout sweep caught it once text became readable) — wrapped, and any bare table in a card now scrolls inside it.
+
+**UI Lab (same machine, main → this change, 1366 px):** all 20 page/screen runs within budget, 0 accessibility findings;
+first paint 300–440 → 72–136 ms (the splash draws before any script); largest paint equal or better on most pages (stock
+840 → 404, watch 832 → 372, customers 772 → 368, reports 792 → 380 ms); frames stay at 60 fps.
+
+**Behaviour:** no server, database, money or stock logic changed. **Tests:** new `DesignSystem` checks (WCAG AA contrast of
+every token pair in both themes, one mark geometry in four places, no leftover of the old identity, base geometry);
+full suite including the browser journey and layout sweep passes.
+
 ## 2026-10-08 — 1.0.2 review round: the junk-input test
 **What:** a new test (`tests/test_fuzz.py`) sends junk to every write route (wrong types, huge numbers, lists where an id
 belongs, bad dates, 1,500-letter texts) — first everywhere at once, then one field at a time inside a valid sale, return,

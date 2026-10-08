@@ -361,6 +361,30 @@ class StockTests(Base):
         self.assertIn('stock_loss', {i['kind'] for i in reports.watch(self.s.db)})
 
 
+    def test_sale_in_the_same_millisecond_as_the_count_is_not_a_false_surplus(self):
+        """A fast PC (the CI runner) records the count line and the sale in the same millisecond: order must survive."""
+        import ids
+        from unittest import mock
+        frozen = ids.utcnow()
+        with mock.patch.object(ids, 'utcnow', return_value=frozen):
+            pid = self.s.product(qty=10, cost=500)
+            cid = self.s.do(stock.start_count, self.s.shop)
+            self.s.do(stock.count_line, cid, pid, 10)
+            sale(self.s, [{'product_id': pid, 'qty': 2}])
+            self.s.do(stock.close_count, cid, 'busy day')
+        self.assertEqual(stock.on_hand(self.s.db, pid), 8)
+
+    def test_now_is_strictly_increasing_but_a_clock_moved_back_is_believed(self):
+        import ids
+        from datetime import timedelta
+        from unittest import mock
+        frozen = ids.utcnow()
+        with mock.patch.object(ids, 'utcnow', return_value=frozen):
+            a, b, c = ids.iso(), ids.iso(), ids.iso()
+        self.assertTrue(a < b < c, (a, b, c))
+        with mock.patch.object(ids, 'utcnow', return_value=frozen - timedelta(hours=2)):
+            self.assertEqual(ids.iso(), ids.iso(frozen - timedelta(hours=2)))
+
     def test_sale_after_counting_a_product_is_not_a_false_surplus(self):
         pid = self.s.product(qty=10, cost=500)
         cid = self.s.do(stock.start_count, self.s.shop)

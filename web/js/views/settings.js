@@ -37,7 +37,7 @@ async function shop(body) {
       <div class="field"><label for="s-prov">${t('settings.providers')}</label><input id="s-prov" class="input" value="${(s.finance_providers || []).join('، ')}"><span class="hint">${t('settings.providersHint')}</span></div></div>
     <div class="card form"><div class="card-head"><h2>${t('settings.watch')}</h2></div>
       <div class="cols">${f('large_expense', t('settings.largeExpense'), '', 'money')}${f('opening_hour', t('settings.open'), '', 'num')}${f('closing_hour', t('settings.close'), '', 'num')}</div></div>
-    <div class="row"><button class="btn volt lg" data-save>${icon('check')}${t('act.save')}</button></div></div>`);
+    <div class="row"><button class="btn accent lg" data-save>${icon('check')}${t('act.save')}</button></div></div>`);
   $('[data-save]', body).addEventListener('click', async (e) => {
     const out = { receipt_width: $('[data-seg="rw"] [aria-pressed="true"]', body).dataset.v,
       finance_providers: $('#s-prov', body).value.split(/[,،]\s*/).map((x) => x.trim()).filter(Boolean) };
@@ -65,7 +65,7 @@ async function users(body, again) {
   let d;
   try { d = await api.get('/api/users'); } catch (e) { put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); return; }
   put(body, html`<div class="stack"><div class="row between wrap"><p class="muted">${t('users.sub')}</p><button class="btn primary" data-new>${icon('plus')}${t('users.add')}</button></div>
-    <div class="grid">${d.users.map((u) => html`<button class="card flat spot user-card" data-id="${u.id}"><div class="row"><span class="avatar">${initials(u.full_name)}</span>
+    <div class="grid">${d.users.map((u) => html`<button class="card flat user-card" data-id="${u.id}"><div class="row"><span class="avatar">${initials(u.full_name)}</span>
       <span class="grow"><b>${u.full_name}</b><bdi class="small muted"> @${u.username}</bdi><div class="small">${t('role.' + u.role)}${u.max_discount_pct ? ' · ' + t('users.discountN', { n: u.max_discount_pct }) : ''}</div></span>
       ${u.active ? '' : html`<span class="badge bad">${t('users.off')}</span>`}</div></button>`)}</div>
     <div class="card"><div class="card-head"><h2>${t('users.rolesTitle')}</h2></div><div class="grid">${Object.keys(d.roles).map((r) => html`<div><b>${t('role.' + r)}</b><p class="small muted">${t('role.' + r + '.hint')}</p></div>`)}</div></div></div>`);
@@ -148,7 +148,7 @@ async function support(body, again) {
       <div class="field"><label for="sp-url">${t('support.url')}</label><input id="sp-url" class="input ltr" dir="ltr" value="${d.url}" placeholder="https://"></div>
       <div class="field"><label for="sp-token">${t('support.token')}</label><input id="sp-token" class="input ltr" dir="ltr" type="password" autocomplete="off"
         placeholder="${d.has_token ? t('support.tokenKept') : ''}"></div>
-      <div class="row wrap"><button class="btn volt" data-save>${icon('check')}${t('act.save')}</button><button class="btn" data-ping ${d.enabled ? '' : raw('disabled')}>${icon('refresh')}${t('support.ping')}</button></div>
+      <div class="row wrap"><button class="btn accent" data-save>${icon('check')}${t('act.save')}</button><button class="btn" data-ping ${d.enabled ? '' : raw('disabled')}>${icon('refresh')}${t('support.ping')}</button></div>
       ${last}</div>
     <div class="card"><div class="card-head"><h2>${t('support.sends')}</h2></div><ul class="plain">${d.fields.map((f) => html`<li>${icon('check')} ${t('support.field.' + f)}</li>`)}</ul>
       <div class="tip">${icon('shield')}<div>${t('support.never_shared')}</div></div></div></div>`);
@@ -164,7 +164,7 @@ async function backup(body, again) {
   const d = await api.get('/api/settings').catch(() => null);
   if (!d) return;
   const age = d.backup_age_hours;
-  put(body, html`<div class="stack"><div class="two"><div class="card ${age !== null && age < 30 ? 'volt-card' : 'ink-card'}"><div class="kpi"><span class="label">${t('backup.last')}</span>
+  put(body, html`<div class="stack"><div class="two"><div class="card ${age !== null && age < 30 ? 'accent-card' : 'ink-card'}"><div class="kpi"><span class="label">${t('backup.last')}</span>
       <span class="value">${age === null ? t('backup.never') : t('backup.ago', { h: age })}</span><span class="small">${t('backup.auto')}</span></div>
       <div class="row wrap"><button class="btn primary" data-now>${icon('download')}${t('backup.now')}</button><button class="btn" data-export>${icon('upload')}${t('backup.export')}</button></div></div>
     <div class="card"><div class="card-head"><h2>${t('backup.where')}</h2></div><p class="small muted">${t('backup.whereHint')}</p>

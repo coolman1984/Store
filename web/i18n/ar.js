@@ -1,6 +1,6 @@
 // العربية — لغة البرنامج الأساسية. كلام بسيط وواضح يفهمه أي حد في المحل. كل مفتاح لازم يكون موجود كمان في en.js.
 export default {
-  'app.name': 'الستور', 'app.practice': 'محل تدريب', 'app.practiceBar': 'ده محل تجريبي ببيانات وهمية. اتعلّم براحتك، ومفيش أي حاجة هنا بتأثر على محلك الحقيقي.',
+  'app.name': 'ميزان', 'app.nameAlt': 'MIZAN', 'app.tag': 'حسابات محلك موزونة', 'app.practice': 'محل تدريب', 'app.practiceBar': 'ده محل تجريبي ببيانات وهمية. اتعلّم براحتك، ومفيش أي حاجة هنا بتأثر على محلك الحقيقي.',
   cur: 'ج.م', saved: 'اتحفظ ✓',
   'time.now': 'دلوقتي', 'time.min': 'من {n} دقيقة', 'time.hour': 'من {n} ساعة', 'time.day': 'من {n} يوم',
 
@@ -15,7 +15,7 @@ export default {
   'act.copy': 'نسخ', 'act.copied': 'اتنسخ', 'act.logout': 'خروج', 'act.more': 'الكل', 'act.reverse': 'عكس الحركة', 'act.search': 'بحث',
   'state.loading': 'بيحمّل…', 'state.denied': 'الصفحة دي مش ضمن صلاحياتك', 'state.deniedHint': 'اطلب من صاحب المحل يديك الصلاحية من «الإعدادات» ← «الناس والصلاحيات».',
   'state.reversed': 'اتعكست', 'state.status': 'الحالة',
-  'err.title': 'حصلت مشكلة', 'err.offline': 'مش قادر يوصل لجهاز المحل. اتأكد إن الجهاز الرئيسي شغال.',
+  'err.title': 'حصلت مشكلة', 'err.retrying': 'هنحاول تاني لوحدنا كل كام ثانية.', 'err.offline': 'مش قادر يوصل لجهاز المحل. اتأكد إن الجهاز الرئيسي شغال.',
   'err.offlineBar': 'الاتصال بجهاز المحل مقطوع. مفيش حاجة هتتحفظ لحد ما الاتصال يرجع.',
   'err.server': 'حصلت مشكلة غير متوقعة. جرّب تاني، ولو اتكررت كلّم الدعم.',
 
@@ -26,7 +26,7 @@ export default {
 
   'auth.welcome': 'أهلًا بيك', 'auth.sub': 'ادخل باسمك عشان تبدأ شغلك.', 'auth.signIn': 'دخول', 'auth.expired': 'الجلسة خلصت. ادخل تاني.',
   'auth.tagline': 'محلك كله قدامك: البيع والمخزن والدرج والأقساط.', 'auth.practiceHint': 'محل تدريب: ادخل بـ owner وكلمة السر practice-1234 (أو cashier أو manager أو store).',
-  'auth.art.sale': 'مبيعات النهارده', 'auth.art.drawer': 'الدرج', 'auth.art.balanced': 'مظبوط بالقرش', 'auth.art.instal': 'أقساط', 'auth.art.today': 'النهارده', 'auth.art.serial': 'الضمان بالسيريال',
+  'auth.pt.sell': 'بيع سريع بالباركود والكيبورد', 'auth.pt.sellHint': 'الفاتورة في ثواني، والفكّة محسوبة لوحدها.', 'auth.pt.drawer': 'درج مظبوط بالقرش', 'auth.pt.drawerHint': 'كل جنيه داخل أو خارج متسجّل باسم اللي عمله.', 'auth.pt.offline': 'شغّال من غير إنترنت', 'auth.pt.offlineHint': 'بياناتك على جهازك، ونسخة احتياطية أوتوماتيك كل كام ساعة.',
   'setup.step': 'أول مرة', 'setup.title': 'نجهّز محلك', 'setup.sub': 'اسم المحل وحساب صاحب المحل. كل حاجة تانية تقدر تكمّلها بعدين.', 'setup.shop': 'اسم المحل',
   'setup.shopHint': 'مثلًا: الأمل للأدوات المنزلية', 'setup.ownerName': 'اسم صاحب المحل', 'setup.pwHint': '8 حروف أو أرقام على الأقل. محدش يعرفها غيرك.', 'setup.go': 'ابدأ',
   'role.owner': 'صاحب المحل', 'role.manager': 'مدير', 'role.cashier': 'كاشير', 'role.storekeeper': 'أمين مخزن',
@@ -228,7 +228,7 @@ export default {
   'backup.yourPassword': 'اكتب كلمة السر بتاعتك للتأكيد', 'backup.done': 'النسخة اتعملت ✓', 'backup.restored': 'اتسترجعت. البرنامج هيفتح من تاني.',
   'pref.title': 'إعدادات الجهاز ده بس', 'pref.hint': 'مش بتأثر على باقي الأجهزة.', 'pref.lang': 'اللغة', 'pref.theme': 'الشكل', 'pref.auto': 'تلقائي', 'pref.day': 'فاتح',
   'pref.night': 'غامق', 'pref.contrast': 'تباين عالي', 'pref.size': 'حجم الكلام', 'pref.motion': 'الحركة', 'pref.motionOff': 'من غير حركة', 'pref.sound': 'صوت الباركود',
-  'pref.on': 'شغال', 'pref.off': 'مقفول', 'about.version': 'الستور نسخة {v}',
+  'pref.on': 'شغال', 'pref.off': 'مقفول', 'about.version': 'ميزان نسخة {v}',
 
   'print.notReceipt': 'مش فاتورة حقيقية', 'print.taxNo': 'رقم ضريبي', 'print.invoice': 'فاتورة', 'print.cashier': 'الكاشير', 'print.plan': 'خطة التقسيط',
   'print.planLine': '{n} قسط × {m}، أولهم {d}', 'print.warranty': 'الضمان', 'print.until': 'لحد',

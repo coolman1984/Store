@@ -36,7 +36,7 @@ export default async function view(page) {
   if (!cart.location_id) cart.location_id = sellable()[0]?.id || null;
   const me = await api.get('/api/me').catch(() => S.me);
   if (!me.shift_id) {
-    put(page, html`<div class="pos-noshift card volt-card tilt">
+    put(page, html`<div class="pos-noshift card accent-card">
       <div class="row">${icon('cash')}<h2>${t('pos.noShift.title')}</h2></div><p>${t('pos.noShift.text')}</p>
       <div class="row wrap"><input id="float" class="input big money-in" inputmode="decimal" placeholder="0" aria-label="${t('cash.float')}">
       <button class="btn primary lg" data-open>${t('cash.openShift')}</button></div></div>`);
@@ -73,7 +73,7 @@ export default async function view(page) {
       </div>
     </aside></div>
     <div class="pos-mbar" id="pos-mbar" hidden><span class="badge" id="mbar-n"></span><b class="num grow" id="mbar-t"></b>
-      <button class="btn sm" data-jump>${t('pos.cart')}</button><button class="btn primary sm" data-mpay>${t('pos.pay')}</button></div>`);
+      <button class="btn sm" data-jump>${t('pos.cart')}</button><button class="btn accent sm" data-mpay>${t('pos.pay')}</button></div>`);
   $('[data-jump]', page).addEventListener('click', () => $('.pos-cart', page).scrollIntoView({ behavior: 'smooth' }));
   $('[data-mpay]', page).addEventListener('click', pay);
   bind();
@@ -300,7 +300,7 @@ function drawCart() {
     <div class="tot-big"><span>${t('pos.total')}</span><b class="num" id="grand">${money(total())}</b></div>
     <div class="row pay-row">
       ${cart.lines.length ? html`<button class="btn ghost" data-clear aria-label="${t('pos.clear')}">${icon('trash')}</button>` : ''}
-      <button class="btn volt lg grow" data-pay ${cart.lines.length ? '' : 'disabled'}>${t('pos.pay')}<span class="kbd">F4</span></button>
+      <button class="btn accent lg grow" data-pay ${cart.lines.length ? '' : 'disabled'}>${t('pos.pay')}<span class="kbd">F4</span></button>
     </div>`);
   $('[data-pay]', root)?.addEventListener('click', pay);
   $('[data-disc]', root)?.addEventListener('click', discountDialog);
@@ -421,7 +421,7 @@ function pay() {
       <div id="pay-body"></div>
       <p class="err small" id="pay-err" role="alert"></p>
     </div>`,
-    foot: html`<button class="btn ghost" data-close>${t('act.back')}</button><button class="btn volt lg grow" data-confirm>${icon('check')}${t('pos.confirm')}</button>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.back')}</button><button class="btn accent lg grow" data-confirm>${icon('check')}${t('pos.confirm')}</button>`,
     mount(box, close) {
       const body = $('#pay-body', box);
       const draw = async () => {
@@ -429,10 +429,10 @@ function pay() {
         if (m === 'cash') {
           const tot = total();
           const quick = [...new Set([tot, Math.ceil(tot / 5000) * 5000, Math.ceil(tot / 10000) * 10000, Math.ceil(tot / 20000) * 20000])].slice(0, 4);
-          put(body, html`<div class="field"><label for="recv">${t('pos.received')}</label>
+          put(body, html`<div class="stack"><div class="field"><label for="recv">${t('pos.received')}</label>
             <input id="recv" class="input big money-in" inputmode="decimal" placeholder="${(tot / 100).toString()}" autofocus></div>
             <div class="row wrap">${quick.map((v) => html`<button class="chip num" data-q="${v}">${money(v)}</button>`)}</div>
-            <div class="change"><span>${t('pos.change')}</span><b class="num" id="change">—</b></div>`);
+            <div class="change"><span>${t('pos.change')}</span><b class="num" id="change">—</b></div></div>`);
           const recv = $('#recv', body);
           const upd = () => {
             const v = parseMoney(recv.value);
@@ -582,7 +582,7 @@ async function done(r, received) {
     </div>`,
     foot: html`${customer?.phone && sale ? html`<a class="btn" target="_blank" rel="noopener" href="${whatsapp(customer.phone, t('pos.waText', { n: r.number, tot: money(r.total), shop: S.lookups?.settings?.shop_name || '' }))}">${icon('message')}${t('pos.whatsapp')}</a>` : ''}
       <button class="btn" data-print>${icon('print')}${t('pos.print')}<span class="kbd">P</span></button>
-      <button class="btn volt grow" data-close autofocus>${t('pos.next')}<span class="kbd">Enter</span></button>`,
+      <button class="btn accent grow" data-close autofocus>${t('pos.next')}<span class="kbd">Enter</span></button>`,
     mount(box, close) {
       $('[data-print]', box).addEventListener('click', () => sale && printReceipt(sale));
       box.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'p' && sale) { e.preventDefault(); printReceipt(sale); } });

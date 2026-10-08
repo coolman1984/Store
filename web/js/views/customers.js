@@ -78,7 +78,7 @@ export async function customerFile(id, onChange) {
         ${c.address ? html`<span class="chip">${icon('pin')}${c.address}</span>` : ''}${c.national_id ? html`<span class="chip">${icon('lock')}${c.national_id}</span>` : ''}</div>
       <div class="card ${c.balance > 0 ? 'ink-card' : 'flat'}"><div class="kpi"><span class="label">${t('cust.balance')}</span>
         <span class="value num">${money(c.balance)}</span>${c.credit_limit ? html`<span class="small muted">${t('pos.creditLimit', { l: money(c.credit_limit) })}</span>` : ''}</div>
-        ${c.balance > 0 && can('installments.collect') ? html`<div class="row wrap"><button class="btn volt" data-collect>${icon('cash')}${t('cust.collect')}</button>
+        ${c.balance > 0 && can('installments.collect') ? html`<div class="row wrap"><button class="btn accent" data-collect>${icon('cash')}${t('cust.collect')}</button>
           ${c.phone ? html`<a class="btn" target="_blank" rel="noopener" href="${whatsapp(c.phone, t('cust.remind', { name: c.name, amount: money(c.balance), shop }))}">${icon('message')}${t('cust.remindBtn')}</a>` : ''}</div>` : ''}</div>
       ${c.plans.map((p) => html`<div class="card flat"><div class="card-head"><h2>${t('cust.plan')} <span class="num">${p.number}</span></h2>
         <span class="badge ${p.due_now ? 'bad' : p.remaining ? 'ok' : ''}">${p.remaining ? (p.due_now ? t('cust.dueNow', { m: money(p.due_now) }) : t('cust.onTrack')) : t('cust.planDone')}</span></div>
@@ -113,7 +113,7 @@ function collect(customerId, planId, suggested, onDone) {
     body: html`<div class="field"><label for="amt">${t('f.amount')}</label><input id="amt" class="input big money-in" inputmode="decimal" value="${(suggested || 0) / 100}" autofocus></div>
       <div class="field"><span class="label">${t('pos.method')}</span>${seg('cm', [['cash', t('pay.cash'), 'cash'], ['instapay', t('pay.instapay'), 'qr'], ['wallet', t('pay.wallet'), 'phone'], ['card', t('pay.card'), 'card']], 'cash')}</div>
       <div class="field"><label for="note">${t('f.note')}</label><input id="note" class="input"></div><p class="err small" id="cerr"></p>`,
-    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn volt" data-ok>${icon('check')}${t('cust.collect')}</button>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn accent" data-ok>${icon('check')}${t('cust.collect')}</button>`,
     mount(box, close) {
       let method = 'cash';
       bindSeg(box, 'cm', (v) => { method = v; });

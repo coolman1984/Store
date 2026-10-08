@@ -5,6 +5,7 @@ a later move to several PCs or branches does not rewrite any record (factory con
 Times are stored as UTC ISO text; the shop's local day uses this PC's time zone.
 """
 import os
+import threading
 import time
 from datetime import date, datetime, timedelta, timezone
 
@@ -28,8 +29,23 @@ def utcnow():
     return datetime.now(timezone.utc)
 
 
+_last_now = [None]
+_lock = threading.Lock()
+
+
 def iso(moment=None):
-    moment = moment or utcnow()
+    """UTC ISO text with milliseconds. Without an argument ("now") the result is strictly increasing in this process:
+    two records made in the same millisecond still have an order (a sale made just after counting a product must
+    sort after the count line, or the count shows a phantom surplus). A clock moved back by more than a second is
+    believed, so time never freezes."""
+    if moment is None:
+        now = utcnow()
+        moment = now.replace(microsecond=now.microsecond // 1000 * 1000)
+        with _lock:  # the server answers several browsers at once
+            last = _last_now[0]
+            if last is not None and last - timedelta(seconds=1) < moment <= last:
+                moment = last + timedelta(milliseconds=1)
+            _last_now[0] = moment
     return moment.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
 
 
