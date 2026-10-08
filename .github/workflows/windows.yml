@@ -1,0 +1,51 @@
+# Builds the Windows installer Al-Store-Setup-<version>.exe, installs it silently, starts the installed program and checks
+# that it serves its pages. Runs on version tags, by hand, and on pushes to the working branches (so a change to the build
+# is proven before it matters). See docs/BUILD_AND_RELEASE.md.
+name: windows installer
+on:
+  push:
+    branches: ['ccr-**', 'claude/**']
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check the shipped files
+        run: python tools/build_windows.py --check
+      - name: Build tools
+        run: pip install nuitka ordered-set zstandard pillow
+      - name: Inno Setup
+        run: choco install innosetup -y --no-progress
+      - name: Build the installer
+        run: python tools/build_windows.py
+      - name: Smoke-test the program folder (before installing)
+        run: python tools/smoke_exe.py build/app.dist/Al-Store.exe
+      - name: Install silently, then smoke-test the installed program
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist/Al-Store-Setup-*.exe | Select-Object -First 1
+          Start-Process -FilePath $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait
+          $exe = Join-Path ${env:ProgramFiles} 'Al-Store\Al-Store.exe'
+          if (-not (Test-Path $exe)) { throw 'the installed program is missing' }
+          python tools/smoke_exe.py $exe
+          if (-not (Test-Path (Join-Path ${env:ProgramData} 'Al-Store'))) { throw 'the data folder was not created' }
+      - name: Uninstall keeps the shop's data
+        shell: pwsh
+        run: |
+          $unins = Join-Path ${env:ProgramFiles} 'Al-Store\unins000.exe'
+          Start-Process -FilePath $unins -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -Wait
+          if (Test-Path (Join-Path ${env:ProgramFiles} 'Al-Store\Al-Store.exe')) { throw 'the program was not removed' }
+          if (-not (Test-Path (Join-Path ${env:ProgramData} 'Al-Store'))) { throw 'the shop data folder must survive an uninstall' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Al-Store-Setup
+          path: dist/Al-Store-Setup-*.exe
+          retention-days: 14

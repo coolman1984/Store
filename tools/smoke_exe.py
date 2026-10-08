@@ -1,0 +1,62 @@
+"""Starts a built Al-Store.exe in a temporary practice shop and checks that it really serves the pages (used by the Windows workflow).
+
+    python tools/smoke_exe.py "C:\\Program Files\\Al-Store\\Al-Store.exe"      (or: python tools/smoke_exe.py python server/app.py)
+Stdlib only. Exit code 0 = healthy.
+"""
+import json
+import os
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
+
+
+def get(port, path):
+    req = urllib.request.Request(f'http://127.0.0.1:{port}{path}')
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return r.status, dict(r.headers), r.read()
+
+
+def main(*cmd):
+    out = subprocess.run([*cmd, '--version'], capture_output=True, text=True, timeout=60)
+    print('version:', out.stdout.strip())
+    assert out.returncode == 0 and 'Al-Store' in out.stdout, out
+    s = socket.socket()
+    s.bind(('127.0.0.1', 0))
+    port = s.getsockname()[1]
+    s.close()
+    home = tempfile.mkdtemp(prefix='store-smoke-')
+    proc = subprocess.Popen([*cmd, '--practice', '--no-browser', '--port', str(port), '--host', '127.0.0.1', '--home', home],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        for _ in range(120):
+            try:
+                st, _, body = get(port, '/api/boot')
+                break
+            except OSError:
+                if proc.poll() is not None:
+                    sys.exit(f'the program stopped early with code {proc.returncode}')
+                time.sleep(0.5)
+        else:
+            sys.exit('the program did not answer in 60 seconds')
+        boot = json.loads(body)
+        assert boot.get('practice') is True, boot
+        st, headers, page = get(port, '/')
+        assert st == 200 and b'<html' in page.lower(), 'the home page is not served'
+        assert "script-src 'self'" in headers.get('Content-Security-Policy', ''), 'the security policy header is missing'
+        for asset in ('/js/app.js', '/css/tokens.css', '/img/icons.svg', '/fonts/readex-pro-arabic-wght-normal.woff2', '/i18n/ar.js'):
+            st, _, data = get(port, asset)
+            assert st == 200 and data, f'{asset} is not served from the program folder'
+        print('OK: the program starts, serves its pages and assets, practice mode is on')
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+if __name__ == '__main__':
+    main(*sys.argv[1:])

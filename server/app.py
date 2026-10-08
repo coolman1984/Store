@@ -42,9 +42,8 @@ import stock  # noqa: E402
 from auth import AuthError, Forbidden  # noqa: E402
 from core import Ctx, Problem  # noqa: E402
 from db import Database, NewerData  # noqa: E402
-from version import PRODUCT, PRODUCT_AR, VERSION  # noqa: E402
+from version import FROZEN, PRODUCT, PRODUCT_AR, ROOT, VERSION  # noqa: E402
 
-ROOT = os.path.dirname(HERE)
 WEB = os.path.join(ROOT, 'web')
 COOKIE = 'store_session'
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
@@ -686,7 +685,7 @@ def _is_private_ip(host):
 def default_home(practice):
     if os.environ.get('STORE_HOME'):
         return os.environ['STORE_HOME']
-    if os.name == 'nt' and os.environ.get('PROGRAMDATA') and getattr(sys, 'frozen', False):
+    if os.name == 'nt' and os.environ.get('PROGRAMDATA') and FROZEN:
         base = os.path.join(os.environ['PROGRAMDATA'], 'Al-Store')
     else:
         base = os.path.join(ROOT, 'shop-data')
@@ -739,7 +738,11 @@ def main(argv=None):
     parser.add_argument('--port', type=int)
     parser.add_argument('--host')
     parser.add_argument('--no-browser', action='store_true')
+    parser.add_argument('--version', action='store_true')
     args = parser.parse_args(argv)
+    if args.version:
+        print(f'{PRODUCT} {VERSION}')
+        return 0
     home = args.home or default_home(args.practice)
     os.makedirs(home, exist_ok=True)
     handler = logging.handlers.RotatingFileHandler(os.path.join(home, 'store.log'), maxBytes=2_000_000, backupCount=5, encoding='utf-8')

@@ -16,10 +16,10 @@ from datetime import date, timedelta
 
 import afcodes
 import ids
-from version import PRODUCT_ID
+from version import PRODUCT_ID, ROOT
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-KEYS_FILE = os.path.join(os.path.dirname(HERE), 'licence_keys.txt')
+KEYS_FILE = os.path.join(ROOT, 'licence_keys.txt')
 CLOCK_TOLERANCE_HOURS = 24
 _lock = threading.Lock()
 _cache = {}

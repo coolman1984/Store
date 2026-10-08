@@ -1,0 +1,15 @@
+# Build and release
+
+**Status:** pipeline written from Hessa's proven one; `verified` only after the workflow `windows installer` is green on a real Windows runner (see the run history). A clean-PC install by a person is still a separate gate (factory DELIVERY_GATES).
+
+1. Change `server/version.py` (VERSION) and describe the version in `docs/RELEASE_NOTES.md` (the build refuses otherwise).
+2. Put the vendor's **public** key line(s) in `licence_keys.txt` (from Licence Studio → Keys). Never a private key.
+3. Push a tag `vX.Y.Z`, or run the workflow `windows installer` by hand. It: checks the files → compiles with Nuitka (no readable source
+   in the program folder) → builds `Al-Store-Setup-<version>.exe` with Inno Setup → starts the program folder and the installed copy and
+   checks they serve pages → uninstalls and checks the shop's data survived.
+4. Download the installer from the workflow's artifacts. Test on a clean PC: install, open, activate a trial code, sell, back up, restore.
+
+Locally on Windows: `pip install nuitka ordered-set zstandard pillow`, install Inno Setup 6, `python tools/build_windows.py`.
+Anywhere: `python tools/build_windows.py --check` (seconds) and `python tools/smoke_exe.py python server/app.py`.
+
+Updating a shop: run the newer Setup on the same PC. Only the program in Program Files is replaced; `%ProgramData%\Al-Store` (data, backups, config) is never touched, and a newer database schema is migrated after a verified copy.
