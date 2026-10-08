@@ -22,7 +22,7 @@ async function drawer(body, again) {
   let s;
   try { s = await api.get('/api/shift'); } catch (e) { put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); return; }
   if (!s) {
-    put(body, html`<div class="card volt-card tilt pos-noshift"><div class="row">${icon('cash')}<h2>${t('cash.openTitle')}</h2></div><p>${t('cash.openText')}</p>
+    put(body, html`<div class="card accent-card pos-noshift"><div class="row">${icon('cash')}<h2>${t('cash.openTitle')}</h2></div><p>${t('cash.openText')}</p>
       <div class="row wrap"><input id="fl" class="input big money-in" inputmode="decimal" placeholder="0" aria-label="${t('cash.float')}" autofocus>
       <button class="btn primary lg" data-open>${t('cash.openShift')}</button></div></div>`);
     $('[data-open]', body).addEventListener('click', async (e) => {
@@ -35,15 +35,15 @@ async function drawer(body, again) {
   const k = s.by_kind;
   const nonCash = Object.entries(s.tenders).filter(([m]) => m !== 'cash');
   put(body, html`<div class="stack enter">
-    <div class="hero"><div class="card ink-card tilt spot"><div class="row between"><span class="muted">${t('cash.inDrawer')}</span><span class="badge ok num">${s.number} · ${time(s.opened_at)}</span></div>
+    <div class="hero"><div class="card ink-card"><div class="row between"><span class="muted">${t('cash.inDrawer')}</span><span class="badge ok num">${s.number} · ${time(s.opened_at)}</span></div>
       <div class="hero-total"><div class="value num" data-count="${s.expected_now}" data-fmt="money">${money(s.expected_now, { whole: true })}</div></div>
       <div class="mini-stats"><div><span>${t('cash.float')}</span><b class="num">${money(k.float || 0)}</b></div><div><span>${t('cash.cashSales')}</span><b class="num">${money(k.sale || 0)}</b></div>
         <div><span>${t('cash.out')}</span><b class="num">${money((k.expense || 0) + (k.refund || 0) + (k.drop_out || 0) + (k.supplier || 0) + (k.purchase || 0))}</b></div></div></div>
       <div class="card"><div class="card-head"><h2>${t('cash.actions')}</h2></div><div class="stack tight">
         ${can('cash.expense') ? html`<button class="btn block" data-expense>${icon('wallet')}${t('cash.expense')}</button>` : ''}
         ${can('cash.safe') ? html`<button class="btn block" data-drop>${icon('safe')}${t('cash.drop')}</button>` : ''}
-        <button class="btn volt block lg" data-close>${icon('lock')}${t('cash.closeShift')}</button></div>
-        ${nonCash.length ? html`<div class="stack tight"><p class="small muted">${t('cash.nonCash')}</p>${nonCash.map(([m, v]) => html`<div class="stat-line small"><span>${t('pay.' + m)}</span>${moneyH(v)}</div>`)}</div>` : ''}</div></div>
+        <button class="btn accent block lg" data-close>${icon('lock')}${t('cash.closeShift')}</button></div>
+        ${nonCash.length ? html`<div class="stack tight split"><p class="small muted">${t('cash.nonCash')}</p>${nonCash.map(([m, v]) => html`<div class="stat-line small"><span>${t('pay.' + m)}</span>${moneyH(v)}</div>`)}</div>` : ''}</div></div>
     <div class="card"><div class="card-head"><h2>${t('cash.moves')}</h2></div>${s.moves.length ? html`<div class="timeline">${s.moves.map((m) => html`<div class="ev">
       <span class="badge ${m.amount < 0 ? 'warn' : 'ok'}">${t('cashk.' + m.kind)}</span><span class="small"><span class="num">${time(m.at)}</span> · ${m.category ? t('exp.' + m.category) + ' · ' : ''}${m.note} · ${m.by_name}</span>
       <span class="row"><span class="money num">${money(m.amount, { sign: true })}</span>${m.kind === 'expense' && !m.reverses ? html`<button class="icon-btn sm" data-rev="${m.id}" aria-label="${t('act.reverse')}">${icon('return')}</button>` : ''}</span></div>`)}</div>`
@@ -110,7 +110,7 @@ function closeShift(s, again) {
         <div class="change" id="cdiff"><span>${t('cash.difference')}</span><b class="num">—</b></div>
         <div class="field"><label for="cn">${t('cash.closeNote')}</label><textarea id="cn" class="input" placeholder="${t('cash.closeNoteHint')}"></textarea></div>
         <p class="small faint">${t('cash.blind')}</p></div></div>`,
-    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn volt" data-ok>${icon('lock')}${t('cash.closeShift')}</button>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn accent" data-ok>${icon('lock')}${t('cash.closeShift')}</button>`,
     mount(box, close) {
       const upd = () => {
         const v = parseMoney($('#cc', box).value);
@@ -162,7 +162,7 @@ async function shifts(body) {
           <div class="card flat kpi"><span class="label">${t('home.invoices')}</span><span class="value num">${s.sales_count}</span></div></div>
           ${s.close_note ? html`<div class="tip warn">${icon('info')}<div>${s.close_note}</div></div>` : ''}
           <div class="timeline">${s.moves.map((m) => html`<div class="ev"><span class="badge">${t('cashk.' + m.kind)}</span><span class="small"><span class="num">${time(m.at)}</span> · ${m.note}</span>${moneyH(m.amount, { sign: true })}</div>`)}</div>`,
-        foot: canClose ? html`<button class="btn volt" data-cl>${t('cash.closeShift')}</button>` : '',
+        foot: canClose ? html`<button class="btn accent" data-cl>${t('cash.closeShift')}</button>` : '',
         mount(box, close) { $('[data-cl]', box)?.addEventListener('click', () => { close(); closeShift(s, () => shifts(body)); }); } });
     }));
   } catch (e) { put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); }
@@ -172,9 +172,9 @@ async function safe(body, again) {
   put(body, skeleton(5));
   let d;
   try { d = await api.get('/api/safe'); } catch (e) { put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); return; }
-  put(body, html`<div class="stack enter"><div class="hero"><div class="card ink-card tilt spot"><span class="muted">${t('cash.safeBalance')}</span>
+  put(body, html`<div class="stack enter"><div class="hero"><div class="card ink-card"><span class="muted">${t('cash.safeBalance')}</span>
       <div class="hero-total"><div class="value num" data-count="${d.balance}" data-fmt="money">${money(d.balance, { whole: true })}</div></div>
-      <div class="row wrap"><button class="btn volt" data-k="withdraw">${icon('arrow-up')}${t('cash.withdraw')}</button><button class="btn" data-k="deposit">${icon('arrow-down')}${t('cash.deposit')}</button></div></div>
+      <div class="row wrap"><button class="btn accent" data-k="withdraw">${icon('arrow-up')}${t('cash.withdraw')}</button><button class="btn" data-k="deposit">${icon('arrow-down')}${t('cash.deposit')}</button></div></div>
     <div class="card"><div class="card-head"><h2>${t('cash.financeDue')}</h2></div>${d.finance_due.length ? html`<div class="list">${d.finance_due.map((f) => html`<div class="li"><b class="grow">${f.provider}</b>
       <span class="money num">${money(f.amount)}</span><button class="btn sm" data-settle="${f.provider}" data-amount="${f.amount}">${t('cash.settle')}</button></div>`)}</div>`
       : html`<p class="muted small">${t('cash.noFinanceDue')}</p>`}</div></div>

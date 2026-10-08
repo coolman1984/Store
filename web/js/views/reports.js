@@ -55,7 +55,7 @@ export default async function view(page) {
           <div class="stat-line"><span>${t('home.safe')}</span><b class="money num">${money(b.safe)}</b></div>
           <div class="stat-line"><span>${t('reports.drawers')}</span><b class="money num">${money(b.drawers)}</b></div>
           ${data.stock_value !== undefined ? html`<div class="stat-line"><span>${t('stock.value')}</span><b class="money num">${money(data.stock_value)}</b></div>` : ''}</div>
-        <div class="card volt-card"><div class="card-head"><h2>${t('reports.year', { y: y.year })}</h2></div><div class="kpi"><span class="value num">${money(y.turnover)}</span>
+        <div class="card accent-card"><div class="card-head"><h2>${t('reports.year', { y: y.year })}</h2></div><div class="kpi"><span class="value num">${money(y.turnover)}</span>
           <span class="small">${t('reports.yearHint')}</span></div></div>
         ${data.slow ? html`<div class="card"><div class="card-head"><h2>${t('stock.slow')}</h2></div>${data.slow.length ? html`<div class="list">${data.slow.slice(0, 8).map((r) =>
           html`<div class="li"><span class="grow ellipsis">${r.name}</span><span class="badge num">${num(r.on_hand)}</span><span class="money num">${money(r.value)}</span></div>`)}</div>` : html`<p class="muted small">${t('stock.noSlow')}</p>`}</div>` : ''}
@@ -82,6 +82,6 @@ export default async function view(page) {
 }
 
 function kpi(ic, label, value, isMoney = true, extra) {
-  return html`<div class="card flat spot kpi"><span class="label">${icon(ic)}${label}</span>
+  return html`<div class="card flat kpi"><span class="label">${icon(ic)}${label}</span>
     <span class="value num" data-count="${value}" ${isMoney ? raw('data-fmt="money"') : ''}>${isMoney ? money(value, { whole: true }) : num(value)}</span>${extra ? html`<span class="small muted">${extra}</span>` : ''}</div>`;
 }

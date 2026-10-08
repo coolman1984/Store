@@ -11,7 +11,7 @@ import { shake } from '../motion.js';
 export default async function view(page, params) {
   const tab = params.tab === 'warranty' ? 'warranty' : 'list';
   put(page, html`<div class="page-head"><div class="titles"><h1>${t('nav.sales')}</h1><p>${t('sales.sub')}</p></div>
-    <div class="actions">${can('pos.sell') ? html`<a class="btn volt" href="#/pos">${icon('cart')}${t('home.newSale')}</a>` : ''}</div></div>
+    <div class="actions">${can('pos.sell') ? html`<a class="btn accent" href="#/pos">${icon('cart')}${t('home.newSale')}</a>` : ''}</div></div>
     <nav class="tabs" data-lab-scroll aria-label="${t('nav.sections')}"><a href="#/sales" ${tab === 'list' ? CUR : ''}>${icon('receipt')}${t('sales.tab.list')}</a>
     <a href="#/sales?tab=warranty" ${tab === 'warranty' ? CUR : ''}>${icon('shield')}${t('sales.tab.warranty')}</a></nav>
     <div id="sales-body"></div>`);
@@ -143,7 +143,7 @@ function warrantyTab(body, params) {
     try {
       const w = await api.get('/api/warranty', { serial: q });
       const ok = w.warranty_days_left !== null && w.warranty_days_left !== undefined && w.warranty_days_left >= 0;
-      put(out, html`<div class="card ${w.sale_id ? (ok ? 'volt-card' : '') : ''} tilt">
+      put(out, html`<div class="card ${w.sale_id ? (ok ? 'accent-card' : '') : ''}">
         <div class="row between wrap"><h2>${w.product || ''}</h2><span class="badge num">${w.serial}</span></div>
         ${w.sale_id ? html`<div class="grid kpis">
           <div class="kpi"><span class="label">${t('sales.soldOn')}</span><span class="value num">${date(w.sold_at)}</span></div>

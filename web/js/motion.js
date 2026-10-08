@@ -25,25 +25,6 @@ export function countUp(root, format) {
   });
 }
 
-/** Light 3D tilt (max 3°) and a spotlight that follows the pointer on cards marked .tilt / .spot. */
-export function depth(root) {
-  if (!fine() || reduced()) return;
-  root.querySelectorAll('.tilt, .spot').forEach((el) => {
-    let raf = 0;
-    el.addEventListener('pointermove', (e) => {
-      const r = el.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        el.style.setProperty('--mx', `${x * 100}%`);
-        el.style.setProperty('--my', `${y * 100}%`);
-        if (el.classList.contains('tilt')) el.style.transform = `perspective(900px) rotateX(${(0.5 - y) * 3}deg) rotateY(${(x - 0.5) * 3}deg) translateZ(0)`;
-      });
-    });
-    el.addEventListener('pointerleave', () => { cancelAnimationFrame(raf); el.style.transform = ''; });
-  });
-}
-
 /** Dynamic sizes without inline style attributes (the page's Content-Security-Policy forbids them). */
 export function hydrate(root) {
   root.querySelectorAll('[data-w]').forEach((el) => el.style.setProperty('--w', el.dataset.w));
@@ -58,7 +39,7 @@ export function drawLines(root) {
     path.style.strokeDasharray = `${len}`;
     path.style.strokeDashoffset = `${len}`;
     path.getBoundingClientRect();
-    path.style.transition = 'stroke-dashoffset 900ms cubic-bezier(.2,.8,.2,1)';
+    path.style.transition = 'stroke-dashoffset 600ms cubic-bezier(.2,.8,.2,1)';
     path.style.strokeDashoffset = '0';
   });
 }
@@ -97,6 +78,5 @@ export function tick(ok = true) {
 export function after(root, format) {
   hydrate(root);
   countUp(root, format);
-  depth(root);
   drawLines(root);
 }

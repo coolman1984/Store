@@ -37,7 +37,7 @@ async function newReceipt(body, again) {
         <div class="field"><span class="label">${t('receive.payFrom')}</span>${seg('from', [['safe', t('cash.safe')], ['drawer', t('cash.drawer')]], 'safe')}</div></div>` : ''}
       <div class="field"><label for="rnote">${t('f.note')}</label><input id="rnote" class="input"></div>
       <p class="err small" id="rerr" role="alert"></p>
-      <button class="btn volt lg" data-save>${icon('check')}${t('receive.save')}</button></div>
+      <button class="btn accent lg" data-save>${icon('check')}${t('receive.save')}</button></div>
       <div class="tip">${icon('info')}<div>${t('receive.tip')}</div></div></div></div>`);
   let from = 'safe';
   bindSeg(body, 'from', (v) => { from = v; });
@@ -87,9 +87,9 @@ async function suppliers(body, params) {
     const owe = rows.reduce((a, r) => a + r.balance, 0);
     put(body, html`<div class="stack enter"><div class="row between wrap"><div class="card flat kpi"><span class="label">${t('home.weOwe')}</span><span class="value num" data-count="${owe}" data-fmt="money">${money(owe, { whole: true })}</span></div>
       <button class="btn primary" data-new>${icon('plus')}${t('receive.newSupplier')}</button></div>
-      ${rows.length ? html`<div class="card pad-0"><table class="t"><thead><tr><th>${t('f.name')}</th><th>${t('f.phone')}</th><th class="hide-phone">${t('receive.lastPurchase')}</th><th class="end">${t('receive.weOwe')}</th></tr></thead>
+      ${rows.length ? html`<div class="card pad-0"><div class="table-wrap"><table class="t"><thead><tr><th>${t('f.name')}</th><th>${t('f.phone')}</th><th class="hide-phone">${t('receive.lastPurchase')}</th><th class="end">${t('receive.weOwe')}</th></tr></thead>
       <tbody>${rows.map((r) => html`<tr class="click" data-id="${r.id}"><td class="name">${r.name}</td><td class="num">${r.phone}</td><td class="hide-phone num">${r.last_purchase ? date(r.last_purchase) : '—'}</td>
-      <td class="end">${r.balance ? html`<span class="badge warn money">${money(r.balance)}</span>` : '—'}</td></tr>`)}</tbody></table></div>` : html`<div class="card">${empty('users', t('receive.noSuppliers'), '')}</div>`}</div>`);
+      <td class="end">${r.balance ? html`<span class="badge warn money">${money(r.balance)}</span>` : '—'}</td></tr>`)}</tbody></table></div></div>` : html`<div class="card">${empty('users', t('receive.noSuppliers'), '')}</div>`}</div>`);
     $('[data-new]', body).addEventListener('click', () => editSupplier(null, () => suppliers(body, params)));
     $$('tr[data-id]', body).forEach((tr) => tr.addEventListener('click', () => supplierFile(tr.dataset.id, () => suppliers(body, params))));
     settle(body);
@@ -104,7 +104,7 @@ async function supplierFile(id, onChange) {
     body: html`<div class="card ${s.balance ? 'ink-card' : 'flat'} kpi"><span class="label">${t('receive.weOwe')}</span><span class="value num">${money(s.balance)}</span></div>
       <div class="card flat"><div class="card-head"><h2>${t('cust.statement')}</h2></div><div class="timeline">${s.entries.map((e) => html`<div class="ev"><span class="badge ${e.amount < 0 ? 'ok' : 'warn'}">${t('ap.' + e.kind)}</span>
         <span class="small num">${date(e.at, true)} · ${e.note}</span>${moneyH(e.amount, { sign: true })}</div>`)}</div></div>`,
-    foot: html`<button class="btn" data-edit>${icon('edit')}${t('act.edit')}</button>${s.balance && can('suppliers.pay') ? html`<button class="btn volt" data-pay>${icon('cash')}${t('receive.pay')}</button>` : ''}`,
+    foot: html`<button class="btn" data-edit>${icon('edit')}${t('act.edit')}</button>${s.balance && can('suppliers.pay') ? html`<button class="btn accent" data-pay>${icon('cash')}${t('receive.pay')}</button>` : ''}`,
     mount(box, close) {
       $('[data-edit]', box).addEventListener('click', () => { close(); editSupplier(s, onChange); });
       $('[data-pay]', box)?.addEventListener('click', () => {

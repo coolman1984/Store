@@ -151,7 +151,7 @@ export function open(opts) {
   $$('[data-close]', box).forEach((b) => b.addEventListener('click', () => entry.close()));
   document.body.appendChild(scrim);
   opts.mount && opts.mount(box, entry.close);
-  const auto = $('[autofocus]', box) || $('input, select, textarea, button.primary, button.volt', box);
+  const auto = $('[autofocus]', box) || $('input, select, textarea, button.primary, button.accent', box);
   // only if the person has not already moved into a field: a late focus() must never steal what they are typing
   setTimeout(() => { if (auto && !(box.contains(document.activeElement) && document.activeElement !== box)) auto.focus(); }, 30);
   return entry;

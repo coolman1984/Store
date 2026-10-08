@@ -4,6 +4,7 @@ import { applyLang, lang, setLang, t } from './i18n.js';
 import { apply as applyPrefs, prefs } from './prefs.js';
 import { $, $$, html, icon, put, open, closeAll, anyOpen, toast, fail, run, initials, esc, money } from './ui.js';
 import { transition, after, shake } from './motion.js';
+import { mark } from './brand.js';
 
 export const S = { boot: null, me: null, lookups: null, route: 'home', params: {}, counts: {} };
 
@@ -28,7 +29,7 @@ const GROUPS = [['', ['pos', 'home']], ['nav.g.sell', ['sales', 'customers']], [
 export const can = (...perms) => !!S.me && perms.some((p) => S.me.perms.includes(p));
 const allowed = (r) => !ROUTES[r].perm || can(...ROUTES[r].perm);
 export const fmtCount = (v, f) => (f === 'money' ? money(v, { whole: true }) : new Intl.NumberFormat('en-US').format(v));
-/** call after a view puts content that arrived later (numbers count up, cards get depth, bars get their width) */
+/** call after a view puts content that arrived later (numbers count up, bars get their width) */
 export const settle = (el) => { after(el, fmtCount); scrollables(el); };
 /** a table that scrolls sideways must be reachable by keyboard (WCAG 2.1.1) */
 function scrollables(root) {
@@ -51,7 +52,8 @@ async function boot() {
   try {
     S.boot = await api.get('/api/boot');
   } catch (e) {
-    put(document.body, html`<main class="empty">${icon('alert')}<h3>${t('err.offline')}</h3></main>`);
+    put(document.body, html`<main class="empty boot-error"><span class="brand-mark">${mark('light')}</span><h3>${t('err.offline')}</h3>
+      <p>${t('err.retrying')}</p><span class="splash-bar"></span></main>`);
     setTimeout(boot, 3000);
     return;
   }
@@ -70,22 +72,23 @@ async function startShell() {
 }
 
 // ---------------------------------------------------------------- sign-in, setup, licence
+function lockup(tone, shop) {
+  return html`<div class="brand"><span class="brand-mark">${mark(tone)}</span><div class="grow"><div class="brand-name">${t('app.name')}<small>${t('app.nameAlt')}</small></div>
+    <div class="brand-shop ellipsis">${shop}</div></div></div>`;
+}
+
 function authFrame(content) {
   put(document.body, html`<main class="auth">
-    <section class="auth-art" aria-hidden="true">
-      <div class="brand"><div class="brand-mark">${icon('bolt')}</div><div><div class="brand-name">${t('app.name')}</div>
-        <div class="brand-shop">${S.boot?.shop_name || ''}</div></div></div>
-      <div class="floor">
-        <div class="float f1"><span class="tag">${t('auth.art.sale')}</span><b class="num">12,450</b><small>${t('cur')}</small></div>
-        <div class="float f2"><span class="tag ok">${t('auth.art.drawer')}</span><b>${t('auth.art.balanced')}</b></div>
-        <div class="float f3"><span class="tag warn">${t('auth.art.instal')}</span><b class="num">3</b><small>${t('auth.art.today')}</small></div>
-        <div class="float f4">${icon('shield')}<span>${t('auth.art.serial')}</span></div>
-      </div>
-      <p class="auth-line">${t('auth.tagline')}</p>
+    <section class="auth-art">
+      ${lockup('dark', t('app.tag'))}
+      <div class="auth-pitch"><p class="auth-line">${t('auth.tagline')}</p>
+        <ul class="auth-points">${[['barcode', 'sell'], ['safe', 'drawer'], ['shield', 'offline']].map(([ic, k]) =>
+          html`<li><span class="ic">${icon(ic)}</span><span><b>${t('auth.pt.' + k)}</b><span>${t('auth.pt.' + k + 'Hint')}</span></span></li>`)}</ul></div>
+      <span class="auth-watermark" aria-hidden="true">${mark('dark')}</span>
     </section>
     <section class="auth-form">${content}
       <div class="auth-tools"><button class="chip" data-lang>${icon('globe')}${lang() === 'ar' ? 'English' : 'العربية'}</button>
-      ${S.boot?.practice ? html`<span class="chip volt">${icon('sparkle')}${t('app.practice')}</span>` : ''}</div>
+      ${S.boot?.practice ? html`<span class="chip accent">${icon('sparkle')}${t('app.practice')}</span>` : ''}</div>
     </section></main>`);
   $('[data-lang]').addEventListener('click', () => { setLang(lang() === 'ar' ? 'en' : 'ar'); boot(); });
 }
@@ -98,7 +101,7 @@ function showAuth() {
     <div class="field"><label for="username">${t('f.username')}</label><input id="username" class="input big" autocomplete="username" required autofocus></div>
     <div class="field"><label for="password">${t('f.password')}</label><input id="password" type="password" class="input big" autocomplete="current-password" required></div>
     <p class="err small" id="auth-err" role="alert"></p>
-    <button class="btn volt lg block" type="submit">${t('auth.signIn')}${icon('chev-l', 'flip')}</button>
+    <button class="btn accent lg block" type="submit">${t('auth.signIn')}${icon('chev-l', 'flip')}</button>
   </form>`);
   $('#auth-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -119,7 +122,7 @@ function showAuth() {
 
 function showSetup() {
   authFrame(html`<form class="card auth-card form" id="setup-form">
-    <div><span class="badge volt">${t('setup.step')}</span><h1>${t('setup.title')}</h1><p class="muted">${t('setup.sub')}</p></div>
+    <div><span class="badge accent">${t('setup.step')}</span><h1>${t('setup.title')}</h1><p class="muted">${t('setup.sub')}</p></div>
     <div class="field"><label for="shop">${t('setup.shop')}</label><input id="shop" class="input" required autofocus placeholder="${t('setup.shopHint')}"></div>
     <div class="cols"><div class="field"><label for="phone">${t('f.phone')}</label><input id="phone" class="input" inputmode="tel"></div>
     <div class="field"><label for="addr">${t('f.address')}</label><input id="addr" class="input"></div></div>
@@ -129,7 +132,7 @@ function showSetup() {
     <div class="field"><label for="pw">${t('f.password')}</label><input id="pw" type="password" class="input" required autocomplete="new-password">
       <span class="hint">${t('setup.pwHint')}</span></div>
     <p class="err small" id="setup-err" role="alert"></p>
-    <button class="btn volt lg block" type="submit">${t('setup.go')}</button></form>`);
+    <button class="btn accent lg block" type="submit">${t('setup.go')}</button></form>`);
   $('#setup-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
@@ -157,7 +160,7 @@ export function licenceCard(lic, onDone) {
       <div class="field"><label for="lic-code">${t('lic.paste')}</label>
         <textarea id="lic-code" class="input code-box" spellcheck="false" autocomplete="off" placeholder="XXXXXX-XXXXXX-XXXXXX-…"></textarea>
         <span class="err small" id="lic-err" role="alert"></span></div>
-      <button class="btn volt" data-activate>${icon('key')}${t('lic.activate')}</button>
+      <button class="btn accent" data-activate>${icon('key')}${t('lic.activate')}</button>
       ${!good ? html`<div class="tip">${icon('info')}<div>${t('lic.readOnly')}</div></div>` : ''}</div>`,
     mount(box) {
       $('[data-copy]', box).addEventListener('click', async () => {
@@ -185,8 +188,7 @@ function renderShell() {
   const me = S.me;
   put(document.body, html`<div class="shell">
     <aside class="rail" aria-label="${t('nav.main')}"><div class="rail-in">
-      <div class="brand"><div class="brand-mark">${icon('bolt')}</div><div class="grow"><div class="brand-name">${t('app.name')}</div>
-        <div class="brand-shop ellipsis">${S.lookups?.settings?.shop_name || S.boot.shop_name}</div></div></div>
+      ${lockup('dark', S.lookups?.settings?.shop_name || S.boot.shop_name)}
       <nav class="nav" id="nav" aria-label="${t('nav.main')}">${GROUPS.map(([g, rs]) => {
         const vis = rs.filter(allowed);
         return vis.length ? html`${g ? html`<div class="nav-label">${t(g)}</div>` : ''}${vis.map(navLink)}` : '';
@@ -196,10 +198,11 @@ function renderShell() {
     </div></aside>
     <div class="main">
       <header class="top">
+        <span class="mobile-mark">${mark('light', t('app.name'))}</span>
         <button class="search-pill" data-cmdk>${icon('search')}<span class="grow">${t('cmdk.placeholder')}</span><span class="kbd hide-phone">Ctrl K</span></button>
-        <span id="shift-chip"></span>
+        <div class="top-end"><span id="shift-chip"></span>
         <button class="icon-btn" data-theme-toggle aria-label="${t('pref.theme')}">${icon(document.documentElement.dataset.theme === 'night' ? 'sun' : 'moon')}</button>
-        <button class="icon-btn" data-lang aria-label="${t('pref.lang')}"><span class="xs">${lang() === 'ar' ? 'EN' : 'ع'}</span></button>
+        <button class="icon-btn" data-lang aria-label="${t('pref.lang')}"><span class="small">${lang() === 'ar' ? 'EN' : 'ع'}</span></button></div>
       </header>
       <section id="banners" aria-label="${t('nav.notices')}"></section>
       <main class="page" id="page" tabindex="-1"></main>

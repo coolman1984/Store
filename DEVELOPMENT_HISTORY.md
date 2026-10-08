@@ -1,5 +1,31 @@
 # Development history (newest first)
 
+## 2026-10-08 — Design system v2: the Mizan (ميزان) identity across the whole program
+**Why:** the program worked and passed its checks but did not look like software a shop would pay for next to international
+products: weak hierarchy, 15-px text and 12-px tables, a neon "volt" green that failed contrast as text, floating glass,
+3D tilt and pointer spotlights that cost frames on an old PC, inconsistent buttons and icon sizes.
+
+**What:** a new identity and one design system, applied to every screen (details and rules in `docs/DESIGN.md`).
+1. **Brand:** display name ميزان · Mizan (provisional — not legally cleared; program id, licence product, data folder and
+   installer name deliberately unchanged so existing shops keep working). New mark (balanced bars on a fulcrum) used by the
+   rail, sign-in, phone top bar, splash, favicon, manifest and the Windows icon; outlined logo files in `docs/brand/`
+   (`tools/make_brand.py`).
+2. **Tokens:** navy / ivory / copper palette for light and dark, 16-px body, 14-px data, 20-px icons, 44-px controls, 4-px
+   rhythm, quiet shadows, 120–240 ms motion. `volt` renamed `accent` everywhere.
+3. **Components rebuilt:** flush navy rail, sticky top bar, buttons, inputs, tabs, tables, KPIs (money never wraps — container
+   query), dialogs, sheets, toasts, palette, empty/error states, a branded splash and a calmer "cannot reach the shop PC" screen.
+4. **Screens:** new sign-in (promise + three proof points), navy "today" hero with a copper chart, counter with a sticky pay
+   button on phones (the pay sheet's confirm no longer scrolls away), clearer pay methods and sale-done, spacing fixes in
+   cash, reports (six KPIs in one row, Arabic names cut at their own end in English mode).
+5. **Removed:** 3D tilt, pointer spotlight, blur-in, background glows (decoration with a per-frame cost).
+
+**Bugs found while doing it:** the suppliers table had no scroll wrapper and spilled out of its card on a 360-px phone (the
+layout sweep caught it once text became readable) — wrapped, and any bare table in a card now scrolls inside it.
+
+**Behaviour:** no server, database, money or stock logic changed. **Tests:** new `DesignSystem` checks (WCAG AA contrast of
+every token pair in both themes, one mark geometry in four places, no leftover of the old identity, base geometry);
+full suite including the browser journey and layout sweep passes.
+
 ## 2026-10-08 — 1.0.2 review round: the junk-input test
 **What:** a new test (`tests/test_fuzz.py`) sends junk to every write route (wrong types, huge numbers, lists where an id
 belongs, bad dates, 1,500-letter texts) — first everywhere at once, then one field at a time inside a valid sale, return,

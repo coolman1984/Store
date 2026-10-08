@@ -1,2 +1,2 @@
-{"name": "الستور", "short_name": "الستور", "start_url": "/", "display": "standalone", "background_color": "#f2f0eb", "theme_color": "#12161b",
+{"name": "ميزان — Mizan", "short_name": "ميزان", "start_url": "/", "display": "standalone", "background_color": "#f5f3ee", "theme_color": "#101c33",
  "dir": "rtl", "lang": "ar", "icons": [{"src": "/img/icon.svg", "sizes": "any", "type": "image/svg+xml"}]}

@@ -1,6 +1,6 @@
 // English. Every key here exists in ar.js too (tests/test_frontend.py checks both ways).
 export default {
-  'app.name': 'Al-Store', 'app.practice': 'Practice shop', 'app.practiceBar': 'A practice shop with made-up data. Learn freely: nothing here touches your real shop.',
+  'app.name': 'Mizan', 'app.nameAlt': 'ميزان', 'app.tag': 'Retail books in balance', 'app.practice': 'Practice shop', 'app.practiceBar': 'A practice shop with made-up data. Learn freely: nothing here touches your real shop.',
   cur: 'EGP', saved: 'Saved ✓',
   'time.now': 'just now', 'time.min': '{n} min ago', 'time.hour': '{n} h ago', 'time.day': '{n} days ago',
 
@@ -15,7 +15,7 @@ export default {
   'act.copy': 'Copy', 'act.copied': 'Copied', 'act.logout': 'Sign out', 'act.more': 'All', 'act.reverse': 'Reverse', 'act.search': 'Search',
   'state.loading': 'Loading…', 'state.denied': 'This page is not in your permissions', 'state.deniedHint': 'Ask the owner to give you the permission in Settings → People & permissions.',
   'state.reversed': 'Reversed', 'state.status': 'Status',
-  'err.title': 'Something went wrong', 'err.offline': 'Cannot reach the shop PC. Check that the main PC is on.',
+  'err.title': 'Something went wrong', 'err.retrying': 'Trying again on its own every few seconds.', 'err.offline': 'Cannot reach the shop PC. Check that the main PC is on.',
   'err.offlineBar': 'The connection to the shop PC is lost. Nothing can be saved until it is back.',
   'err.server': 'An unexpected problem happened. Try again; if it repeats, contact support.',
 
@@ -26,7 +26,7 @@ export default {
 
   'auth.welcome': 'Welcome', 'auth.sub': 'Sign in with your own name to start.', 'auth.signIn': 'Sign in', 'auth.expired': 'Your session ended. Please sign in again.',
   'auth.tagline': 'Your whole shop in view: sales, stock, the drawer and instalments.', 'auth.practiceHint': 'Practice shop: sign in as owner with password practice-1234 (or cashier, manager, store).',
-  'auth.art.sale': "Today's sales", 'auth.art.drawer': 'Drawer', 'auth.art.balanced': 'Balanced to the piaster', 'auth.art.instal': 'Instalments', 'auth.art.today': 'today', 'auth.art.serial': 'Warranty by serial',
+  'auth.pt.sell': 'Fast selling by barcode and keyboard', 'auth.pt.sellHint': 'An invoice in seconds, the change worked out for you.', 'auth.pt.drawer': 'A drawer that balances to the piaster', 'auth.pt.drawerHint': 'Every pound in or out is recorded with who did it.', 'auth.pt.offline': 'Works without the internet', 'auth.pt.offlineHint': 'Your data stays on your PC, backed up automatically every few hours.',
   'setup.step': 'First run', 'setup.title': "Let's set up your shop", 'setup.sub': "The shop's name and the owner's account. Everything else can come later.", 'setup.shop': 'Shop name',
   'setup.shopHint': 'e.g. Al-Amal Home Appliances', 'setup.ownerName': "Owner's name", 'setup.pwHint': 'At least 8 characters. Nobody else should know it.', 'setup.go': 'Start',
   'role.owner': 'Owner', 'role.manager': 'Manager', 'role.cashier': 'Cashier', 'role.storekeeper': 'Storekeeper',
@@ -228,7 +228,7 @@ export default {
   'backup.yourPassword': 'Type your password to confirm', 'backup.done': 'Backup made ✓', 'backup.restored': 'Restored. The program reopens.',
   'pref.title': 'Settings of this device only', 'pref.hint': 'They do not change other devices.', 'pref.lang': 'Language', 'pref.theme': 'Look', 'pref.auto': 'Automatic', 'pref.day': 'Light',
   'pref.night': 'Dark', 'pref.contrast': 'High contrast', 'pref.size': 'Text size', 'pref.motion': 'Motion', 'pref.motionOff': 'No motion', 'pref.sound': 'Scan sound',
-  'pref.on': 'On', 'pref.off': 'Off', 'about.version': 'Al-Store version {v}',
+  'pref.on': 'On', 'pref.off': 'Off', 'about.version': 'Mizan version {v}',
 
   'print.notReceipt': 'not a real receipt', 'print.taxNo': 'Tax no.', 'print.invoice': 'Invoice', 'print.cashier': 'Cashier', 'print.plan': 'Instalment plan',
   'print.planLine': '{n} instalments × {m}, first on {d}', 'print.warranty': 'Warranty', 'print.until': 'until',

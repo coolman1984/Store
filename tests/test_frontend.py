@@ -98,7 +98,7 @@ class PageCode(unittest.TestCase):
     def test_views_use_tokens_not_colours(self):
         for path in JS:
             if os.path.basename(path) == 'home.js':
-                continue  # the chart gradient stops are the brand volt colour by design
+                continue  # the chart gradient stops are the brand accent colour by design
             self.assertNotRegex(read(path), r'#[0-9a-fA-F]{6}\b', path)
 
     def test_icons_exist(self):
@@ -129,6 +129,57 @@ class PageCode(unittest.TestCase):
         self.assertNotIn('http', css.split('*/', 1)[1])
         self.assertTrue(os.path.exists(os.path.join(WEB, 'fonts', 'OFL-ReadexPro.txt')))
         self.assertTrue(os.path.exists(os.path.join(WEB, 'fonts', 'OFL-Alexandria.txt')))
+
+
+def _lum(hex_):
+    c = [int(hex_[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    c = [x / 12.92 if x <= .03928 else ((x + .055) / 1.055) ** 2.4 for x in c]
+    return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]
+
+
+def contrast(a, b):
+    a, b = _lum(a), _lum(b)
+    return (max(a, b) + .05) / (min(a, b) + .05)
+
+
+class DesignSystem(unittest.TestCase):
+    """Mizan design system v2: the tokens keep WCAG AA contrast in both themes, the mark is one drawing everywhere."""
+
+    @classmethod
+    def setUpClass(cls):
+        css = read(os.path.join(WEB, 'css', 'tokens.css'))
+        def block(sel):
+            body = css[css.index(sel + ' {'):]
+            return dict(re.findall(r'--([\w-]+):\s*(#[0-9a-fA-F]{6})', body[:body.index('\n}')]))
+        cls.day = block(':root')
+        cls.night = {**cls.day, **block('[data-theme="night"]')}
+
+    def test_text_contrast_is_aa_in_both_themes(self):
+        pairs = [('ink', 'surface'), ('ink-2', 'surface'), ('ink-3', 'surface'), ('ink-3', 'canvas'), ('ink-3', 'surface-3'),
+                 ('accent-ink', 'accent'), ('brand-ink', 'brand'), ('ok', 'ok-soft'), ('warn', 'warn-soft'), ('bad', 'bad-soft'),
+                 ('info', 'info-soft'), ('accent', 'accent-soft')]
+        for name, theme in (('day', self.day), ('night', self.night)):
+            for fg, bg in pairs:
+                self.assertGreaterEqual(contrast(theme[fg], theme[bg]), 4.5, f'{name}: --{fg} on --{bg}')
+        self.assertGreaterEqual(contrast(self.day['rail-ink-2'], self.day['rail']), 4.5)
+
+    def test_one_mark_drawing_everywhere(self):
+        """The app (brand.js), the splash (index.html), the favicon and the Windows icon draw the same mark."""
+        for rel in ('js/brand.js', 'index.html', 'img/icon.svg'):
+            text = read(os.path.join(WEB, rel))
+            for part in ('y="12" width="26" height="4.5"', 'y="19.5" width="26" height="4.5"', 'M24 26 32 36H16Z'):
+                self.assertIn(part, text, rel)
+        icon = read(os.path.join(ROOT, 'tools', 'make_icon.py'))
+        self.assertIn('(24 * u, 26 * u), (32 * u, 36 * u), (16 * u, 36 * u)', icon)
+
+    def test_no_leftover_of_the_old_identity(self):
+        for path in JS + CSS:
+            self.assertNotIn('volt', read(path), path)
+
+    def test_icons_and_controls_follow_the_geometry(self):
+        tokens = read(os.path.join(WEB, 'css', 'tokens.css'))
+        for rule in ('--fs: 16px', '--icon: 20px', '--tap: 44px'):
+            self.assertIn(rule, tokens)
 
 
 if __name__ == '__main__':
