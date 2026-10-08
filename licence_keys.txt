@@ -1,0 +1,3 @@
+# Vendor PUBLIC keys that may sign licence codes for Al-Store (one per line, "kid:key" or "key").
+# Public keys cannot make codes. Add the key printed by Apps-Factory apps/licence-studio ("Keys" page) before building a release.
+# Never put a private key here.

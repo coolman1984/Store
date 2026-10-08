@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+shop-data/
+shop-data-practice/
+*.db
+*.db-wal
+*.db-shm
+*.private.pem
+*.log
+.DS_Store
+node_modules/
