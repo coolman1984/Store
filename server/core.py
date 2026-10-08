@@ -1,5 +1,6 @@
 """Shared pieces of the shop logic: the request context, keyed problems, numbers, settings, audit, money parsing."""
 import json
+import math
 
 import ids
 from auth import Forbidden, PERMISSIONS
@@ -89,6 +90,14 @@ def settings(db):
 def set_setting(db, key, value):
     if key not in DEFAULT_SETTINGS:
         raise Problem('err.unknownSetting', 'Unknown setting.')
+    kind = DEFAULT_SETTINGS[key]
+    ok = (isinstance(value, bool) if isinstance(kind, bool) else
+          isinstance(value, (int, float)) and not isinstance(value, bool) and -1_000_000_000 <= value <= 10_000_000_000
+          if isinstance(kind, (int, float)) else
+          isinstance(value, str) and len(value) <= 300 if isinstance(kind, str) else
+          isinstance(value, list) and len(value) <= 50 and all(isinstance(x, str) and len(x) <= 60 for x in value))
+    if not ok:
+        raise Problem('err.settingType', 'This setting has a wrong value.', setting=key)
     db.run('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
            key, json.dumps(value, ensure_ascii=False))
 
@@ -107,6 +116,8 @@ def money(value, field='amount', allow_negative=False):
 def quantity(value, fractional=False, field='qty'):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise Problem('err.qty', 'Quantity must be a number.', field=field)
+    if not math.isfinite(value):
+        raise Problem('err.qty', 'Quantity must be a number.', field=field)
     value = round(float(value), 3)
     if value <= 0 or value > 1_000_000:
         raise Problem('err.qty', 'Quantity must be more than zero.', field=field)
@@ -120,6 +131,50 @@ def text(value, field, max_len=200, required=False):
     if required and not value:
         raise Problem('err.required', f'{field} is required.', field=field)
     return value[:max_len]
+
+
+def whole(value, field='number'):
+    """A whole number from the page (months, counts); a missing value is 0."""
+    if value is None or value == '':
+        return 0
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise Problem('err.number', f'{field}: write a whole number.', 400, field=field)
+    try:
+        number = float(value)
+    except ValueError:
+        raise Problem('err.number', f'{field}: write a whole number.', 400, field=field) from None
+    if not math.isfinite(number) or number != int(number) or abs(number) > 10 ** 12:
+        raise Problem('err.number', f'{field}: write a whole number.', 400, field=field)
+    return int(number)
+
+
+def rows(value, field='lines'):
+    """A list of objects from the page (invoice lines, payments), or a calm problem."""
+    if value is None or value == '':
+        return []
+    if not isinstance(value, list) or not all(isinstance(x, dict) for x in value):
+        raise Problem('err.badRequest', f'{field}: the list is not understood.', 400, field=field)
+    return value
+
+
+def obj(value, field='data'):
+    if value is None or value == '' or value == []:
+        return {}
+    if not isinstance(value, dict):
+        raise Problem('err.badRequest', f'{field}: not understood.', 400, field=field)
+    return value
+
+
+def day(value, field='date'):
+    """A calendar day written YYYY-MM-DD, or a calm problem."""
+    from datetime import date
+    try:
+        if not isinstance(value, str) or len(value) != 10:
+            raise ValueError
+        date.fromisoformat(value)
+    except ValueError:
+        raise Problem('err.date', f'{field}: write the date as YYYY-MM-DD.', field=field) from None
+    return value
 
 
 def perm_list():

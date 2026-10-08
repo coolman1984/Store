@@ -187,7 +187,7 @@ function renderShell() {
     <aside class="rail" aria-label="${t('nav.main')}"><div class="rail-in">
       <div class="brand"><div class="brand-mark">${icon('bolt')}</div><div class="grow"><div class="brand-name">${t('app.name')}</div>
         <div class="brand-shop ellipsis">${S.lookups?.settings?.shop_name || S.boot.shop_name}</div></div></div>
-      <nav class="nav" id="nav">${GROUPS.map(([g, rs]) => {
+      <nav class="nav" id="nav" aria-label="${t('nav.main')}">${GROUPS.map(([g, rs]) => {
         const vis = rs.filter(allowed);
         return vis.length ? html`${g ? html`<div class="nav-label">${t(g)}</div>` : ''}${vis.map(navLink)}` : '';
       })}</nav>
@@ -201,14 +201,14 @@ function renderShell() {
         <button class="icon-btn" data-theme-toggle aria-label="${t('pref.theme')}">${icon(document.documentElement.dataset.theme === 'night' ? 'sun' : 'moon')}</button>
         <button class="icon-btn" data-lang aria-label="${t('pref.lang')}"><span class="xs">${lang() === 'ar' ? 'EN' : 'ع'}</span></button>
       </header>
-      <div id="banners"></div>
+      <section id="banners" aria-label="${t('nav.notices')}"></section>
       <main class="page" id="page" tabindex="-1"></main>
     </div>
     <nav class="dock" aria-label="${t('nav.quick')}">${['home', 'pos', 'sales', 'customers'].filter(allowed).map((r) =>
       html`<a href="#/${r}" data-route="${r}">${icon(ROUTES[r].icon)}<span>${t('nav.' + r)}</span></a>`)}
       <a href="#" data-more>${icon('dots-grid')}<span>${t('nav.more')}</span></a></nav>
   </div>`);
-  $('[data-logout]').addEventListener('click', async () => { await api.post('/api/logout').catch(() => {}); S.me = null; location.hash = ''; showAuth(); });
+  $('[data-logout]').addEventListener('click', async () => { await api.post('/api/logout').catch(() => {}); S.me = null; try { sessionStorage.removeItem('store.cart'); } catch { /* ignore */ } location.hash = ''; showAuth(); });
   $('[data-cmdk]').addEventListener('click', palette);
   $('[data-theme-toggle]').addEventListener('click', () => {
     const night = document.documentElement.dataset.theme === 'night';

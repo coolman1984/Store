@@ -12,7 +12,6 @@ import catalog
 import core
 import ids
 import money as cash
-import reports  # noqa: F401  (keeps import order identical to the server)
 import sales
 import stock
 from core import Ctx

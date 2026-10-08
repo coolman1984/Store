@@ -222,6 +222,25 @@ class ReturnTests(Base):
         self.assertEqual(stock.on_hand(self.s.db, pid, self.s.damaged), 2)
         self.assertEqual(stock.on_hand(self.s.db, pid), 3)  # damaged pieces are not for sale
 
+    def test_same_line_twice_in_one_return_cannot_refund_twice(self):
+        pid = self.s.product(retail=100000, qty=5)
+        r = sale(self.s, [{'product_id': pid, 'qty': 2}])
+        line = sales.sale_view(self.s.db, r['id'])['lines'][0]
+        with self.assertRaises(Problem) as e:
+            self.s.do(sales.take_return, {'idem_key': 'dbl', 'sale_id': r['id'], 'reason': 'twice', 'refund_method': 'cash',
+                                          'lines': [{'sale_line_id': line['id'], 'qty': 2}, {'sale_line_id': line['id'], 'qty': 2}]})
+        self.assertEqual(e.exception.key, 'err.returnTooMuch')
+        ok = self.s.do(sales.take_return, {'idem_key': 'dbl2', 'sale_id': r['id'], 'reason': 'two halves', 'refund_method': 'cash',
+                                           'lines': [{'sale_line_id': line['id'], 'qty': 1}, {'sale_line_id': line['id'], 'qty': 1}]})
+        self.assertEqual(ok['total'], 200000)  # the two halves add up to exactly what was paid
+
+    def test_bad_setting_values_are_refused(self):
+        import core
+        for key, bad in (('instalment_markup_pct', 'abc'), ('shop_name', 5), ('finance_providers', 'valU'), ('onboarded', 'yes')):
+            with self.assertRaises(Problem, msg=key) as e:
+                core.set_setting(self.s.db, key, bad)
+            self.assertEqual(e.exception.key, 'err.settingType')
+
     def test_cashier_return_needs_approval_by_someone_else(self):
         pid = self.s.product()
         cashier = self.s.user('cashier', 'rc')
@@ -256,6 +275,19 @@ class CashTests(Base):
         self.assertEqual(cash.safe_balance(self.s.db), 9000)
         self.assertEqual(cash.drawer_expected(self.s.db, shift['id']), 0)
         self.assertIn('drawer_short', {i['kind'] for i in reports.watch(self.s.db)})
+
+    def test_float_comes_out_of_the_safe_so_the_safe_never_grows_from_nothing(self):
+        owner = self.s.users['owner']['id']
+        first = cash.open_shift_of(self.s.db, owner)
+        self.s.do(cash.close_shift, first['id'], 10000)  # the 100 EGP float goes to the safe
+        self.assertEqual(cash.safe_balance(self.s.db), 10000)
+        second = self.s.do(cash.open_shift, 10000)  # taken from the safe: nothing is added from thin air
+        self.assertEqual(cash.safe_balance(self.s.db), 0)
+        self.s.do(cash.close_shift, second, 10000)
+        self.assertEqual(cash.safe_balance(self.s.db), 10000)  # still exactly the money that exists
+        third = self.s.do(cash.open_shift, 30000)  # more than the safe holds: the owner adds the rest
+        self.assertEqual(cash.safe_balance(self.s.db), 0)
+        self.assertEqual(cash.drawer_expected(self.s.db, third), 30000)
 
     def test_expense_rules_and_reversal(self):
         with self.assertRaises(Problem):
@@ -327,6 +359,31 @@ class StockTests(Base):
         self.s.do(stock.close_count, cid, 'monthly count')
         self.assertEqual(stock.on_hand(self.s.db, pid), 7)
         self.assertIn('stock_loss', {i['kind'] for i in reports.watch(self.s.db)})
+
+
+    def test_sale_after_counting_a_product_is_not_a_false_surplus(self):
+        pid = self.s.product(qty=10, cost=500)
+        cid = self.s.do(stock.start_count, self.s.shop)
+        self.s.do(stock.count_line, cid, pid, 10)       # counted all 10 on the shelf
+        sale(self.s, [{'product_id': pid, 'qty': 2}])   # then 2 are sold while the count is still open
+        self.s.do(stock.close_count, cid, 'busy day')
+        self.assertEqual(stock.on_hand(self.s.db, pid), 8)  # the books stay right: no phantom +2
+
+
+class ProductTests(Base):
+    def test_serial_tracking_cannot_change_once_goods_were_received(self):
+        pid = self.s.product('Fan', qty=3)
+        with self.assertRaises(Problem) as e:
+            self.s.do(catalog.save_product, {'id': pid, 'track_serial': True})
+        self.assertEqual(e.exception.key, 'err.serialLocked')
+        fresh = self.s.product('New fan', qty=0)
+        self.s.do(catalog.save_product, {'id': fresh, 'track_serial': True})  # nothing received yet: fine
+
+    def test_reorder_level_must_be_a_number(self):
+        pid = self.s.product('Fan2', qty=0)
+        for junk in ('abc', [1], {}, True, -1, float('nan')):
+            with self.assertRaises(Problem):
+                self.s.do(catalog.save_product, {'id': pid, 'reorder_level': junk})
 
 
 class PriceTests(Base):

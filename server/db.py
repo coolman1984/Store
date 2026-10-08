@@ -220,25 +220,30 @@ class Database:
     # -- helpers used by every module. Every call holds the lock: one shared connection must never mix a
     #    statement of another thread into an open transaction.
     def one(self, sql, *args):
+        _plain(args)
         with self.lock:
             row = self.conn.execute(sql, args).fetchone()
         return dict(row) if row else None
 
     def all(self, sql, *args):
+        _plain(args)
         with self.lock:
             return [dict(r) for r in self.conn.execute(sql, args).fetchall()]
 
     def value(self, sql, *args):
+        _plain(args)
         with self.lock:
             row = self.conn.execute(sql, args).fetchone()
         return row[0] if row else None
 
     def run(self, sql, *args):
+        _plain(args)
         with self.lock:
             return self.conn.execute(sql, args)
 
     def insert(self, table, row):
         keys = list(row)
+        _plain(row.values())
         with self.lock:
             self.conn.execute(f"INSERT INTO {table} ({','.join(keys)}) VALUES ({','.join('?' * len(keys))})",
                               [row[k] for k in keys])
@@ -269,6 +274,15 @@ class _Tx:
         finally:
             self.db.lock.release()
         return False
+
+
+def _plain(values):
+    """A request can carry a list or object where an id belongs; refuse it here as bad input, not as a crash."""
+    for v in values:
+        if v is not None and not isinstance(v, (int, float, str, bytes)):
+            raise ValueError(f'a value of type {type(v).__name__} cannot be saved')
+        if isinstance(v, int) and abs(v) >= 2 ** 63:
+            raise ValueError('a number is too big to be saved')
 
 
 def _split(script):

@@ -13,7 +13,7 @@ import ids
 import money as cash
 import stock
 from auth import Forbidden
-from core import NotFound, Problem, money, quantity, settings, text
+from core import NotFound, Problem, money, obj, quantity, rows, settings, text, whole
 
 PAY_METHODS = ('cash', 'card', 'wallet', 'instapay', 'finance', 'account', 'installment')
 
@@ -122,8 +122,9 @@ def _customer(ctx, data):
         if not c:
             raise NotFound('customer')
         return c
-    if data.get('customer') and (data['customer'].get('name') or '').strip():
-        cid = cash.save_customer(ctx, data['customer'])
+    new = obj(data.get('customer'), 'customer')
+    if (str(new.get('name') or '')).strip():
+        cid = cash.save_customer(ctx, new)
         return ctx.db.one('SELECT * FROM customers WHERE id = ?', cid)
     return None
 
@@ -138,13 +139,13 @@ def sell(ctx, data):
     cfg = settings(ctx.db)
     location_id = data.get('location_id') or _default_shop(ctx.db)
     stock.location(ctx.db, location_id, sellable=True)
-    lines_in = data.get('lines') or []
+    lines_in = rows(data.get('lines'))
     if not lines_in or len(lines_in) > 200:
         raise Problem('err.noLines', 'Add at least one product.')
     prepared, subtotal, discount, pct, needs = price_check(ctx, lines_in, data.get('discount'), data.get('approval'), location_id)
 
     # payments
-    payments = data.get('payments') or []
+    payments = rows(data.get('payments'), 'payments')
     if not payments:
         raise Problem('err.noPayment', 'Choose how the customer pays.')
     by_method, providers = {}, {}
@@ -163,8 +164,8 @@ def sell(ctx, data):
     fee, plan_req = 0, None
     if 'installment' in by_method:
         ctx.need('pos.credit')
-        plan_req = data.get('instalment') or {}
-        months = int(plan_req.get('months') or 0)
+        plan_req = obj(data.get('instalment'), 'instalment')
+        months = whole(plan_req.get('months'), 'months')
         down = sum(v for k, v in by_method.items() if k != 'installment')
         base = subtotal - discount - down
         fee = instalment_fee(base, months, float(cfg['instalment_markup_pct']))
@@ -197,13 +198,13 @@ def sell(ctx, data):
     day = ids.local_day()
     number = ctx.number('sale')
     cost_total = sum(round(l['qty'] * l['unit_cost']) for l in prepared)
-    delivery = data.get('delivery') or {}
+    delivery = obj(data.get('delivery'), 'delivery')
     ctx.db.insert('sales', {'id': sid, 'org_id': ctx.org_id, 'branch_id': ctx.branch_id, 'number': number, 'idem_key': key, 'at': at,
                             'by_user': ctx.uid, 'shift_id': shift['id'], 'customer_id': customer['id'] if customer else None,
                             'location_id': location_id, 'subtotal': subtotal, 'discount': discount, 'fee': fee, 'total': total,
                             'cost_total': cost_total, 'approved_by': approver['id'] if approver else None,
                             'note': text(data.get('note'), 'note', 300),
-                            'delivery': text((delivery.get('address') or '') + ('|' + delivery['date'] if delivery.get('date') else ''),
+                            'delivery': text(str(delivery.get('address') or '') + ('|' + str(delivery['date']) if delivery.get('date') else ''),
                                              'delivery', 300)})
     for l in prepared:
         ctx.db.insert('sale_lines', {'id': ids.uuid7(), 'sale_id': sid, 'product_id': l['product']['id'], 'name': l['product']['name'],
@@ -226,7 +227,7 @@ def sell(ctx, data):
         financed = by_method['installment']
         first_due = plan_req.get('first_due') or ids.add_months(day, 1)
         plan_id = cash.create_plan(ctx, sid, customer['id'], financed, plan_req.get('months'), first_due,
-                                   plan_req.get('guarantor'), at)
+                                   obj(plan_req.get('guarantor'), 'guarantor'), at)
         cash.ar_entry(ctx, customer['id'], financed, 'instalment', 'sale', sid, plan_id, number, at=at)
     ctx.audit('sale', 'sale', sid, {'number': number, 'total': total, 'discount': discount, 'pct': round(pct, 1),
                                     'methods': by_method, 'approved_by': approver['full_name'] if approver else None,
@@ -251,10 +252,11 @@ def _approve_credit(ctx, approval):
 def quote(ctx, data):
     """Totals, instalment fee and what needs approval, without saving. The sale screen asks this before paying."""
     location_id = data.get('location_id') or _default_shop(ctx.db)
-    prepared, subtotal, discount, pct, needs = price_check(ctx, data.get('lines') or [], data.get('discount'), None, location_id)
+    prepared, subtotal, discount, pct, needs = price_check(ctx, rows(data.get('lines')), data.get('discount'), None, location_id)
     cfg = settings(ctx.db)
-    months = int((data.get('instalment') or {}).get('months') or 0)
-    down = int((data.get('instalment') or {}).get('down') or 0)
+    plan = obj(data.get('instalment'), 'instalment')
+    months = whole(plan.get('months'), 'months')
+    down = whole(plan.get('down'), 'down')
     base = subtotal - discount - down
     fee = instalment_fee(base, months, float(cfg['instalment_markup_pct'])) if months else 0
     return {'subtotal': subtotal, 'discount': discount, 'fee': fee, 'total': subtotal - discount + fee, 'discount_pct': round(pct, 2),
@@ -356,17 +358,20 @@ def take_return(ctx, data):
         raise Problem('err.reason', 'Write the reason (3 letters or more).')
     sale = sale_view(ctx.db, data.get('sale_id'), True)
     lines = {l['id']: l for l in sale['lines']}
-    wanted = data.get('lines') or []
+    wanted = rows(data.get('lines'))
     if not wanted:
         raise Problem('err.noLines', 'Choose what is returned.')
     share = (sale['subtotal'] - sale['discount']) / sale['subtotal'] if sale['subtotal'] else 1
     prepared, total = [], 0
     damaged = None
+    taken = {}  # the same line written twice in one request must not return more than the sale held
     for w in wanted:
-        line = lines.get(w.get('sale_line_id'))
+        line = lines.get(w.get('sale_line_id')) if isinstance(w.get('sale_line_id'), str) else None
         if not line:
             raise NotFound('sale line')
         qty = quantity(w.get('qty'), bool(catalog.find(ctx.db, line['product_id'])['fractional']))
+        line = {**line, 'returned': line['returned'] + taken.get(line['id'], 0)}
+        taken[line['id']] = taken.get(line['id'], 0) + qty
         if qty > line['qty'] - line['returned'] + 1e-9:
             raise Problem('err.returnTooMuch', f'{line["name"]}: only {line["qty"] - line["returned"]:g} can still be returned.',
                           name=line['name'], left=line['qty'] - line['returned'])
@@ -382,6 +387,7 @@ def take_return(ctx, data):
         amount = round(line['unit_price'] * qty * share)
         if qty == line['qty'] - line['returned']:  # the last piece takes what is left, so rounding never refunds a piaster too much
             already = ctx.db.value('SELECT COALESCE(SUM(amount), 0) FROM return_lines WHERE sale_line_id = ?', line['id'])
+            already += sum(a for l2, _q, a, _t, _c in prepared if l2['id'] == line['id'])
             amount = round(line['line_total'] * share) - already
         prepared.append((line, qty, amount, to, condition))
         total += amount

@@ -6,7 +6,7 @@ Prices change often in Egypt (several rises in a few months), so:
 - every product may have a minimum price; selling under it needs a manager's approval.
 """
 import ids
-from core import NotFound, Problem, money, text
+from core import NotFound, Problem, money, text, whole
 
 UNITS = ('piece', 'set', 'box', 'dozen', 'meter', 'roll', 'kg', 'pair')
 
@@ -57,6 +57,8 @@ def set_price(ctx, product_id, kind, amount, starts_on=None, reason='', batch_id
 
 def _clean_barcodes(ctx, codes, product_id=None):
     out = []
+    if codes is not None and not isinstance(codes, list):
+        raise Problem('err.barcode', 'Barcodes must be a list.')
     for code in codes or []:
         code = str(code).strip()
         if not code:
@@ -78,6 +80,14 @@ def _sku(ctx):
     return f'{n:05d}'
 
 
+def _reorder(value):
+    if value is None or value == '':
+        return 0.0
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value or value < 0 or value > 1_000_000:
+        raise Problem('err.qty', 'Quantity must be a number.')
+    return float(value)
+
+
 def save_product(ctx, data):
     """Create (no id) or edit a product. Prices given here start today."""
     ctx.need('products.edit')
@@ -95,8 +105,8 @@ def save_product(ctx, data):
         'unit': unit,
         'fractional': 1 if data.get('fractional', old and old['fractional']) else 0,
         'track_serial': 1 if data.get('track_serial', old and old['track_serial']) else 0,
-        'warranty_months': max(0, min(120, int(data.get('warranty_months', old['warranty_months'] if old else 0) or 0))),
-        'reorder_level': max(0.0, float(data.get('reorder_level', old['reorder_level'] if old else 0) or 0)),
+        'warranty_months': max(0, min(120, whole(data.get('warranty_months', old['warranty_months'] if old else 0), 'warranty_months'))),
+        'reorder_level': _reorder(data.get('reorder_level', old['reorder_level'] if old else 0)),
         'notes': text(data.get('notes', old and old['notes']), 'notes', 500),
         'category_id': _name_table(ctx, 'categories', data['category']) if data.get('category') else (old and old['category_id']),
         'brand_id': _name_table(ctx, 'brands', data['brand']) if data.get('brand') else (old and old['brand_id']),
@@ -104,6 +114,9 @@ def save_product(ctx, data):
     }
     if row['track_serial'] and row['fractional']:
         raise Problem('err.serialFraction', 'A product with serial numbers is sold in whole pieces.')
+    if old and row['track_serial'] != old['track_serial'] and ctx.db.value('SELECT 1 FROM stock_moves WHERE product_id = ? LIMIT 1', pid):
+        # switching it on or off after goods were received would leave pieces without a serial (or serials without a piece)
+        raise Problem('err.serialLocked', 'Serial numbers cannot be switched on or off after goods were received.', 409)
     codes = _clean_barcodes(ctx, data.get('barcodes'), pid) if 'barcodes' in data else None
     sku = text(data.get('sku'), 'sku', 30)
     if old:
@@ -148,6 +161,7 @@ def set_active(ctx, product_id, active):
 
 
 def set_place(ctx, product_id, location_id, shelf):
+    find(ctx.db, product_id)
     if not ctx.db.value('SELECT 1 FROM locations WHERE id = ?', location_id):
         raise NotFound('location')
     shelf = text(shelf, 'shelf', 20).upper()
@@ -158,10 +172,13 @@ def set_place(ctx, product_id, location_id, shelf):
 def bulk_price(ctx, data, apply=False):
     """Raise or lower prices of a brand/category by a percentage, rounded up to a friendly step. Preview unless apply."""
     ctx.need('prices.change')
-    pct = float(data.get('percent') or 0)
+    pct = data.get('percent') or 0
+    if isinstance(pct, bool) or not isinstance(pct, (int, float)):
+        raise Problem('err.percent', 'Write a percentage between -50 and 200.')
+    pct = float(pct)
     if not -50 <= pct <= 200 or pct == 0:
         raise Problem('err.percent', 'Write a percentage between -50 and 200.')
-    step = int(data.get('round_to') or 100)  # piasters: 100 = round to whole pounds
+    step = whole(data.get('round_to'), 'round_to') or 100  # piasters: 100 = round to whole pounds
     if step not in (1, 100, 500, 1000, 5000):
         raise Problem('err.roundTo', 'Unknown rounding step.')
     kinds = [k for k in data.get('kinds') or ['retail', 'trade', 'min'] if k in ('retail', 'trade', 'min')]

@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { S, can, settle } from '../app.js';
 import { t } from '../i18n.js';
 import { shake } from '../motion.js';
+import { printLabels } from '../print.js';
 import {
   $, $$, html, put, icon, money, num, date, open, empty, skeleton, errorText, toast, parseMoney, run, confirm, today, seg, bindSeg, segValue,
 } from '../ui.js';
@@ -81,9 +82,10 @@ export async function productFile(id, onChange) {
       <details class="card flat"><summary class="row"><h2 class="grow">${t('products.moves')}</h2>${icon('chev-d')}</summary><div class="timeline">${p.moves.map((m) => html`<div class="ev">
         <span class="badge ${m.qty < 0 ? 'warn' : 'ok'}">${t('move.' + m.kind)}</span><span class="small"><span class="num">${date(m.at, true)}</span> · ${m.place}${m.serial ? html` · <span class="num">${m.serial}</span>` : ''} · ${m.by_name || ''}${m.note ? ' · ' + m.note : ''}</span>
         <b class="num">${m.qty > 0 ? '+' : ''}${num(m.qty)}</b></div>`)}</div></details>`,
-    foot: html`${can('products.edit') ? html`<button class="btn" data-hide>${icon(p.active ? 'x' : 'check')}${p.active ? t('products.hide') : t('products.show')}</button>
+    foot: html`<button class="btn" data-labels>${icon('barcode')}${t('products.labels')}</button>${can('products.edit') ? html`<button class="btn" data-hide>${icon(p.active ? 'x' : 'check')}${p.active ? t('products.hide') : t('products.show')}</button>
       <button class="btn primary" data-edit>${icon('edit')}${t('act.edit')}</button>` : ''}`,
     mount(box, close) {
+      $('[data-labels]', box).addEventListener('click', () => labelsDialog(p));
       $('[data-edit]', box)?.addEventListener('click', () => { close(); editProduct(p, () => { onChange && onChange(); productFile(id, onChange); }); });
       $('[data-hide]', box)?.addEventListener('click', async () => {
         if (p.active && !(await confirm({ title: t('products.hide'), text: t('products.hideText'), ok: t('products.hide') }))) return;
@@ -92,6 +94,25 @@ export async function productFile(id, onChange) {
       $$('[data-shelf]', box).forEach((inp) => inp.addEventListener('change', async () => {
         await run(api.post('/api/product/place', { product_id: id, location_id: inp.dataset.shelf, shelf: inp.value }), t('saved'));
       }));
+    },
+  });
+}
+
+function labelsDialog(p) {
+  let mode = 'copies';
+  open({
+    title: t('products.labelsTitle', { name: p.name }),
+    body: html`<p class="small muted">${t('products.labelsHint')}</p>
+      ${p.track_serial && p.serials.length ? html`<div class="field"><span class="label">${t('products.labelsMode')}</span>${seg('lm', [['copies', t('products.perCopy')], ['serials', t('products.perSerial', { n: p.serials.length })]], 'copies')}</div>` : ''}
+      <div class="field" id="lb-copies"><label for="lb-n">${t('products.copies')}</label><input id="lb-n" class="input big num" inputmode="numeric" value="4"></div>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok>${icon('print')}${t('pos.print')}</button>`,
+    mount(box, close) {
+      bindSeg(box, 'lm', (v) => { mode = v; $('#lb-copies', box).hidden = v === 'serials'; });
+      $('[data-ok]', box).addEventListener('click', () => {
+        const n = Math.max(1, Math.min(200, Math.floor(+$('#lb-n', box).value) || 1));
+        close();
+        printLabels(p, { copies: n, serials: mode === 'serials' });
+      });
     },
   });
 }

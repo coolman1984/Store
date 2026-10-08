@@ -16,10 +16,10 @@ from datetime import date, timedelta
 
 import afcodes
 import ids
-from version import PRODUCT_ID
+from version import PRODUCT_ID, ROOT
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-KEYS_FILE = os.path.join(os.path.dirname(HERE), 'licence_keys.txt')
+KEYS_FILE = os.path.join(ROOT, 'licence_keys.txt')
 CLOCK_TOLERANCE_HOURS = 24
 _lock = threading.Lock()
 _cache = {}
@@ -134,7 +134,10 @@ def _check(code, dev, today):
 def activate(db, code):
     """Check a pasted code before saving it. Returns the new status, or raises ValueError with the reason."""
     dev = device(db)
+    code = code if isinstance(code, str) else ''
     result = _check(code, dev, date.fromisoformat(ids.local_day()))
+    if result['state'] == 'none':  # an empty box must never wipe the working code
+        raise ValueError('no_code')
     if result['state'] in ('invalid', 'no_keys'):
         raise ValueError(result['reason'] or 'invalid')
     if result['state'] == 'expired':

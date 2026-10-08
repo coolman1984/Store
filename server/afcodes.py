@@ -61,8 +61,10 @@ def _unb32(text: str, length: int) -> bytes:
 
 def normalize(text: str) -> str:
     """Upper case, no spaces or dashes, the usual reading mistakes fixed (O→0, I/L→1)."""
+    if not isinstance(text, str):
+        raise ValueError('bad_character')
     out = []
-    for ch in (text or '').upper():
+    for ch in text.upper():
         if ch in ' -_\t\r\n.':
             continue
         ch = {'O': '0', 'I': '1', 'L': '1'}.get(ch, ch)

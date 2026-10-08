@@ -9,7 +9,7 @@ from datetime import timedelta
 import ids
 import money as cash
 import stock
-from core import settings
+from core import settings, text
 
 
 def _range(day_from, day_to):
@@ -54,9 +54,13 @@ def daily_series(db, days=30, can_cost=False):
         b['sales'] += row['total']
         b['cost'] += row['cost_total']
         b['count'] += 1
-    for row in db.all('SELECT at, total FROM returns WHERE at >= ? AND at < ?', start, end):
+    for row in db.all('SELECT r.at, r.total, COALESCE((SELECT SUM(rl.qty * sl.unit_cost) FROM return_lines rl JOIN sale_lines sl '
+                      'ON sl.id = rl.sale_line_id WHERE rl.return_id = r.id), 0) AS cost FROM returns r WHERE r.at >= ? AND r.at < ?',
+                      start, end):
         d = ids.local_day(ids.parse(row['at']))
-        by_day.setdefault(d, {'sales': 0, 'cost': 0, 'count': 0})['sales'] -= row['total']
+        b = by_day.setdefault(d, {'sales': 0, 'cost': 0, 'count': 0})
+        b['sales'] -= row['total']
+        b['cost'] -= round(row['cost'])  # the returned piece is back on the shelf: its cost leaves the day's cost, as in the summary
     out = []
     for i in range(days):
         d = (ids.utcnow() - timedelta(days=days - 1 - i)).astimezone().date().isoformat()
@@ -182,7 +186,8 @@ def watch(db, days=7, include_reviewed=False):
 
 def review(ctx, key, note):
     ctx.need('watch.view')
-    note = (note or '').strip()[:300] or '✓'
+    key = text(key, 'item', 120, True)
+    note = text(note, 'note', 300) or '✓'
     ctx.db.run('INSERT INTO watch_reviews(item, note, at, by_user) VALUES (?, ?, ?, ?) ON CONFLICT(item) DO UPDATE SET '
                'note = excluded.note, at = excluded.at, by_user = excluded.by_user', key, note, ids.iso(), ctx.uid)
     ctx.audit('watch.review', 'watch', key, {'note': note})

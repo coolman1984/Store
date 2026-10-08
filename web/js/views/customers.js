@@ -12,7 +12,7 @@ export default async function view(page, params) {
   const tab = ['due', 'owing'].includes(params.tab) ? params.tab : 'all';
   put(page, html`<div class="page-head"><div class="titles"><h1>${t('nav.customers')}</h1><p>${t('cust.sub')}</p></div>
     <div class="actions">${can('customers.edit') ? html`<button class="btn primary" data-new>${icon('plus')}${t('customers.new')}</button>` : ''}</div></div>
-    <nav class="tabs" data-lab-scroll><a href="#/customers" ${tab === 'all' ? CUR : ''}>${icon('users')}${t('cust.tab.all')}</a>
+    <nav class="tabs" data-lab-scroll aria-label="${t('nav.sections')}"><a href="#/customers" ${tab === 'all' ? CUR : ''}>${icon('users')}${t('cust.tab.all')}</a>
       <a href="#/customers?tab=owing" ${tab === 'owing' ? CUR : ''}>${icon('wallet')}${t('cust.tab.owing')}</a>
       <a href="#/customers?tab=due" ${tab === 'due' ? CUR : ''}>${icon('instal')}${t('cust.tab.due')}</a></nav>
     <div id="c-body"></div>`);

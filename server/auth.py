@@ -93,8 +93,23 @@ def check_password(password, stored):
 _DUMMY = hash_password('timing-equaliser')  # unknown user names cost the same time as wrong passwords
 
 
+def _perms(value):
+    """A permission list from the page: only known names survive; anything else is ignored."""
+    return sorted({x for x in value if isinstance(x, str)} & set(PERMISSIONS)) if isinstance(value, (list, tuple, set)) else []
+
+
+def _pct(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value:
+        raise AuthError('auth.err.pct', 'The discount limit is a number from 0 to 100.')
+    return max(0, min(100, int(value)))
+
+
+def _text(value):
+    return value if isinstance(value, str) else ''
+
+
 def strong_enough(password, username=''):
-    if len(password or '') < MIN_PASSWORD:
+    if not isinstance(password, str) or len(password) < MIN_PASSWORD:
         raise AuthError('auth.err.short', f'Use at least {MIN_PASSWORD} characters.', n=MIN_PASSWORD)
     if username and password.lower() == username.lower():
         raise AuthError('auth.err.sameAsName', 'The password must not be the user name.')
@@ -124,21 +139,21 @@ class Auth:
         return bool(self.db.value('SELECT COUNT(*) FROM users'))
 
     def create(self, username, full_name, role, password, max_discount_pct=None, extra=(), denied=()):
-        username = (username or '').strip()
+        username = _text(username).strip()
         if not (2 <= len(username) <= 40) or any(ch.isspace() for ch in username):
             raise AuthError('auth.err.username', 'User name: 2 to 40 characters without spaces.')
-        if role not in ROLES:
+        if not isinstance(role, str) or role not in ROLES:
             raise AuthError('auth.err.role', 'Unknown role.')
-        if not (full_name or '').strip():
+        if not _text(full_name).strip():
             raise AuthError('auth.err.fullName', 'Write the person\'s name.')
         strong_enough(password, username)
         if self.db.value('SELECT 1 FROM users WHERE username = ?', username):
             raise AuthError('auth.err.taken', 'This user name is already used.')
         now = ids.iso()
-        pct = ROLES[role]['max_discount_pct'] if max_discount_pct is None else max(0, min(100, int(max_discount_pct)))
+        pct = ROLES[role]['max_discount_pct'] if max_discount_pct is None else _pct(max_discount_pct)
         row = {'id': ids.uuid7(), 'org_id': self.org_id, 'username': username, 'full_name': full_name.strip()[:80], 'role': role,
-               'extra_perms': json.dumps(sorted(set(extra) & set(PERMISSIONS))),
-               'denied_perms': json.dumps(sorted(set(denied) & set(PERMISSIONS))), 'max_discount_pct': pct,
+               'extra_perms': json.dumps(_perms(extra)),
+               'denied_perms': json.dumps(_perms(denied)), 'max_discount_pct': pct,
                'pass_hash': hash_password(password), 'active': 1, 'failed': 0, 'locked_until': None, 'created_at': now,
                'changed_at': now}
         self.db.insert('users', row)
@@ -153,17 +168,17 @@ class Auth:
             raise AuthError('auth.err.noUser', 'User not found.')
         fields = {}
         if 'full_name' in changes:
-            fields['full_name'] = str(changes['full_name']).strip()[:80] or user['full_name']
+            fields['full_name'] = _text(changes['full_name']).strip()[:80] or user['full_name']
         if 'role' in changes:
-            if changes['role'] not in ROLES:
+            if not isinstance(changes['role'], str) or changes['role'] not in ROLES:
                 raise AuthError('auth.err.role', 'Unknown role.')
             fields['role'] = changes['role']
         if 'max_discount_pct' in changes:
-            fields['max_discount_pct'] = max(0, min(100, int(changes['max_discount_pct'])))
+            fields['max_discount_pct'] = _pct(changes['max_discount_pct'])
         if 'extra_perms' in changes:
-            fields['extra_perms'] = json.dumps(sorted(set(changes['extra_perms']) & set(PERMISSIONS)))
+            fields['extra_perms'] = json.dumps(_perms(changes['extra_perms']))
         if 'denied_perms' in changes:
-            fields['denied_perms'] = json.dumps(sorted(set(changes['denied_perms']) & set(PERMISSIONS)))
+            fields['denied_perms'] = json.dumps(_perms(changes['denied_perms']))
         if 'active' in changes:
             fields['active'] = 1 if changes['active'] else 0
         if 'password' in changes and changes['password']:
@@ -186,9 +201,9 @@ class Auth:
     # ---------------------------------------------------------------- login
     def verify(self, username, password):
         """Returns the user or raises AuthError. Locks after MAX_FAILED wrong passwords."""
-        user = self.db.one('SELECT * FROM users WHERE username = ?', (username or '').strip())
+        user = self.db.one('SELECT * FROM users WHERE username = ?', str(username or '').strip())
         if not user:
-            check_password(password or '', _DUMMY)
+            check_password(str(password or ''), _DUMMY)
             raise AuthError('auth.err.wrong', 'Wrong user name or password.')
         now = ids.utcnow()
         if user['locked_until'] and ids.parse(user['locked_until']) > now:

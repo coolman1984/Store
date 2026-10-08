@@ -13,8 +13,9 @@
 
 ## Next (in order)
 - [ ] Field visit: 5 Beni Suef shops answer the 5 questions in docs/01-research.md §7 (owner) — **gate before selling**
-- [ ] Windows installer + embedded Python (factory shared installer piece) and a clean-PC restore drill
+- [x] Windows installer (Nuitka + Inno Setup): built, silently installed, started and uninstalled by the `windows installer` workflow on a real Windows runner (run 3 green). **Still to do by a person:** clean-PC install + restore drill
 - [ ] Generate the vendor licence key in Licence Studio, put the public key in `licence_keys.txt`, build the pilot copy
 - [ ] Receipt printer field test (80 mm and 58 mm, Arabic shaping on the actual printer driver)
-- [ ] Support window + heartbeat to the Vendor Control Center (factory SUP-01..04)
-- [ ] Supplier returns, label printing (barcode stickers), cheque register (after pilot feedback)
+- [x] Support heartbeat to the Vendor Control Center (opt-in, exact fields; Settings → Support). Still to do: a support grant/repair flow in the UI (factory SUP-02/03)
+- [x] Barcode on the receipt + sticker labels (per copy or per serial) — Code 128, decoded by a real scanner library in the check
+- [ ] Supplier returns, cheque register (after pilot feedback)

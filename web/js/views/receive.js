@@ -9,7 +9,7 @@ import { CUR, $, $$, html, put, icon, money, moneyH, date, open, empty, skeleton
 export default async function view(page, params) {
   const tab = ['history', 'suppliers'].includes(params.tab) ? params.tab : 'new';
   put(page, html`<div class="page-head"><div class="titles"><h1>${t('nav.receive')}</h1><p>${t('receive.sub')}</p></div></div>
-    <nav class="tabs" data-lab-scroll><a href="#/receive" ${tab === 'new' ? CUR : ''}>${icon('truck')}${t('receive.tab.new')}</a>
+    <nav class="tabs" data-lab-scroll aria-label="${t('nav.sections')}"><a href="#/receive" ${tab === 'new' ? CUR : ''}>${icon('truck')}${t('receive.tab.new')}</a>
       <a href="#/receive?tab=history" ${tab === 'history' ? CUR : ''}>${icon('receipt')}${t('receive.tab.history')}</a>
       <a href="#/receive?tab=suppliers" ${tab === 'suppliers' ? CUR : ''}>${icon('users')}${t('receive.tab.suppliers')}</a></nav>
     <div id="rc-body"></div>`);

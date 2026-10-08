@@ -9,25 +9,32 @@ import csv
 import io
 import os
 import re
+import shutil
 import sqlite3
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import ids
 
-NAME = re.compile(r'^store-(\d{8}-\d{6})(-[a-z]+)?\.db$')
+NAME = re.compile(r'^store-(\d{8}-\d{6})(-[a-z][a-z-]*)?\.db$')  # an optional tag: manual, practice, before-restore
 EXPORT_TABLES = ('products', 'barcodes', 'prices', 'costs', 'locations', 'places', 'stock_moves', 'customers', 'suppliers', 'sales',
                  'sale_lines', 'tenders', 'returns', 'return_lines', 'purchases', 'purchase_lines', 'plans', 'ar_entries',
                  'ap_entries', 'cash_moves', 'shifts', 'transfers', 'counts', 'count_lines', 'categories', 'brands', 'audit')
 
 
-def _stamp():
-    return ids.utcnow().astimezone().strftime('%Y%m%d-%H%M%S')
+def _stamp(folder='', tag=''):
+    """A name that is not taken yet: two copies in the same second (a restore's safety copy right after a backup) must never overwrite each other."""
+    moment = ids.utcnow().astimezone()
+    while True:
+        stamp = moment.strftime('%Y%m%d-%H%M%S')
+        if not folder or not os.path.exists(os.path.join(folder, f'store-{stamp}{("-" + tag) if tag else ""}.db')):
+            return stamp
+        moment += timedelta(seconds=1)
 
 
 def make(db, folder, tag='', extra_dirs=()):
     os.makedirs(folder, exist_ok=True)
-    name = f'store-{_stamp()}{("-" + tag) if tag else ""}.db'
+    name = f'store-{_stamp(folder, tag)}{("-" + tag) if tag else ""}.db'
     path = os.path.join(folder, name)
     target = sqlite3.connect(path)
     try:
@@ -41,8 +48,12 @@ def make(db, folder, tag='', extra_dirs=()):
     for extra in extra_dirs or ():
         try:
             os.makedirs(extra, exist_ok=True)
-            with open(path, 'rb') as src, open(os.path.join(extra, name), 'wb') as dst:
-                dst.write(src.read())
+            part = os.path.join(extra, name + '.part')  # a half-copied file must never carry a backup's name (USB pulled mid-copy)
+            with open(path, 'rb') as src, open(part, 'wb') as dst:
+                shutil.copyfileobj(src, dst)
+                dst.flush()
+                os.fsync(dst.fileno())
+            os.replace(part, os.path.join(extra, name))
         except OSError:
             pass  # the main copy exists; the page shows the second folder as not reachable
     return {'name': name, 'size': os.path.getsize(path), 'at': ids.iso()}

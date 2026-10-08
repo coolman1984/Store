@@ -16,6 +16,7 @@ import logging
 import logging.handlers
 import mimetypes
 import os
+import shutil
 import socket
 import sys
 import threading
@@ -38,12 +39,12 @@ import money as cash  # noqa: E402
 import reports  # noqa: E402
 import sales  # noqa: E402
 import stock  # noqa: E402
+import support  # noqa: E402
 from auth import AuthError, Forbidden  # noqa: E402
 from core import Ctx, Problem  # noqa: E402
 from db import Database, NewerData  # noqa: E402
-from version import PRODUCT, PRODUCT_AR, VERSION  # noqa: E402
+from version import FROZEN, PRODUCT, PRODUCT_AR, ROOT, VERSION  # noqa: E402
 
-ROOT = os.path.dirname(HERE)
 WEB = os.path.join(ROOT, 'web')
 COOKIE = 'store_session'
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
@@ -53,7 +54,7 @@ TYPES = {'.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf
          '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon'}
 # writes allowed while the licence does not give full access: reading, keeping data safe, and getting a new code
 OPEN_WRITES = {'/api/setup', '/api/login', '/api/logout', '/api/password', '/api/licence/activate', '/api/backup/now',
-               '/api/shift/close', '/api/watch/review'}
+               '/api/shift/close', '/api/watch/review', '/api/support/save', '/api/support/ping'}
 log = logging.getLogger('store')
 
 
@@ -94,6 +95,7 @@ class App:
         self._static = {}
         self.started = time.time()
         self.failed_ips = {}
+        self._errors = []
 
     def _meta_id(self, key):
         value = self.db.value('SELECT value FROM meta WHERE key = ?', key)
@@ -101,6 +103,12 @@ class App:
             value = ids.uuid7()
             self.db.run('INSERT OR IGNORE INTO meta(key, value) VALUES (?, ?)', key, value)
         return self.db.value('SELECT value FROM meta WHERE key = ?', key)
+
+    def note_error(self):
+        self._errors = [t for t in self._errors if time.time() - t < 86400][-200:] + [time.time()]
+
+    def recent_errors(self):
+        return len([t for t in self._errors if time.time() - t < 86400])
 
     def licence(self):
         if self.practice:
@@ -134,7 +142,7 @@ class App:
         return item
 
     def restore(self, name):
-        if not backup.NAME.match(name or ''):
+        if not isinstance(name, str) or not backup.NAME.fullmatch(name):
             raise Problem('err.backupName', 'Choose a backup from the list.')
         path = os.path.join(self.backup_dir, name)
         if not os.path.exists(path) or not backup.check(path):
@@ -150,8 +158,12 @@ class App:
                     os.remove(target + suffix)
                 except OSError:
                     pass
-            with open(path, 'rb') as src, open(target, 'wb') as dst:
-                dst.write(src.read())
+            staged = target + '.restoring'  # copy beside the database, then swap in one step: a power cut never leaves half a file
+            with open(path, 'rb') as src, open(staged, 'wb') as dst:
+                shutil.copyfileobj(src, dst)
+                dst.flush()
+                os.fsync(dst.fileno())
+            os.replace(staged, target)
             fresh = Database(target, self.backup_dir)
             self.db.conn = fresh.conn
         self.auth = auth_mod.Auth(self.db, self.org_id)
@@ -260,7 +272,10 @@ class Handler(BaseHTTPRequestHandler):
             raise Problem('err.tooLarge', 'The request is too large.', 413)
         n = int(raw)
         data = self.rfile.read(n) if n else b''
-        return json.loads(data.decode('utf-8')) if data else {}
+        parsed = json.loads(data.decode('utf-8')) if data else {}
+        if not isinstance(parsed, dict):
+            raise Problem('err.badRequest', 'The request is not understood.', 400)
+        return parsed
 
     def user(self, touch=True):
         u = APP.auth.session(self.token(), touch)
@@ -296,10 +311,14 @@ class Handler(BaseHTTPRequestHandler):
             self.send(e.status, {'error': str(e), 'key': e.key, 'vars': e.vars})
         except (json.JSONDecodeError, UnicodeDecodeError):
             self.send(400, {'error': 'Bad request.', 'key': 'err.badRequest'})
+        except (ValueError, OverflowError):  # a number or date in the request that cannot be read: calm 400, kept in the log
+            log.warning('BAD INPUT %s\n%s', self.path, traceback.format_exc())
+            self.send(400, {'error': 'A number or date in the request is not valid.', 'key': 'err.badRequest'})
         except (ConnectionError, BrokenPipeError):
             pass
         except Exception as e:  # a bug: log the details on this PC, show a calm message
             log.error('ERROR %s\n%s', self.path, traceback.format_exc())
+            APP.note_error()
             self.send(500, {'error': f'Unexpected problem: {e.__class__.__name__}', 'key': 'err.server'})
 
     # ------------------------------------------------------------ routing
@@ -369,7 +388,7 @@ class Handler(BaseHTTPRequestHandler):
                 'finance_providers', 'expense_categories', 'tax_number')},
                  'users': db.all('SELECT id, full_name, role FROM users WHERE active = 1 ORDER BY full_name')}
         elif path == '/api/products':
-            d = catalog.search(db, qs.get('q', ''), int(qs.get('limit', 200)), True, qs.get('location_id'),
+            d = catalog.search(db, qs.get('q', ''), qint(qs, 'limit', 200, 1, 1000), True, qs.get('location_id'),
                                qs.get('hidden') == '1', {'category_id': qs.get('category_id'), 'brand_id': qs.get('brand_id')})
             if can_cost:
                 for r in d['items']:
@@ -423,7 +442,7 @@ class Handler(BaseHTTPRequestHandler):
             d = stock.overview(db, can_cost, qs.get('q', ''), qs.get('only', 'all'), qs.get('location_id'))
         elif path == '/api/stock/value':
             ctx.need('cost.view')
-            d = {'value': stock.stock_value(db), 'slow': stock.slow_movers(db, int(qs.get('days', 60)), 30)}
+            d = {'value': stock.stock_value(db), 'slow': stock.slow_movers(db, qint(qs, 'days', 60, 1, 3650), 30)}
         elif path == '/api/counts':
             d = db.all('SELECT c.*, l.name AS place, u.full_name AS by_name FROM counts c JOIN locations l ON l.id = c.location_id '
                        'JOIN users u ON u.id = c.started_by ORDER BY c.started_at DESC LIMIT 50')
@@ -459,7 +478,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/reports':
             ctx.need('reports.view')
             f, t = qs.get('from') or ids.local_day(), qs.get('to') or ids.local_day()
-            d = {'summary': reports.summary(db, f, t, can_cost), 'series': reports.daily_series(db, int(qs.get('days', 30)), can_cost),
+            d = {'summary': reports.summary(db, f, t, can_cost), 'series': reports.daily_series(db, qint(qs, 'days', 30, 1, 366), can_cost),
                  'by_category': reports.by_group(db, f, t, 'category', can_cost), 'by_brand': reports.by_group(db, f, t, 'brand', can_cost),
                  'by_product': reports.by_group(db, f, t, 'product', can_cost, 30), 'by_user': reports.by_group(db, f, t, 'user', can_cost),
                  'year': reports.year_turnover(db), 'balances': reports.balances(db)}
@@ -468,10 +487,10 @@ class Handler(BaseHTTPRequestHandler):
                 d['slow'] = stock.slow_movers(db, 60, 15)
         elif path == '/api/watch':
             ctx.need('watch.view')
-            d = reports.watch(db, int(qs.get('days', 7)), qs.get('all') == '1')
+            d = reports.watch(db, qint(qs, 'days', 7, 1, 400), qs.get('all') == '1')
         elif path == '/api/audit':
             ctx.need('audit.view')
-            d = db.all('SELECT * FROM audit ORDER BY at DESC LIMIT ?', min(int(qs.get('limit', 300)), 2000))
+            d = db.all('SELECT * FROM audit ORDER BY at DESC LIMIT ?', qint(qs, 'limit', 300, 1, 2000))
         elif path == '/api/users':
             ctx.need('users.manage')
             d = {'users': [auth_mod.public(x) for x in db.all('SELECT * FROM users ORDER BY active DESC, full_name')],
@@ -484,6 +503,9 @@ class Handler(BaseHTTPRequestHandler):
                  'locations': db.all('SELECT * FROM locations ORDER BY active DESC, kind DESC, name')}
         elif path == '/api/licence':
             d = APP.licence()
+        elif path == '/api/support':
+            ctx.need('settings.edit')
+            d = support.public(APP.home)
         elif path == '/api/export':
             ctx.need('settings.edit')
             body = backup.export_zip(db)
@@ -533,6 +555,9 @@ class Handler(BaseHTTPRequestHandler):
             with APP.db.tx():
                 ctx.audit('backup', 'backup', item['name'])
             return self.send(200, item)
+        if path == '/api/support/ping':  # network call: never while the database is locked for a write
+            ctx.need('settings.edit')
+            return self.send(200, support.send(APP))
         if path == '/api/backup/restore':  # outside a transaction: the restore swaps the database file
             ctx.need('settings.edit')
             APP.auth.verify(u['username'], data.get('password'))  # step-up: the owner types the password again
@@ -618,6 +643,11 @@ class Handler(BaseHTTPRequestHandler):
             return cash.pay_supplier(ctx, data)
         if path == '/api/finance/settle':
             return cash.finance_settle(ctx, data)
+        if path == '/api/support/save':
+            ctx.need('settings.edit')
+            support.save(APP.home, data.get('enabled'), data.get('url'), data.get('token'))
+            ctx.audit('support.save', 'support', '', {'enabled': bool(data.get('enabled'))})  # the address and code are never logged
+            return support.public(APP.home)
         if path == '/api/watch/review':
             reports.review(ctx, data.get('key'), data.get('note'))
             return {'ok': True}
@@ -636,7 +666,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/settings/save':
             ctx.need('settings.edit')
             changed = {}
-            for key, value in (data.get('settings') or {}).items():
+            for key, value in (data.get('settings') if isinstance(data.get('settings'), dict) else {}).items():
                 core.set_setting(db, key, value)
                 changed[key] = value
             ctx.audit('settings', 'shop', '', changed)
@@ -655,6 +685,15 @@ class Handler(BaseHTTPRequestHandler):
         return len(hits) >= 20
 
 
+def qint(qs, name, default, low, high):
+    """A whole number from the address bar, kept inside sane bounds (a huge `days` must not hang the shop PC)."""
+    try:
+        value = int(qs.get(name, default))
+    except (TypeError, ValueError):
+        value = default
+    return max(low, min(high, value))
+
+
 def _is_private_ip(host):
     import ipaddress
     try:
@@ -666,7 +705,7 @@ def _is_private_ip(host):
 def default_home(practice):
     if os.environ.get('STORE_HOME'):
         return os.environ['STORE_HOME']
-    if os.name == 'nt' and os.environ.get('PROGRAMDATA') and getattr(sys, 'frozen', False):
+    if os.name == 'nt' and os.environ.get('PROGRAMDATA') and FROZEN:
         base = os.path.join(os.environ['PROGRAMDATA'], 'Al-Store')
     else:
         base = os.path.join(ROOT, 'shop-data')
@@ -698,10 +737,12 @@ def serve(app, open_browser=None):
             time.sleep(600)
 
     threading.Thread(target=keep_backing_up, daemon=True).start()
+    if not app.practice:
+        threading.Thread(target=support.loop, args=(app,), daemon=True).start()
     url = f'http://127.0.0.1:{app.cfg["port"]}/'
-    print(f'{PRODUCT_AR} {VERSION}{" (تدريب)" if app.practice else ""} يعمل الآن: {url}')
+    say(f'{PRODUCT_AR} {VERSION}{" (تدريب)" if app.practice else ""} يعمل الآن: {url}')
     for ip in _lan_ips():
-        print(f'  من الموبايل على نفس الشبكة: http://{ip}:{app.cfg["port"]}/')
+        say(f'  من الموبايل على نفس الشبكة: http://{ip}:{app.cfg["port"]}/')
     if open_browser if open_browser is not None else app.cfg.get('open_browser'):
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:
@@ -712,14 +753,35 @@ def serve(app, open_browser=None):
         httpd.server_close()
 
 
+def say(text):
+    """Print for the person at the console. A Windows console or redirected output may not speak Arabic, and a program started
+    by a double click may have no console at all: neither may ever stop the shop's server."""
+    try:
+        print(text, flush=True)
+    except (UnicodeEncodeError, AttributeError, OSError, ValueError):
+        try:
+            print(text.encode('ascii', 'replace').decode('ascii'), flush=True)
+        except Exception:
+            pass
+
+
 def main(argv=None):
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except (AttributeError, ValueError, OSError):
+            pass
     parser = argparse.ArgumentParser(prog='al-store')
     parser.add_argument('--practice', action='store_true', help='practice shop with sample data')
     parser.add_argument('--home', help='folder for data, backups and config')
     parser.add_argument('--port', type=int)
     parser.add_argument('--host')
     parser.add_argument('--no-browser', action='store_true')
+    parser.add_argument('--version', action='store_true')
     args = parser.parse_args(argv)
+    if args.version:
+        say(f'{PRODUCT} {VERSION}')
+        return 0
     home = args.home or default_home(args.practice)
     os.makedirs(home, exist_ok=True)
     handler = logging.handlers.RotatingFileHandler(os.path.join(home, 'store.log'), maxBytes=2_000_000, backupCount=5, encoding='utf-8')
@@ -727,7 +789,7 @@ def main(argv=None):
     try:
         app = build(home, args.practice, args.port, args.host)
     except NewerData:
-        print('هذه البيانات من نسخة أحدث من البرنامج. ثبّت النسخة الأحدث.')
+        say('هذه البيانات من نسخة أحدث من البرنامج. ثبّت النسخة الأحدث.')
         return 2
     serve(app, False if args.no_browser else None)
     return 0
