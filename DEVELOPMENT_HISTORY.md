@@ -1,5 +1,15 @@
 # Development history (newest first)
 
+## 2026-10-09 — review: the consent card and the phone top bar
+**Found by:** the browser journey, after the guide landed. Four tests failed.
+
+**Causes:**
+1. The factory consent card is a full-screen scrim. It covered the counter, the licence button and the people page, so a click meant for the shop never landed.
+2. The guide button is fixed on the same corner as a side panel's footer, and it paints above that footer, so Save and Return could not be clicked.
+3. The help button in the top bar made that bar 9px wider than a 360px phone (369 > 360) on every page.
+
+**Fix:** the card still appears on the first sign-in, with the same two buttons, but it sits in a corner and does not take clicks meant for the page. A dialog still opens above it, and above the guide button. On a narrow phone the top bar uses tighter padding and gaps, so the shift chip and the help button fit. A browser test answers the card, starts the open-shift lesson, and checks the coach moves from step 1 of N to the next step.
+
 ## 2026-10-09 — 1.2.0: in-app guide, consent, and consented telemetry
 **Why:** a new cashier or owner should learn the shop inside the program, in simple Arabic, and every error should say what to do. Remote help is useful only if the shop agrees, and nothing may leave the PC unless the owner turns it on.
 

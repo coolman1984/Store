@@ -267,4 +267,36 @@ class LicenceLock(Browser):
         self.assertEqual([e for e in self.errors if '400' not in e], [])
 
 
+@SKIP
+class GuideCoach(Browser):
+    """The owner answers the first-sign-in consent card, opens help, and the open-shift coach
+    shows step 1 of N, then moves on once that step is done."""
+
+    def test_owner_answers_consent_and_the_open_shift_coach_advances(self):
+        import re
+        pg = self.open('owner')
+        pg.wait_for_selector('[data-afc="card"]')
+        self.assertEqual(pg.locator('[data-afc="agree"], [data-afc="decline"]').count(), 2)
+        pg.click('[data-afc="agree"]')
+        pg.wait_for_selector('[data-afc="card"]', state='detached')
+        pg.click('[data-afg="help"]')
+        pg.wait_for_selector('[data-guide-id="open-shift"] [data-afg="start"]')
+        pg.click('[data-guide-id="open-shift"] [data-afg="start"]')
+        pg.wait_for_selector('[data-afg="coach"] [data-afg="step"]')
+        step = pg.inner_text('[data-afg="step"]')
+        found = re.search(r'1\D+(\d+)', step)
+        self.assertIsNotNone(found, step)
+        self.assertGreater(int(found.group(1)), 1, step)
+        pg.click('[data-afg="there"]')
+        advanced = self.until(pg, """(() => {
+          const s = document.querySelector('[data-afg="step"]');
+          const t = s ? s.textContent : '';
+          return /2\\D+[0-9]+/.test(t) ? t : '';
+        })()""")
+        again = re.search(r'2\D+(\d+)', advanced)
+        self.assertIsNotNone(again, advanced)
+        self.assertEqual(again.group(1), found.group(1), advanced)
+        self.assertEqual(self.errors, [])
+
+
 _ = PW
