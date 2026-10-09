@@ -423,9 +423,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/product':
             ctx.need_any('products.view', 'stock.view')
             d = stock.detail(db, qs.get('id'), can_cost)
-        elif path == '/api/pos/search':
+        elif path == '/api/pos/search':  # the counter's own search: it must work with the counter permission alone (categories too)
             ctx.need('pos.sell')
-            d = catalog.search(db, qs.get('q', ''), 12, True, qs.get('location_id'))
+            d = catalog.search(db, qs.get('q', ''), qint(qs, 'limit', 12, 1, 60), True, qs.get('location_id'), False,
+                               {'category_id': qs.get('category_id')})
         elif path == '/api/serials':
             ctx.need_any('pos.sell', 'products.view', 'stock.view')
             d = stock.serials_in_stock(db, qs.get('product_id'), qs.get('location_id'))
@@ -437,9 +438,13 @@ class Handler(BaseHTTPRequestHandler):
                 raise Forbidden('sales.view_all')
             d = s
         elif path == '/api/return':
+            ctx.need_any(*afaccess_page('sales'))  # the same rule as the Sales page and /api/sale: seeing a return is seeing the sale it belongs to
             d = sales.return_view(db, qs.get('id'))
+            if u['id'] not in (d['by_user'], d['sale_by_user']) and not ctx.can('sales.view_all') and not ctx.can('sales.return'):
+                raise Forbidden('sales.view_all')
         elif path == '/api/warranty':
-            d = sales.warranty(db, qs.get('serial'))
+            ctx.need_any(*afaccess_page('sales'))  # the warranty look-up lives on the Sales page; its customer fields follow the customers page
+            d = sales.warranty(db, qs.get('serial'), ctx.can('customers.view'))
         elif path == '/api/customers':
             ctx.need_any('customers.view', 'pos.sell')  # the counter picks the customer of a credit sale
             d = cash.customers_list(db, qs.get('q', ''), qs.get('only', 'all'))
@@ -558,8 +563,9 @@ class Handler(BaseHTTPRequestHandler):
             d = APP.assist.receiver_public()
         elif path == '/api/export':
             ctx.need('settings.edit')
-            body = backup.export_zip(db)
-            ctx.audit('export', 'shop', '', {'bytes': len(body)})
+            cost, private = can_cost, ctx.can('customers.private')  # the file shows what this person may already see on screen, nothing more
+            body = backup.export_zip(db, cost=cost, private=private)
+            ctx.audit('export', 'shop', '', {'bytes': len(body), **({} if cost and private else {'left_out': [n for n, ok in (('cost', cost), ('national_id', private)) if not ok]})})
             name = f'al-store-export-{ids.local_day()}.zip'
             return self.send(200, body, 'application/zip', {'Content-Disposition': f'attachment; filename="{name}"'})
         else:
@@ -826,6 +832,11 @@ class Handler(BaseHTTPRequestHandler):
             hits.append(now)
         APP.failed_ips[ip] = hits
         return len(hits) >= 20
+
+
+def afaccess_page(name):
+    """The permissions any one of which opens a page (auth.PAGES, the same table as the menu)."""
+    return auth_mod.PAGES[name]
 
 
 def qint(qs, name, default, low, high):

@@ -23,7 +23,7 @@ balances and instalment collection) exists to make that journey correct.
 | A7 | Money and stock are append-only (database triggers refuse UPDATE/DELETE); balances are computed | `test_ledger_rows_cannot_be_edited_or_deleted` |
 | A8 | Bulk price change: preview, rounding, dated start, past sales unchanged | `PriceTests` |
 | A9 | Without a valid licence code (none, other PC, expired, clock moved back) the shop can read, export and back up, but cannot sell or change data | `LicenceGateTests`, `test_e2e_browser.LicenceLock` |
-| A10 | Cashier never sees cost/profit or the admin pages; every refusal is logged | `test_cashier_sees_no_cost_and_cannot_manage` |
+| A10 | Cashier never sees cost/profit or the admin pages; every refusal is logged; a person with no ticks reads nothing, a new read route cannot ship without a permission, and the export leaves out cost and national IDs for a person who may not see them | `test_cashier_sees_no_cost_and_cannot_manage`, `test_permissions_matrix` |
 | A11 | The owner decides per person which pages they see and what they may do (profiles + ticks); hidden pages are refused by the server; nobody can lock the shop out of its people screen; every change of ticks is audited | `test_access`, `test_e2e_browser.PeopleAndProfiles` |
 | A11 | Arabic RTL and English LTR, light/dark/high-contrast, text size up to XL: no page wider than the screen, no text out of its card at 360 / 390 / 820 / 1366 px | `test_e2e_browser.LayoutSweep` |
 | A12 | Strict CSP, Host and Origin checks, HttpOnly SameSite cookie | `test_boot_and_security_headers`, `test_dns_rebinding_and_cross_site_writes_refused` |

@@ -123,8 +123,16 @@ def prune(folder, keep=60):
                 pass
 
 
-def export_zip(db):
-    """Everything the shop owns, as CSV files in one zip (UTF-8 with BOM so Excel shows Arabic). Formulas neutralised."""
+# What a person may not see on screen must not leave in the file either (the same fields the pages hide): purchase cost and profit
+# need `cost.view`, national ID numbers need `customers.private`. A hidden column stays in the file, empty, so the file keeps its shape.
+COST_COLUMNS = {'costs': None, 'stock_moves': ('unit_cost',), 'sale_lines': ('unit_cost',), 'purchase_lines': ('unit_cost',),
+                'sales': ('cost_total',), 'purchases': ('total',)}  # None = every column (the whole cost history)
+PRIVATE_COLUMNS = {'customers': ('national_id',), 'plans': ('guarantor_national_id',)}
+
+
+def export_zip(db, cost=True, private=True):
+    """Everything the shop owns, as CSV files in one zip (UTF-8 with BOM so Excel shows Arabic). Formulas neutralised.
+    `cost` / `private`: whether the person asking may see purchase costs / national ID numbers; if not, those columns are left empty."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         for table in EXPORT_TABLES:
@@ -133,9 +141,14 @@ def export_zip(db):
             out.write('﻿')
             w = csv.writer(out)
             cols = list(rows[0].keys()) if rows else [r['name'] for r in db.all(f'PRAGMA table_info({table})')]
+            hidden = set()
+            if not cost and table in COST_COLUMNS:
+                hidden |= set(cols) - {'id', 'product_id', 'ref_type', 'ref_id', 'created_at'} if COST_COLUMNS[table] is None else set(COST_COLUMNS[table])
+            if not private and table in PRIVATE_COLUMNS:
+                hidden |= set(PRIVATE_COLUMNS[table])
             w.writerow(cols)
             for r in rows:
-                w.writerow([safe_cell(r[c]) for c in cols])
+                w.writerow(['' if c in hidden else safe_cell(r[c]) for c in cols])
             z.writestr(f'{table}.csv', out.getvalue())
     return buf.getvalue()
 

@@ -150,7 +150,7 @@ function warrantyTab(body, params) {
         <div class="row between wrap"><h2>${w.product || ''}</h2><span class="badge num">${w.serial}</span></div>
         ${w.sale_id ? html`<div class="grid kpis">
           <div class="kpi"><span class="label">${t('sales.soldOn')}</span><span class="value num">${date(w.sold_at)}</span></div>
-          <div class="kpi"><span class="label">${t('f.customer')}</span><span class="value">${w.customer || t('pos.walkIn')}</span></div>
+          <div class="kpi"><span class="label">${t('f.customer')}</span><span class="value">${w.customer_hidden ? '—' : (w.customer || t('pos.walkIn'))}</span></div>
           <div class="kpi"><span class="label">${t('sales.warrantyLeft')}</span><span class="value">${w.warranty_until ? (ok ? t('sales.daysLeft', { n: w.warranty_days_left }) : t('sales.warrantyOver')) : t('sales.noWarranty')}</span></div></div>
           <div class="row wrap"><button class="btn" data-sale="${w.sale_id}">${icon('receipt')}${t('sales.openInvoice')} <span class="num">${w.sale_number}</span></button></div>`
           : html`<p>${w.state?.in_stock ? t('sales.inStockNotSold') : t('sales.notSoldHere')}</p>`}</div>`);

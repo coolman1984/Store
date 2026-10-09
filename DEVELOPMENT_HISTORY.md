@@ -1,5 +1,27 @@
 # Development history (newest first)
 
+## 2026-10-09 — independent review: three read leaks closed (return, warranty look-up, export)
+**Why:** the owner asked a reviewer who did not build 1.5.0 to open every page, button and permission in a real browser and to doubt "all tests green". The role matrix (every read route × owner, manager, cashier, storekeeper, and a person with no ticks at all) found what the existing tests never asked.
+
+**Found (all confirmed by running, none in the browser, all on the server — IAM-03/IAM-11):**
+1. `GET /api/return?id=` asked for **no permission at all**: a person with zero ticks could read any return (amounts, reason, lines, who took it). `/api/sale` already followed the Sales-page rule; this sibling did not.
+2. `GET /api/warranty?serial=` also asked for none: a person with zero ticks got the sale number, the price and the **customer's name and phone** for any serial.
+3. `GET /api/export` (ticked by `settings.edit`) wrote every purchase cost and every national ID number into the zip, for a person who may not see costs (`cost.view`) or national IDs (`customers.private`) on any screen.
+4. The counter's category buttons called `/api/products`, which needs the Products page, so a person with only `pos.sell` got a "not allowed" card when pressing a category. The counter has its own search for this.
+
+**Fixed:**
+- `/api/return`: needs one of the Sales-page permissions (`auth.PAGES['sales']`), and shows a return only to the person who took it, the person who made the sale, or someone with `sales.view_all` / `sales.return`.
+- `/api/warranty`: same page rule; the customer's name and phone come only with `customers.view` (otherwise `customer_hidden`, shown as «—», never as "walk-in customer").
+- `backup.export_zip(cost, private)`: what the person may not see is left **empty** in the file (the columns stay, so the file keeps its shape); the audit row says what was left out.
+- `/api/pos/search` takes `category_id` and `limit` (1–60), and the counter always uses it.
+
+**Evidence:** `tests/test_permissions_matrix.py` (7 tests; 6 fail and 1 errors on the old code):
+- a person with no ticks gets 403 on all 27 read routes and an empty home page;
+- a static guard fails the build when any read route in `app.py` neither asks for a permission nor is on the short list of "own" routes;
+- return and warranty by role; the export for a person with only `settings.edit`; the counter with only `pos.sell`.
+
+**Not changed (decisions, not bugs):** `/api/lookups` (the people list and settings the counter needs) and `/api/licence` stay open to any signed-in person.
+
 ## 2026-10-09 — 1.5.0: three activation kinds and the release proofs
 **Why:** the owner asked for a full push to the first paid shop. The release gate needed three things:
 - the three ways a shop pays: a 14-day trial, a monthly subscription and a permanent activation;

@@ -332,7 +332,7 @@ def sales_list(db, ctx, day_from=None, day_to=None, q='', user_id=None, limit=30
     return rows
 
 
-def warranty(db, serial):
+def warranty(db, serial, can_see_customer=True):
     serial = (serial or '').strip().upper()
     line = db.one('SELECT sl.*, s.number, s.at, s.id AS sale_id, c.name AS customer, c.phone FROM sale_lines sl JOIN sales s ON '
                   's.id = sl.sale_id LEFT JOIN customers c ON c.id = s.customer_id WHERE sl.serial = ? ORDER BY s.at DESC LIMIT 1', serial)
@@ -344,8 +344,9 @@ def warranty(db, serial):
         out['product'] = db.value('SELECT name FROM products WHERE id = ?', state['product_id'])
     if line:
         today = ids.local_day()
-        out.update({'sale_id': line['sale_id'], 'sale_number': line['number'], 'sold_at': line['at'], 'customer': line['customer'],
-                    'phone': line['phone'], 'product': line['name'], 'price': line['unit_price'],
+        out.update({'sale_id': line['sale_id'], 'sale_number': line['number'], 'sold_at': line['at'],
+                    'customer': line['customer'] if can_see_customer else None, 'phone': line['phone'] if can_see_customer else None,
+                    'customer_hidden': bool(line['customer']) and not can_see_customer, 'product': line['name'], 'price': line['unit_price'],
                     'warranty_until': line['warranty_until'],
                     'warranty_days_left': ids.days_between(today, line['warranty_until']) if line['warranty_until'] else None,
                     'days_since_sale': ids.days_between(ids.local_day(ids.parse(line['at'])), today)})
@@ -444,7 +445,7 @@ def take_return(ctx, data):
 
 
 def return_view(db, return_id):
-    r = db.one('SELECT r.*, s.number AS sale_number, u.full_name AS by_name FROM returns r JOIN sales s ON s.id = r.sale_id '
+    r = db.one('SELECT r.*, s.number AS sale_number, s.by_user AS sale_by_user, u.full_name AS by_name FROM returns r JOIN sales s ON s.id = r.sale_id '
                'JOIN users u ON u.id = r.by_user WHERE r.id = ? OR r.number = ?', return_id, return_id)
     if not r:
         raise NotFound('return')
