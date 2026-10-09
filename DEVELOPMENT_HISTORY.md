@@ -19,6 +19,7 @@
 **Evidence:**
 - `tests/test_training.py`, 29 tests: isolation (home folder, both refusals, the plain message, an older practice folder, four demo-named users in a real shop, nothing sent, rebuild refused in a real shop and in an unmarked folder), the exercises (done only with the right books; wrong paths are not done; restart; only rows added), over HTTP, real processes (rebuild and sign in again; the real shop starting the practice shop beside itself with nothing crossing; a busy port), and both languages have the same shape and `{places}`.
 - `tests/test_e2e_browser.py`: `TrainingByClicking` does each exercise with real clicks by the account it names, and the restart and the rebuild; `OpeningThePracticeShop` clicks the button in a real shop.
+- `tools/journey_exe.py first` (run on the built program in the Windows job) now also opens the practice shop from the program itself, checks it is a different, made-up shop on its own port, and fails if it stays behind after the real shop stops (it would hold the installed program's files and break the update that follows). Run here on the source; the compiled program is exercised by the installer job.
 - Not claimed: a shop with a real customer has not used the exercises yet; they are written in the words of the screens as they are today, so a changed label needs the dictionary updated (the browser tests click the real controls and would fail).
 
 ## 2026-10-09 — 1.6.0: ask for the trial from the licence screen; the code switches the program on by itself
