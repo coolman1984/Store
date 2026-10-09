@@ -31,7 +31,8 @@ function advisor(items) {
   if (!items.length) return html`<div class="empty small">${icon('check-circle')}<b>${t('home.allGood')}</b><span>${t('home.allGoodHint')}</span></div>`;
   return html`<div class="advisor">${items.map((a) => html`<a class="adv ${a.level}" href="#/${a.go}${a.id === 'backup' || a.id === 'licence_soon' ? '?tab=' + (a.id === 'backup' ? 'backup' : 'licence') : ''}">
     <span class="ic">${icon(ADV_ICON[a.id] || 'info')}</span><span class="grow"><b>${t('adv.' + a.id, { n: a.n, amount: money(a.amount || a.value || 0), days: a.days, hours: a.hours ?? '—' })}</b>
-    <span class="small">${t('adv.' + a.id + '.hint', { names: (a.names || []).join('، ') })}</span></span>${icon('chev-l', 'flip')}</a>`)}</div>`;
+    <span class="small">${t('adv.' + a.id + (a.id === 'backup' && a.hours == null ? '.never' : '') + '.hint',
+      { names: (a.names || []).join('، '), hours: a.hours == null ? '' : Math.round(a.hours) })}</span></span>${icon('chev-l', 'flip')}</a>`)}</div>`;
 }
 
 export default async function view(page) {

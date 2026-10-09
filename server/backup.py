@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import sqlite3
+import time
 import zipfile
 from datetime import datetime, timedelta, timezone
 
@@ -36,15 +37,20 @@ def make(db, folder, tag='', extra_dirs=()):
     os.makedirs(folder, exist_ok=True)
     name = f'store-{_stamp(folder, tag)}{("-" + tag) if tag else ""}.db'
     path = os.path.join(folder, name)
-    target = sqlite3.connect(path)
+    part = path + '.part'  # a copy cut short (power cut, killed program) never carries a backup's name, so it is never listed
+    target = sqlite3.connect(part)
     try:
         with db.lock:
             db.conn.backup(target)
+        target.execute('PRAGMA journal_mode=DELETE')  # one self-contained file: no -wal/-shm beside it, safe to copy to a USB stick
     finally:
         target.close()
-    if not check(path):
-        os.remove(path)
+    if not check(part):
+        os.remove(part)
         raise IOError('The backup copy failed its check.')
+    with open(part, 'r+b') as f:  # Windows refuses fsync on a read-only handle
+        os.fsync(f.fileno())
+    os.replace(part, path)
     for extra in extra_dirs or ():
         try:
             os.makedirs(extra, exist_ok=True)
@@ -108,6 +114,13 @@ def prune(folder, keep=60):
             os.remove(os.path.join(folder, old['name']))
         except OSError:
             pass
+    for name in os.listdir(folder) if os.path.isdir(folder) else ():  # copies cut short by a power cut
+        path = os.path.join(folder, name)
+        if '.db.part' in name and time.time() - os.path.getmtime(path) > 3600:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
 
 
 def export_zip(db):

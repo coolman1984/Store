@@ -26,6 +26,9 @@ jobs:
           python-version: '3.12'
       - name: Check the shipped files
         run: python tools/build_windows.py --check
+      - name: Power-cut drill on Windows (the program killed while selling and while backing up; data and backups stay whole)
+        working-directory: tests
+        run: python -m unittest -v test_release.PowerCut test_release.DataSafety
       - name: Build tools
         run: pip install nuitka ordered-set zstandard pillow
       - name: Inno Setup
@@ -43,6 +46,31 @@ jobs:
           if (-not (Test-Path $exe)) { throw 'the installed program is missing' }
           python tools/smoke_exe.py $exe
           if (-not (Test-Path (Join-Path ${env:ProgramData} 'Al-Store'))) { throw 'the data folder was not created' }
+      - name: Real shop journey, then update over it (the shop's sale, stock and backup must survive)
+        shell: pwsh
+        run: |
+          pip install cryptography
+          $exe = Join-Path ${env:ProgramFiles} 'Al-Store\Al-Store.exe'
+          $home2 = Join-Path ${env:RUNNER_TEMP} 'journey-shop'
+          python tools/journey_exe.py first $home2 $exe
+          if ($LASTEXITCODE -ne 0) { throw 'the first journey failed' }
+          $setup = Get-ChildItem dist/Al-Store-Setup-*.exe | Select-Object -First 1
+          Start-Process -FilePath $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait
+          python tools/journey_exe.py after $home2 $exe
+          if ($LASTEXITCODE -ne 0) { throw 'the shop did not survive the update' }
+      - name: Release proof (source commit, version, installer checksum, this run)
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist/Al-Store-Setup-*.exe | Select-Object -First 1
+          $hash = (Get-FileHash $setup.FullName -Algorithm SHA256).Hash.ToLower()
+          $version = python -c "import sys; sys.path.insert(0, 'server'); import version; print(version.VERSION)"
+          $proof = @(
+            "product: Al-Store", "version: $version", "source_commit: ${env:GITHUB_SHA}", "ref: ${env:GITHUB_REF}",
+            "installer: $($setup.Name)", "installer_sha256: $hash",
+            "workflow_run: ${env:GITHUB_SERVER_URL}/${env:GITHUB_REPOSITORY}/actions/runs/${env:GITHUB_RUN_ID}",
+            "checks: program folder smoke, silent install, installed smoke, real shop journey, update keeps data, uninstall keeps data")
+          $proof | Set-Content -Encoding utf8 dist/RELEASE-PROOF.txt
+          Get-Content dist/RELEASE-PROOF.txt
       - name: Uninstall keeps the shop's data
         shell: pwsh
         run: |
@@ -53,5 +81,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: Al-Store-Setup
-          path: dist/Al-Store-Setup-*.exe
+          path: |
+            dist/Al-Store-Setup-*.exe
+            dist/RELEASE-PROOF.txt
           retention-days: 14

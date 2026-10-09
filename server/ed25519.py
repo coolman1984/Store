@@ -1,4 +1,4 @@
-# Vendored from Apps-Factory packages/af-license 0.2.0 af_license/ed25519_verify.py - do not edit here.
+# Vendored from Apps-Factory packages/af-license 0.3.0 af_license/ed25519_verify.py - do not edit here.
 # Update with: python scripts/vendor_licence.py <product repo> (from the Apps-Factory checkout)
 """Ed25519 signature *verification* (RFC 8032 §5.1.7) in pure standard-library Python.
 

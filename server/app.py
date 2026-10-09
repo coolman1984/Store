@@ -60,6 +60,7 @@ OPEN_WRITES = {'/api/setup', '/api/login', '/api/logout', '/api/password', '/api
                '/api/shift/close', '/api/watch/review', '/api/support/save', '/api/support/ping',
                '/api/guide/progress', '/api/consent/decide', '/api/telemetry/events',
                '/api/telemetry/feedback', '/api/telemetry/feedback/preview'}
+DRAIN_LIMIT = 8 * 1048576  # a too-large body up to this size is read and dropped before the answer
 log = logging.getLogger('store')
 
 
@@ -96,7 +97,7 @@ class App:
         self.db = Database(os.path.join(self.data_dir, 'store.db'), self.backup_dir)
         self.org_id = self._meta_id('org_id')
         self.branch_id = self._meta_id('branch_id')
-        self.auth = auth_mod.Auth(self.db, self.org_id)
+        self.auth = auth_mod.Auth(self.db, self.org_id, self.practice)
         self.assist = assist.Assist(self)
         self._static = {}
         self.started = time.time()
@@ -176,7 +177,7 @@ class App:
                 # A failed swap must not leave the live server with a closed connection.
                 fresh = Database(target, self.backup_dir)
                 self.db.conn = fresh.conn
-                self.auth = auth_mod.Auth(self.db, self.org_id)
+                self.auth = auth_mod.Auth(self.db, self.org_id, self.practice)
                 if getattr(self, 'assist', None):
                     self.assist.rebind()
 
@@ -281,6 +282,13 @@ class Handler(BaseHTTPRequestHandler):
         raw = self.headers.get('Content-Length') or '0'
         if not raw.isdigit() or int(raw) > limit:
             self.close_connection = True
+            if raw.isdigit() and int(raw) <= DRAIN_LIMIT:  # read what was sent, so the sender gets the calm answer, not a reset
+                left = int(raw)
+                while left > 0:
+                    chunk = self.rfile.read(min(left, 65536))
+                    if not chunk:
+                        break
+                    left -= len(chunk)
             raise Problem('err.tooLarge', 'The request is too large.', 413)
         n = int(raw)
         data = self.rfile.read(n) if n else b''

@@ -38,6 +38,7 @@ export default {
   'cmdk.placeholder': 'دوّر على صنف، أو عميل، أو فاتورة، أو صفحة…', 'cmdk.pages': 'الصفحات', 'cmdk.actions': 'اختصارات', 'cmdk.products': 'أصناف', 'cmdk.customers': 'عملاء',
   'cmdk.none': 'مفيش نتايج', 'cmdk.newSale': 'بيعة جديدة', 'cmdk.receive': 'استلام بضاعة', 'cmdk.newProduct': 'صنف جديد', 'cmdk.warranty': 'كشف ضمان بالسيريال', 'cmdk.findSale': 'دوّر على فاتورة «{q}»',
 
+  'lic.kind.trial': 'النوع: تجربة', 'lic.kind.standard': 'النوع: اشتراك', 'lic.kind.pro': 'النوع: اشتراك', 'lic.kind.perpetual': 'النوع: تفعيل دائم', 'lic.forever': 'التفعيل ده دائم على الجهاز ده، ومش بيخلص.',
   'lic.state.none': 'لسه مفيش كود', 'lic.state.trial': 'نسخة تجربة شغالة', 'lic.state.active': 'الرخصة شغالة', 'lic.state.grace': 'الرخصة خلصت، وفيه أيام سماح',
   'lic.state.expired': 'الكود خلص', 'lic.state.not_yet_valid': 'الكود لسه ميعاده مجاش', 'lic.state.invalid': 'الكود ده مش بيشتغل على الجهاز ده',
   'lic.state.clock_back': 'ساعة الجهاز مرجوعة لورا', 'lic.state.no_keys': 'البرنامج مش متظبط بمفتاح الشركة', 'lic.state.practice': 'محل تدريب: مش محتاج كود',
@@ -49,13 +50,13 @@ export default {
   'lic.bar.no_keys': 'البرنامج مش متظبط بمفتاح الشركة. كلّم الدعم.', 'lic.bar.not_yet_valid': 'الكود ده هيشتغل من يوم بدايته.', 'lic.bar.grace': 'الرخصة في أيام السماح.',
   'lic.enter': 'كتابة الكود', 'lic.soon': 'كود التشغيل فاضل له {n} يوم. اطلب الكود الجديد بدري.',
   'lic.howTitle': 'إزاي تاخد كود التشغيل', 'lic.how1': 'انسخ «رقم الجهاز» اللي هنا.', 'lic.how2': 'ابعته للشركة على واتساب.',
-  'lic.how3': 'هيوصلك كود طويل. انسخه زي ما هو.', 'lic.how4': 'الصقه في المربع ودوس «شغّل بالكود». النسخة التجريبية مدتها أسبوعين.',
+  'lic.how3': 'هيوصلك كود طويل. انسخه زي ما هو.', 'lic.how4': 'الصقه في المربع ودوس «شغّل بالكود». النسخة التجريبية مدتها أسبوعين، وبعدها اشتراك شهري أو تفعيل دائم.',
   'lic.safe': 'الكود مربوط بالجهاز ده بس، ومحدش يقدر يغيّر مدته. ولو المدة خلصت بياناتك مش بتتمسح ولا بتتقفل.',
   'lic.err.no_code': 'اكتب الكود الأول.', 'lic.err.generic': 'الكود ده مش شغال على الجهاز ده.', 'lic.err.other_device': 'الكود ده متعمل لجهاز تاني. ابعت «رقم الجهاز» ده للشركة.',
   'lic.err.expired': 'الكود ده مدته خلصت. اطلب كود جديد.', 'lic.err.bad_signature': 'في حرف غلط في الكود. انسخه تاني زي ما هو بالظبط.',
   'lic.err.wrong_length': 'الكود ناقص أو زيادة. انسخه كامل.', 'lic.err.bad_character': 'فيه رموز غريبة في الكود. انسخه تاني.',
   'lic.err.unknown_key': 'الكود ده مش من الشركة.', 'lic.err.wrong_product': 'الكود ده لبرنامج تاني.', 'lic.err.no_keys': 'البرنامج مش متظبط بمفتاح الشركة. كلّم الدعم.',
-  'lic.err.unknown_version': 'الكود ده لنسخة أحدث من البرنامج.', 'lic.err.invalid': 'الكود ده مش شغال.',
+  'lic.err.unbound_perpetual': 'كود التفعيل الدائم ده مش مربوط بجهاز، فمش هيشتغل. اطلب كود برقم الجهاز ده.', 'lic.err.unknown_version': 'الكود ده لنسخة أحدث من البرنامج.', 'lic.err.invalid': 'الكود ده مش شغال.',
 
   'home.morning': 'صباح الخير يا {name}', 'home.afternoon': 'نهارك سعيد يا {name}', 'home.evening': 'مساء الخير يا {name}', 'home.newSale': 'بيعة جديدة',
   'home.todaySales': 'صافي مبيعات النهارده', 'home.vsYesterday': 'عن امبارح', 'home.invoices': 'فواتير', 'home.avg': 'متوسط الفاتورة', 'home.profit': 'مكسب',
@@ -69,7 +70,7 @@ export default {
   'adv.late_instalments': '{n} عميل عليهم أقساط متأخرة ({amount})', 'adv.late_instalments.hint': 'افتح القايمة وابعتلهم تذكير واحد واحد.',
   'adv.low_stock': '{n} صنف قرّب يخلص', 'adv.low_stock.hint': '{names}', 'adv.watch': '{n} حاجة محتاجة نظرة منك', 'adv.watch.hint': 'خصومات، ومرتجعات، وفروق في الدرج.',
   'adv.upcoming_prices': '{n} صنف أسعاره هتتغير قريب', 'adv.upcoming_prices.hint': 'راجع الأسعار الجديدة قبل ما تبدأ.',
-  'adv.backup': 'اعمل نسخة احتياطية', 'adv.backup.hint': 'آخر نسخة من {hours} ساعة. وخلي نسخة على فلاشة برة المحل.',
+  'adv.backup': 'اعمل نسخة احتياطية', 'adv.backup.never.hint': 'لسه ماعملتش ولا نسخة. اعمل واحدة دلوقتي، وخلي نسخة على فلاشة برة المحل.', 'adv.backup.hint': 'آخر نسخة من {hours} ساعة. وخلي نسخة على فلاشة برة المحل.',
   'adv.licence_soon': 'كود التشغيل فاضل له {days} يوم', 'adv.licence_soon.hint': 'اطلب الكود الجديد من دلوقتي.',
   'adv.slow_stock': 'بضاعة واقفة بـ {amount}', 'adv.slow_stock.hint': 'أصناف ماتباعتش بقالها شهرين: اعمل عليها عرض.',
 

@@ -211,7 +211,9 @@ export function licenceCard(lic, onDone) {
   return {
     body: html`<div class="lic ${good ? 'good' : ''}">
       <div class="lic-state">${icon(good ? 'shield' : 'key')}<div><b>${t('lic.state.' + st)}</b>
-        ${lic.last_day ? html`<div class="small muted">${t('lic.until', { day: lic.last_day, n: lic.days_left })}</div>` : ''}</div></div>
+        ${lic.edition && st !== 'practice' ? html`<div class="small" data-lic-kind>${t('lic.kind.' + lic.edition)}</div>` : ''}
+        ${lic.last_day ? html`<div class="small muted">${t('lic.until', { day: lic.last_day, n: lic.days_left })}</div>`
+          : lic.edition === 'perpetual' && lic.full ? html`<div class="small muted">${t('lic.forever')}</div>` : ''}</div></div>
       <div class="field"><span class="label">${t('lic.device')}</span>
         <div class="device"><code class="num" id="dev">${lic.device || ''}</code><button class="btn sm" data-copy>${icon('clipboard')}${t('act.copy')}</button></div>
         <span class="hint">${t('lic.deviceHint')}</span></div>

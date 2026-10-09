@@ -22,7 +22,7 @@ GUIDE = os.path.join(ROOT, 'guide')
 # Reasons licence.activate can raise (it wraps them as lic.err.<reason>). Not status-only reasons.
 LICENCE_REASONS = (
     'no_code', 'other_device', 'expired', 'bad_signature', 'wrong_length', 'bad_character',
-    'unknown_key', 'wrong_product', 'unknown_edition', 'no_keys', 'unknown_version', 'invalid',
+    'unknown_key', 'wrong_product', 'unknown_edition', 'unbound_perpetual', 'no_keys', 'unknown_version', 'invalid',
 )
 KEY = re.compile(r"""(?:^|[,{])\s*(?:'([^']+)'|([A-Za-z_]\w*))\s*:\s*['"]""", re.M)
 

@@ -5,6 +5,14 @@
 
 **Status:** `verified` by the workflow `windows installer` on a real Windows runner (build → start the program folder → silent install → start the installed program → uninstall keeps the data; first green run: Actions run 3 of 2026-10-08). A clean-PC install by a person is still a separate gate (factory DELIVERY_GATES).
 
+Since 1.5.0 the same workflow also:
+- runs the power-cut drill on Windows (`tests/test_release.py`);
+- runs a **real shop journey** on the installed program (`tools/journey_exe.py first`): setup, licence, stock, cash sale, backup;
+- installs the same Setup again over it, as an update, and checks the sale, the stock and the backup survived and the shop still sells (`journey_exe.py after`);
+- writes `RELEASE-PROOF.txt` next to the installer artifact: the version, the source commit, the installer SHA-256 and the run link (factory OPS-01).
+
+**Rollback:** run the previous Setup. Data is never touched by Setup. A newer database is refused by an older program, and the copy made before the upgrade (`…-before-upgrade.db`) can be restored from Settings → Backups.
+
 1. Change `server/version.py` (VERSION) and describe the version in `docs/RELEASE_NOTES.md` (the build refuses otherwise).
 2. Put the vendor's **public** key line(s) in `licence_keys.txt` (from Licence Studio → Keys). Never a private key.
 3. Merge to `main` (every push to main builds a tested installer artifact), push a tag `vX.Y.Z` for a release, or run the workflow `windows installer` by hand. It: checks the files → compiles with Nuitka (no readable source

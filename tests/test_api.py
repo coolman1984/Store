@@ -99,6 +99,11 @@ class ApiTests(unittest.TestCase):
         st, d, _ = self.owner.post('/api/settings/save', {'settings': {'pay_methods': ['cash']}})
         self.assertEqual(d['pay_methods'], ['cash'])
 
+    def test_a_too_large_body_gets_a_calm_answer(self):
+        for path in ('/api/login', '/api/recover'):
+            st, d, _ = self.S.client().post(path, {'code': 'x' * 100000, 'password': 'y'})
+            self.assertEqual((st, d['key']), (413, 'err.tooLarge'), path)
+
     def test_dns_rebinding_and_cross_site_writes_refused(self):
         st, _, _ = self.owner.get('/api/home', headers={'Host': 'evil.example.com'})
         self.assertEqual(st, 421)
@@ -330,6 +335,39 @@ class LicenceGateTests(unittest.TestCase):
         self.assertEqual(d['state'], 'trial')
         self.assertEqual(d['days_left'], 14)
         self.assertEqual(self.c.post('/api/product/save', {'name': 'X', 'retail': 100})[0], 200)
+
+    def test_monthly_subscription_grace_then_read_only(self):
+        from datetime import date, timedelta
+        import licence
+        device = self.c.get('/api/licence')[1]['device']
+        st, d, _ = self.c.post('/api/licence/activate', {'code': code_for(device, 30, edition='standard', grace=3)})
+        self.assertEqual((st, d['state'], d['edition'], d['days_left'], d['full']), (200, 'active', 'standard', 30, True))
+        today = date.fromisoformat(ids.local_day())
+        late = code_for(device, 30, today - timedelta(days=31), edition='standard', grace=3)  # ended 2 days ago
+        st, d, _ = self.c.post('/api/licence/activate', {'code': late})
+        self.assertEqual((d['state'], d['full']), ('grace', True))
+        self.assertEqual(self.c.post('/api/product/save', {'name': 'In grace', 'retail': 100})[0], 200)
+        ended = code_for(device, 30, today - timedelta(days=40), edition='standard', grace=3)
+        self.S.app.db.run("UPDATE meta SET value = ? WHERE key = 'licence_code'", ended)  # the month ran out on this PC
+        licence._cache.clear()
+        self.assertEqual(self.c.get('/api/licence')[1]['state'], 'expired')
+        self.assertEqual(self.c.post('/api/product/save', {'name': 'After', 'retail': 100})[0], 402)
+        self.assertEqual(self.c.get('/api/products')[0], 200)  # reading, export and backup stay open
+        self.assertEqual(self.c.get('/api/export')[0], 200)
+        self.assertEqual(self.c.post('/api/backup/now')[0], 200)
+
+    def test_perpetual_code_unlocks_for_good_on_this_pc_only(self):
+        device = self.c.get('/api/licence')[1]['device']
+        st, d, _ = self.c.post('/api/licence/activate', {'code': code_for('AAAAA-BBBBB', edition='perpetual')})
+        self.assertEqual(d['key'], 'lic.err.other_device')
+        with self.assertRaises(ValueError):  # a permanent code is never made without a PC to tie it to
+            code_for(None, edition='perpetual')
+        st, d, _ = self.c.post('/api/licence/activate', {'code': code_for(device, edition='perpetual')})
+        self.assertEqual((st, d['state'], d['edition'], d['last_day'], d['days_left'], d['full']),
+                         (200, 'active', 'perpetual', None, None, True))
+        self.assertEqual(self.c.post('/api/product/save', {'name': 'Forever', 'retail': 100})[0], 200)
+        home = self.c.get('/api/home')[1]
+        self.assertNotIn('licence_soon', json.dumps(home))
 
     def test_expired_code_cannot_be_activated(self):
         from datetime import date, timedelta
