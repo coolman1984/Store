@@ -140,7 +140,7 @@ def first(home, cmd):
             raise SystemExit('the practice shop did not start from the program in 90 seconds')
         boot = Shop(practice_port).call('GET', '/api/boot')
         assert boot['practice'] is True and boot['setup'] is False and boot['shop_name'] != 'محل التجربة', boot
-        print(f'OK practice: started from the program on port {practice_port}, made-up shop {boot["shop_name"]!r}')
+        print(f'OK practice: started from the program on port {practice_port}, made-up shop {ascii(boot["shop_name"])}')  # ascii(): a Windows console may not print Arabic
     finally:
         stop(proc)
     # it must leave with the real shop, or it would hold the installed program's files and the next update would fail
