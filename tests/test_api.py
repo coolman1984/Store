@@ -86,6 +86,19 @@ class ApiTests(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_only_the_owner_turns_on_other_ways_of_paying(self):
+        st, d, _ = self.owner.get('/api/lookups')
+        self.assertEqual(d['pay_methods'], ['cash'])
+        st, d, _ = self.client('cash').post('/api/settings/save', {'settings': {'pay_methods': ['cash', 'card']}})
+        self.assertEqual(st, 403)
+        st, d, _ = self.owner.post('/api/settings/save', {'settings': {'pay_methods': ['card']}})
+        self.assertEqual((st, d['pay_methods']), (200, ['cash', 'card']))
+        self.assertEqual(self.owner.get('/api/lookups')[1]['pay_methods'], ['cash', 'card'])
+        audit = self.S.app.db.one("SELECT detail FROM audit WHERE action = 'settings' ORDER BY rowid DESC LIMIT 1")
+        self.assertIn('card', audit['detail'])
+        st, d, _ = self.owner.post('/api/settings/save', {'settings': {'pay_methods': ['cash']}})
+        self.assertEqual(d['pay_methods'], ['cash'])
+
     def test_dns_rebinding_and_cross_site_writes_refused(self):
         st, _, _ = self.owner.get('/api/home', headers={'Host': 'evil.example.com'})
         self.assertEqual(st, 421)

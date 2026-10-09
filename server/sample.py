@@ -93,6 +93,7 @@ def load(app, days=21, seed=7):
             core.set_setting(db, 'shop_name', 'الستور – محل تدريب')
             core.set_setting(db, 'shop_address', 'شارع التدريب، بني سويف')
             core.set_setting(db, 'instalment_markup_pct', 2)
+            core.set_setting(db, 'pay_methods', list(core.PAY_METHODS))  # the history uses every way; the counter goes back to cash below
             shop = stock.save_location(ctx, {'name': 'المعرض', 'kind': 'shop'})
             store = stock.save_location(ctx, {'name': 'المخزن', 'kind': 'warehouse'})
             stock.save_location(ctx, {'name': 'تالف وصيانة', 'kind': 'damaged'})
@@ -225,6 +226,7 @@ def load(app, days=21, seed=7):
             brand = db.value("SELECT id FROM brands WHERE name = 'Fresh'")
             catalog.bulk_price(ctx_for(app, users['owner']), {'brand_id': brand, 'percent': 7, 'round_to': 500,
                                                                'starts_on': ids.local_day(), 'reason': 'زيادة أسعار الشركة'}, True)
+            core.set_setting(db, 'pay_methods', ['cash'])
         app.backup_now('practice')
     finally:
         clock.restore()

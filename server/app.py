@@ -402,7 +402,7 @@ class Handler(BaseHTTPRequestHandler):
             d = {**catalog.lookups(db), 'settings': {k: cfg[k] for k in (
                 'shop_name', 'shop_phone', 'shop_address', 'receipt_footer', 'receipt_width', 'return_days', 'defect_days',
                 'tax_rate_pct', 'wallet_number', 'min_down_payment_pct', 'instalment_markup_pct', 'max_instalment_months',
-                'finance_providers', 'expense_categories', 'tax_number')},
+                'finance_providers', 'expense_categories', 'tax_number')}, 'pay_methods': core.pay_methods(db),
                  'users': db.all('SELECT id, full_name, role FROM users WHERE active = 1 ORDER BY full_name')}
         elif path == '/api/products':
             ctx.need_any('products.view', 'stock.view')

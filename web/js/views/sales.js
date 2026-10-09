@@ -91,9 +91,10 @@ export function schedule(plan) {
 
 function returnDialog(s, onChange) {
   const idem = key();
-  const methods = ['cash', 'card', 'wallet', 'instapay', ...(s.customer_id ? ['account'] : [])];
+  const methods = s.refund_methods || ['cash'];
   const paidBy = s.tenders.map((x) => x.method);
-  const def = paidBy.includes('installment') || paidBy.includes('account') ? 'account' : paidBy.includes('cash') ? 'cash' : (paidBy[0] || 'cash');
+  const want = paidBy.includes('installment') || paidBy.includes('account') ? 'account' : paidBy.includes('cash') ? 'cash' : (paidBy[0] || 'cash');
+  const def = methods.includes(want) ? want : methods[0];
   open({
     title: t('sales.returnTitle', { n: s.number }),
     wide: true,
@@ -102,7 +103,7 @@ function returnDialog(s, onChange) {
       <tbody>${s.lines.filter((l) => l.qty - l.returned > 0).map((l) => html`<tr><td>${l.name}${l.serial ? html`<div class="small num muted">${l.serial}</div>` : ''}</td>
         <td class="num">${num(l.qty - l.returned)}</td><td><input class="input q-in num" data-rq="${l.id}" data-max="${l.qty - l.returned}" value="0" inputmode="decimal"></td>
         <td><select class="input" data-rc="${l.id}"><option value="good">${t('sales.good')}</option><option value="damaged">${t('sales.damaged')}</option></select></td></tr>`)}</tbody></table></div>
-      <div class="field"><span class="label">${t('sales.refundBy')}</span>${seg('refund', methods.map((m) => [m, t('pay.' + m)]), def)}</div>
+      ${methods.length > 1 ? html`<div class="field"><span class="label">${t('sales.refundBy')}</span>${seg('refund', methods.map((m) => [m, t('pay.' + m)]), def)}</div>` : ''}
       <div class="field"><label for="r-why">${t('f.reason')}</label><textarea id="r-why" class="input" data-guide="return.reason" placeholder="${t('sales.reasonHint')}"></textarea></div>
       <p class="err small" id="r-err" role="alert"></p>`,
     foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok data-guide="return.save">${icon('return')}${t('sales.doReturn')}</button>`,

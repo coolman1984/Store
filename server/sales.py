@@ -9,13 +9,14 @@ Rules that protect the owner:
   a serial number must really be in stock.
 """
 import catalog
+import core
 import ids
 import money as cash
 import stock
 from auth import Forbidden
 from core import NotFound, Problem, money, obj, quantity, rows, settings, text, whole
 
-PAY_METHODS = ('cash', 'card', 'wallet', 'instapay', 'finance', 'account', 'installment')
+PAY_METHODS = core.PAY_METHODS
 
 
 def _default_shop(db):
@@ -149,10 +150,13 @@ def sell(ctx, data):
     if not payments:
         raise Problem('err.noPayment', 'Choose how the customer pays.')
     by_method, providers = {}, {}
+    turned_on = core.pay_methods(ctx.db)
     for p in payments:
         method = p.get('method')
         if method not in PAY_METHODS:
             raise Problem('err.method', 'Unknown payment method.')
+        if method not in turned_on:
+            raise Problem('err.methodOff', 'This way of paying is turned off. The owner can turn it on in Settings.')
         amount = money(p.get('amount'), 'amount')
         if not amount:
             continue
@@ -266,6 +270,16 @@ def quote(ctx, data):
 
 
 # ------------------------------------------------------------------ viewing
+REFUND_METHODS = ('cash', 'card', 'wallet', 'instapay', 'finance', 'account')
+
+
+def refund_methods(db, sale):
+    """Ways a return can give the money back: only the ways the shop has turned on (cash is always one of them),
+    so an old card sale is refunded in cash once card is off."""
+    ok = set(core.pay_methods(db))
+    return [m for m in REFUND_METHODS if m in ok and (m != 'account' or sale['customer_id'])]
+
+
 def sale_view(db, sale_id, can_cost=False):
     s = db.one('SELECT s.*, u.full_name AS by_name, a.full_name AS approved_name, c.name AS customer, c.phone AS customer_phone, '
                'l.name AS location FROM sales s JOIN users u ON u.id = s.by_user LEFT JOIN users a ON a.id = s.approved_by '
@@ -276,6 +290,7 @@ def sale_view(db, sale_id, can_cost=False):
     s['lines'] = db.all('SELECT sl.*, p.sku, p.unit, COALESCE((SELECT SUM(qty) FROM return_lines r WHERE r.sale_line_id = sl.id), 0) '
                         'AS returned FROM sale_lines sl JOIN products p ON p.id = sl.product_id WHERE sale_id = ? ORDER BY sl.rowid', s['id'])
     s['tenders'] = db.all("SELECT method, provider, amount FROM tenders WHERE ref_type = 'sale' AND ref_id = ?", s['id'])
+    s['refund_methods'] = refund_methods(db, s)
     s['returns'] = db.all('SELECT r.id, r.number, r.at, r.total, r.reason, r.refund_method, u.full_name AS by_name FROM returns r '
                           'JOIN users u ON u.id = r.by_user WHERE sale_id = ? ORDER BY at', s['id'])
     s['plan'] = db.one('SELECT * FROM plans WHERE sale_id = ?', s['id'])
@@ -392,10 +407,12 @@ def take_return(ctx, data):
         prepared.append((line, qty, amount, to, condition))
         total += amount
     method = data.get('refund_method') or 'cash'
-    if method not in ('cash', 'card', 'wallet', 'instapay', 'account', 'finance'):
+    if method not in REFUND_METHODS:
         raise Problem('err.method', 'Unknown refund method.')
     if method == 'account' and not sale['customer_id']:
         raise Problem('err.needCustomer', 'This sale has no customer account.')
+    if method not in sale['refund_methods']:
+        raise Problem('err.methodOff', 'This way of paying is turned off. The owner can turn it on in Settings.')
     shift = cash.open_shift_of(ctx.db, ctx.uid)
     if method == 'cash':
         shift = cash.need_shift(ctx)

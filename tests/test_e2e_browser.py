@@ -104,6 +104,7 @@ class CoreJourney(Browser):
         self.assertEqual(pg.input_value('.q-in'), '2')
         pg.keyboard.press('F4')
         pg.wait_for_selector('#recv')
+        self.assertEqual(pg.query_selector_all('.pay-methods'), [])  # a new shop takes cash only: no other way is offered
         pg.fill('#recv', '3000')
         self.assertIn('700', pg.inner_text('#change'))
         pg.keyboard.press('Enter')
@@ -118,6 +119,7 @@ class CoreJourney(Browser):
         pg.wait_for_selector('[data-return]')
         pg.click('[data-return]')
         pg.fill('[data-rq]', '1')
+        self.assertEqual(pg.query_selector_all('[data-seg="refund"]'), [])  # cash sale, cash shop: refunded in cash, no choice shown
         pg.fill('#r-why', 'الزبون غيّر رأيه')
         pg.click('.dialog [data-ok]')
         pg.wait_for_selector('#ap-u')

@@ -67,6 +67,11 @@ class Shop:
         self.users[username] = u
         return u
 
+    def all_pay(self):
+        """Turn on every way of paying (a new shop takes cash only)."""
+        with self.db.tx():
+            core.set_setting(self.db, 'pay_methods', list(core.PAY_METHODS))
+
     def ctx(self, user=None):
         user = user or self.users['owner']
         user = self.db.one('SELECT * FROM users WHERE id = ?', user['id'])

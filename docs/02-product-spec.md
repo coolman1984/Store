@@ -4,8 +4,9 @@
 counter, phones on the shop Wi-Fi, 2–6 staff. **Users are not technical.** Research: [01-research.md](01-research.md).
 
 ## The one paid journey
-Open the shift with a float → sell by barcode/keyboard (serial for appliances) → take cash / card / wallet / InstaPay /
-finance company / on account / shop instalments → print or WhatsApp the receipt → take a return linked to the original line
+Open the shift with a float → sell by barcode/keyboard (serial for appliances) → take **cash** (the only way on in every
+shop, owner decision 2026-10-09; card / wallet / InstaPay / finance company / on account / shop instalments stay built and
+tested but hidden until the owner turns them on in Settings) → print or WhatsApp the receipt → take a return linked to the original line
 with a manager's approval → close the shift by counting → the owner sees differences in **the owner's eye**.
 Everything in between (receiving with serials and cost, moving store → shop, shelves, counting, bulk price changes, customer
 balances and instalment collection) exists to make that journey correct.
@@ -26,6 +27,7 @@ balances and instalment collection) exists to make that journey correct.
 | A11 | The owner decides per person which pages they see and what they may do (profiles + ticks); hidden pages are refused by the server; nobody can lock the shop out of its people screen; every change of ticks is audited | `test_access`, `test_e2e_browser.PeopleAndProfiles` |
 | A11 | Arabic RTL and English LTR, light/dark/high-contrast, text size up to XL: no page wider than the screen, no text out of its card at 360 / 390 / 820 / 1366 px | `test_e2e_browser.LayoutSweep` |
 | A12 | Strict CSP, Host and Origin checks, HttpOnly SameSite cookie | `test_boot_and_security_headers`, `test_dns_rebinding_and_cross_site_writes_refused` |
+| A13 | A new shop takes cash only: other ways are hidden at the counter, in returns and in collections and refused by the server until the owner ticks them; cash cannot be turned off; old sales stay visible and are refunded in cash | `test_domain.PayMethodTests`, `test_api.test_only_the_owner_turns_on_other_ways_of_paying`, `test_e2e_browser.CoreJourney` |
 
 ## Scope
 **In v1.0:** everything above, plus practice shop (separate folder, demo accounts, PRACTICE on receipts), command palette,

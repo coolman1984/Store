@@ -410,15 +410,18 @@ function pay() {
   if (!cart.lines.length || document.querySelector('.scrim')) return;
   const cfg = S.lookups?.settings || {};
   const state = { method: 'cash', received: null, provider: (cfg.finance_providers || [])[0] || '', months: 12, down: null, first_due: null,
-    guarantor: {}, split: [{ method: 'cash', amount: null }, { method: 'card', amount: null }] };
-  const methods = METHODS.filter(([m]) => (['account', 'installment'].includes(m) ? can('pos.credit') : true));
+    guarantor: {}, split: [{ method: 'cash', amount: null }] };
+  const turnedOn = S.lookups?.pay_methods || ['cash'];
+  const usable = (m) => turnedOn.includes(m) && (['account', 'installment'].includes(m) ? can('pos.credit') : true);
+  const splitWith = ['cash', 'card', 'wallet', 'instapay', 'finance', 'account'].filter(usable);
+  const methods = METHODS.filter(([m]) => (m === 'split' ? splitWith.length > 1 : usable(m)));
   open({
     title: t('pos.payTitle'),
     kind: 'sheet',
     body: html`<div class="pay">
       <div class="pay-total"><span>${t('pos.total')}</span><b class="num" id="pay-total">${money(total())}</b></div>
-      <div class="pay-methods" role="radiogroup" aria-label="${t('pos.method')}">${methods.map(([m, ic]) =>
-        html`<button class="pm" role="radio" data-m="${m}" aria-checked="${m === 'cash'}">${icon(ic)}<span>${t('pay.' + m)}</span></button>`)}</div>
+      ${methods.length > 1 ? html`<div class="pay-methods" role="radiogroup" aria-label="${t('pos.method')}">${methods.map(([m, ic]) =>
+        html`<button class="pm" role="radio" data-m="${m}" aria-checked="${m === 'cash'}">${icon(ic)}<span>${t('pay.' + m)}</span></button>`)}</div>` : ''}
       <div id="pay-body"></div>
       <p class="err small" id="pay-err" role="alert"></p>
     </div>`,
@@ -497,7 +500,7 @@ function pay() {
           const drawSplit = () => {
             const paid = state.split.reduce((a, r) => a + (r.amount || 0), 0);
             put(body, html`<div class="stack tight">${state.split.map((r, i) => html`<div class="row">
-              <select class="input" data-sm="${i}">${['cash', 'card', 'wallet', 'instapay', 'finance', ...(can('pos.credit') ? ['account'] : [])].map((mm) =>
+              <select class="input" data-sm="${i}">${splitWith.map((mm) =>
                 html`<option value="${mm}" ${mm === r.method ? 'selected' : ''}>${t('pay.' + mm)}</option>`)}</select>
               <input class="input money-in" data-sa="${i}" inputmode="decimal" value="${r.amount !== null ? r.amount / 100 : ''}" placeholder="0">
               <button class="icon-btn" data-sx="${i}" aria-label="${t('act.remove')}">${icon('x')}</button></div>`)}
@@ -511,6 +514,7 @@ function pay() {
               state.split.push({ method: 'cash', amount: Math.max(0, total() - paid2) }); drawSplit();
             });
           };
+          if (state.split.length === 1) state.split.push({ method: splitWith[1], amount: null });
           if (state.split[0].amount === null) state.split[0].amount = total();
           drawSplit();
         } else {

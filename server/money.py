@@ -7,6 +7,7 @@
   a mistake is corrected with a reversing entry and a written reason.
 - Shop instalments: a plan holds the schedule terms; what is due, paid and late is computed from the plan and the entries.
 """
+import core
 import ids
 from core import NotFound, Problem, money, settings, text
 
@@ -323,6 +324,8 @@ def collect(ctx, data):
     method = data.get('method') or 'cash'
     if method not in ('cash', 'card', 'wallet', 'instapay'):
         raise Problem('err.method', 'Unknown payment method.')
+    if method not in core.pay_methods(ctx.db):
+        raise Problem('err.methodOff', 'This way of paying is turned off. The owner can turn it on in Settings.')
     plan_id = data.get('plan_id') or None
     if plan_id and not ctx.db.value('SELECT 1 FROM plans WHERE id = ? AND customer_id = ?', plan_id, customer['id']):
         raise NotFound('plan')

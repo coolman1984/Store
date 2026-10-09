@@ -1,5 +1,11 @@
 # Release notes
 
+## 1.3.0
+- Cash only: every shop, new or updated, takes cash only. The counter shows no payment choices, returns refund in cash, and collections are cash. Card, mobile wallet, InstaPay, finance companies, on account and shop instalments are hidden everywhere and refused by the server until the owner ticks them in Settings → Shop → How customers pay. Cash can never be turned off.
+- Turning a way off never removes or hides old sales; they stay in the reports. A return on an old card or wallet sale is refunded in cash.
+- The instalment settings and the wallet number on the receipt only show when those ways are turned on.
+- Fixed: opening a page you are not allowed to see could be covered a moment later by the page that was still loading.
+
 ## 1.2.2
 - Fixed: the Windows installer now includes the in-app guide and the privacy settings files, so the installed program starts and shows the guide. The build checks that every file the program needs is in the program folder.
 

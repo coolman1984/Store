@@ -1164,6 +1164,7 @@
         "err.noPayment",
         "err.paymentsMismatch",
         "err.method",
+        "err.methodOff",
         "err.discountTooBig",
         "err.hidden",
         "err.noPrice"
