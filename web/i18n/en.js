@@ -293,6 +293,7 @@ export default {
   'err.notEnough': 'Only {have} of {name} in {place}.', 'err.notReversible': 'Sales, returns and collections are reversed from their own page.', 'err.notSellable': 'Goods in this place are not for sale. Move them to the shop first.',
   'err.note': 'Write what the money was for.', 'err.nothingToFinance': 'Nothing is left to finance.', 'err.paidTooMuch': 'The amount paid is more than the invoice.', 'err.pastPrice': 'A new price cannot start on a past day.',
   'err.payMoreThanOwed': 'This is more than what is owed ({owed}).', 'err.paymentsMismatch': 'The payments do not add up to the total.', 'err.percent': 'Write a percentage between -50 and 200.',
+  'err.creditMix': 'Choose one way of selling on credit: the customer\'s account or shop instalments, not both on one sale.',
   'err.phoneTaken': 'A customer with this mobile exists. Search for them.', 'err.priceKind': 'Unknown price kind.', 'err.qty': 'The quantity must be more than zero.',
   'err.qtyWhole': 'This product is sold in whole units.', 'err.reason': 'Write the reason (3 letters or more).', 'err.required': 'This field is required.',
   'err.returnTooMuch': '{name}: only {left} can still be returned.', 'err.roundTo': 'Unknown rounding.', 'err.safeShort': 'The safe does not have this amount.', 'err.samePlace': 'Choose two different places.',

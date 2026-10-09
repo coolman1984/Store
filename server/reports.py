@@ -22,7 +22,7 @@ def summary(db, day_from, day_to, can_cost=False):
     start, end = _range(day_from, day_to)
     s = db.one('SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS total, COALESCE(SUM(discount), 0) AS discount, '
                'COALESCE(SUM(fee), 0) AS fee, COALESCE(SUM(cost_total), 0) AS cost FROM sales WHERE at >= ? AND at < ?', start, end)
-    r = db.one('SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS total FROM returns WHERE at >= ? AND at < ?', start, end)
+    r = db.one('SELECT COUNT(*) AS count, COALESCE(SUM(total + fee), 0) AS total FROM returns WHERE at >= ? AND at < ?', start, end)
     returned_cost = db.value('SELECT COALESCE(SUM(rl.qty * sl.unit_cost), 0) FROM return_lines rl JOIN returns r ON r.id = rl.return_id '
                              'JOIN sale_lines sl ON sl.id = rl.sale_line_id WHERE r.at >= ? AND r.at < ?', start, end)
     methods = {m['method']: m['amount'] for m in db.all("SELECT method, SUM(amount) AS amount FROM tenders WHERE ref_type IN ('sale', 'return') "
@@ -54,7 +54,7 @@ def daily_series(db, days=30, can_cost=False):
         b['sales'] += row['total']
         b['cost'] += row['cost_total']
         b['count'] += 1
-    for row in db.all('SELECT r.at, r.total, COALESCE((SELECT SUM(rl.qty * sl.unit_cost) FROM return_lines rl JOIN sale_lines sl '
+    for row in db.all('SELECT r.at, r.total + r.fee AS total, COALESCE((SELECT SUM(rl.qty * sl.unit_cost) FROM return_lines rl JOIN sale_lines sl '
                       'ON sl.id = rl.sale_line_id WHERE rl.return_id = r.id), 0) AS cost FROM returns r WHERE r.at >= ? AND r.at < ?',
                       start, end):
         d = ids.local_day(ids.parse(row['at']))
@@ -96,7 +96,7 @@ def year_turnover(db, year=None):
     start, _ = ids.day_bounds(f'{year}-01-01')
     _, end = ids.day_bounds(f'{year}-12-31')
     sales = db.value('SELECT COALESCE(SUM(total), 0) FROM sales WHERE at >= ? AND at < ?', start, end)
-    rets = db.value('SELECT COALESCE(SUM(total), 0) FROM returns WHERE at >= ? AND at < ?', start, end)
+    rets = db.value('SELECT COALESCE(SUM(total + fee), 0) FROM returns WHERE at >= ? AND at < ?', start, end)
     return {'year': year, 'sales': sales, 'returns': rets, 'turnover': sales - rets}
 
 
