@@ -1,5 +1,8 @@
 # Build and release
 
+**Windows CI update:** `.github/workflows/windows.yml` runs on pull requests into main as well as pushes to main. Require the exact `windows installer / installer` job in the repository ruleset/branch protection; a workflow alone does not prevent merging a failed build. The standalone clean-PC restore remains mandatory. Four-plan staged roadmap: [commercial tiers](04-commercial-tiers.md).
+
+
 **Status:** `verified` by the workflow `windows installer` on a real Windows runner (build → start the program folder → silent install → start the installed program → uninstall keeps the data; first green run: Actions run 3 of 2026-10-08). A clean-PC install by a person is still a separate gate (factory DELIVERY_GATES).
 
 1. Change `server/version.py` (VERSION) and describe the version in `docs/RELEASE_NOTES.md` (the build refuses otherwise).
