@@ -10,6 +10,7 @@ own program instance on its own port (127.0.0.1 only) and in its own folder. Thi
 """
 import json
 import os
+import socket
 import subprocess
 import sys
 import threading
@@ -91,20 +92,20 @@ def port_of(app):
 
 
 def _probe(port):
-    """What answers on the practice port: 'running' (our practice shop), 'other' (something else), or 'stopped'."""
+    """What answers on the practice port: 'running' (our practice shop), 'other' (something else), or 'stopped'.
+    Two steps, because Windows takes about two seconds to refuse a connection to a closed port: a connect that does not succeed in time
+    means nobody is listening ('stopped'); only a listener that accepted the connection and then did not speak for us is 'other'."""
+    try:
+        socket.create_connection(('127.0.0.1', port), timeout=0.6).close()
+    except OSError:  # refused, or too slow to refuse (Windows)
+        return 'stopped'
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
         with opener.open(f'http://127.0.0.1:{port}/api/boot', timeout=0.8) as r:
             d = json.loads(r.read(65536).decode('utf-8'))
         return 'running' if d.get('practice') is True and d.get('product') == PRODUCT else 'other'
-    except urllib.error.HTTPError:
+    except (urllib.error.URLError, OSError, ValueError):  # it accepted the connection but is not our practice shop (or never answered)
         return 'other'
-    except urllib.error.URLError as e:  # nobody listening = stopped; somebody listening who does not answer in time = another program
-        return 'other' if isinstance(e.reason, TimeoutError) else 'stopped'
-    except TimeoutError:
-        return 'other'
-    except (OSError, ValueError):
-        return 'stopped'
 
 
 def status(app):

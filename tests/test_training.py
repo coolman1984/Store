@@ -478,6 +478,19 @@ class RebuildAndLaunch(unittest.TestCase):
                     p.kill()
             shutil.rmtree(home, ignore_errors=True)
 
+    def test_a_slow_refusal_is_a_stopped_practice_shop_not_another_program(self):
+        """Found by the Windows build: a closed port takes about two seconds to refuse there, longer than we wait. That is 'stopped'."""
+        real = socket.create_connection
+
+        def slow(*a, **k):
+            raise TimeoutError('timed out')
+        socket.create_connection = slow
+        try:
+            self.assertEqual(practice._probe(free_port()), 'stopped')
+        finally:
+            socket.create_connection = real
+        self.assertEqual(practice._probe(free_port()), 'stopped')
+
     def test_a_port_held_by_another_program_is_said_plainly(self):
         shop = Server(practice=False)
         busy = socket.socket()
