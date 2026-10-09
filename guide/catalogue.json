@@ -1018,6 +1018,7 @@
         "auth.err.wrong",
         "auth.err.locked",
         "auth.err.disabled",
+        "auth.err.recovery",
         "err.signIn"
       ],
       "roles": [],

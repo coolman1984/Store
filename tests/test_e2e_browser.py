@@ -42,7 +42,7 @@ class Browser(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.S = Server(practice=cls.practice, licensed=getattr(cls, "licensed", True))
+        cls.S = Server(practice=cls.practice, licensed=getattr(cls, "licensed", True), setup=getattr(cls, 'setup', True))
         cls.pw = sync_playwright().start()
         cls.browser = cls.pw.chromium.launch(executable_path=CHROMIUM)
 
@@ -269,6 +269,55 @@ class LicenceLock(Browser):
         pg.wait_for_selector('.lic.good')
         self.assertIsNone(pg.query_selector('.banner.licence.bad'))
         self.assertEqual([e for e in self.errors if '400' not in e], [])
+
+
+@SKIP
+class OwnerRecovery(Browser):
+    """Setup shows the paper code until the owner ticks that it is kept; «نسيت كلمة السر؟» uses it and shows a new one."""
+    practice = False
+    setup = False
+
+    def test_setup_paper_code_then_forgotten_password(self):
+        ctx = self.browser.new_context(viewport={'width': 390, 'height': 844})
+        ctx.add_init_script("localStorage.setItem('store.prefs', %s)" % json.dumps(json.dumps({'lang': 'ar', 'sound': False, 'motion': 'off'})))
+        pg = ctx.new_page()
+        errors = []
+        pg.on('pageerror', lambda e: errors.append(str(e)))
+        pg.goto(self.S.base)
+        pg.wait_for_selector('#setup-form')
+        pg.fill('#shop', 'محل التجربة')
+        pg.fill('#fn', 'صاحب المحل')
+        pg.fill('#un', 'boss')
+        pg.fill('#pw', 'first-secret-1')
+        pg.click('#setup-form [type=submit]')
+        pg.wait_for_selector('[data-recovery-code]')
+        code = pg.inner_text('[data-recovery-code]').strip()
+        self.assertRegex(code, r'^[A-Z2-9]{4}(-[A-Z2-9]{4}){3}$')
+        self.assertTrue(pg.is_disabled('.dialog [data-ok]'))  # cannot go on before ticking that the code is kept
+        pg.keyboard.press('Escape')
+        self.assertEqual(len(pg.query_selector_all('[data-recovery-code]')), 1)
+        pg.check('#rc-kept')
+        pg.click('.dialog [data-ok]')
+        pg.wait_for_selector('.shell')
+        ctx.clear_cookies()
+        pg.goto(self.S.base)
+        pg.wait_for_selector('[data-forgot]')
+        self.assertNotIn('null', pg.text_content('.afg-fab'))  # af-guide 0.1.2: no course, no badge (it read «الدليلnull»)
+        pg.click('[data-forgot]')
+        pg.fill('#rc-code', 'AAAA-BBBB-CCCC-DDDD')
+        pg.fill('#rc-new', 'second-secret-2')
+        pg.click('#recover-form [type=submit]')
+        pg.wait_for_selector('#rc-err:not(:empty)')
+        self.assertIn('الكود الاحتياطي', pg.inner_text('#rc-err'))
+        pg.fill('#rc-code', code.lower())
+        pg.click('#recover-form [type=submit]')
+        pg.wait_for_selector('[data-recovery-code]')
+        self.assertNotEqual(pg.inner_text('[data-recovery-code]').strip(), code)
+        pg.check('#rc-kept')
+        pg.click('.dialog [data-ok]')
+        pg.wait_for_selector('.shell')
+        self.assertEqual(errors, [])
+        ctx.close()
 
 
 @SKIP

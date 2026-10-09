@@ -5,6 +5,8 @@
   a maximum age, logout, password change or when the person is disabled.
 - Five wrong passwords lock the account for 15 minutes; the message never says which part was wrong.
 - Every permission is checked here, on the server, for every request. Hiding a button is only a convenience.
+- The owner gets a one-time recovery code at setup (printed on paper). It sets a new password when the owner forgets it;
+  only its PBKDF2 hash is kept, it works once and a new code replaces it. There is no vendor master password.
 - A manager can approve one action for a cashier (a big discount, selling under the minimum price, a return) by typing
   their own password on the cashier's screen. The approval is checked here and written to the audit.
 """
@@ -24,6 +26,7 @@ MAX_HOURS = 14
 MAX_FAILED = 5
 LOCK_MINUTES = 15
 MIN_PASSWORD = 8
+RECOVERY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'  # no 0/O, 1/I/L: read off paper without mistakes
 
 # permission -> (group, English label). The Arabic labels live in the page dictionaries (perm.<id>, permg.<group>).
 # The order is the order on the people screen. The rules (one administrator group, a locked profile with every right,
@@ -450,6 +453,36 @@ class Auth:
 
     def end_sessions(self, user_id):
         self.db.run('UPDATE sessions SET ended = 1 WHERE user_id = ?', user_id)
+
+    # ---------------------------------------------------------------- recovery code (forgotten owner password)
+    def recovery_holder(self):
+        """The id of the person the recovery code belongs to, or None when no code was made."""
+        row = self.db.value("SELECT value FROM meta WHERE key = 'recovery'")
+        return json.loads(row)['user_id'] if row else None
+
+    def new_recovery(self, user_id):
+        """Makes a new code for this person and forgets the old one. Returns the code to show once."""
+        raw = ''.join(secrets.choice(RECOVERY_ALPHABET) for _ in range(16))  # 16 of 31 letters: about 79 bits
+        value = json.dumps({'user_id': user_id, 'hash': hash_password(raw), 'made_at': ids.iso()})
+        self.db.run("INSERT INTO meta(key, value) VALUES ('recovery', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    value)
+        return '-'.join(raw[i:i + 4] for i in range(0, 16, 4))
+
+    def recover(self, code, new_password):
+        """Right code: sets the password, unlocks and switches the person on, ends their sessions and makes a new code.
+        Returns (user, new code). Wrong code: AuthError, counted by the caller like a wrong password."""
+        row = self.db.value("SELECT value FROM meta WHERE key = 'recovery'")
+        typed = ''.join(c for c in str(code or '').upper() if c.isalnum())
+        held = json.loads(row) if row else None
+        if not held:
+            check_password(typed, _DUMMY)  # same time as a wrong code
+        if not held or len(typed) != 16 or not check_password(typed, held['hash']):
+            raise AuthError('auth.err.recovery', 'This recovery code is not right.')
+        user = self.get(held['user_id'])
+        if not user:
+            raise AuthError('auth.err.recovery', 'This recovery code is not right.')
+        self.update(user['id'], {'password': new_password, 'active': True})
+        return self.get(user['id']), self.new_recovery(user['id'])
 
     def approve(self, approval, perm):
         """A manager's password typed on someone else's screen. Returns the approving user or raises."""

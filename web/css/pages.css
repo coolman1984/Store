@@ -225,6 +225,10 @@ details.card > summary { cursor: pointer; list-style: none; }
 details.card > summary::-webkit-details-marker { display: none; }
 details.card[open] > summary { margin-block-end: var(--s-3); }
 
+/* ---------------------------------------------------------------- recovery code (owner's paper key) */
+.recovery-code { font-family: var(--font-ui); font-size: clamp(var(--fs-md), 5.2vw, var(--fs-xl)); font-weight: 700; letter-spacing: .06em; text-align: center;
+  white-space: nowrap; padding: var(--s-4) var(--s-2); border: 2px dashed var(--line-2); border-radius: var(--r-md); background: var(--surface-2); user-select: all; }
+
 /* ---------------------------------------------------------------- print */
 #print-area { display: none; }
 @media print {
@@ -253,6 +257,8 @@ details.card[open] > summary { margin-block-end: var(--s-3); }
   .label-code svg { inline-size: 100%; block-size: 8mm; }
   .rc-practice { text-align: center; border: 2px solid #000; font-weight: 700; padding: 3px; margin-block-end: 6px; }
   .a4 { font-family: var(--font-ui); color: #000; }
+  .recovery-paper { display: grid; gap: 4mm; padding: 10mm; border: 1px solid #000; }
+  .recovery-paper .recovery-code { background: #fff; border-color: #000; color: #000; font-size: 20pt; }
   .a4 table { inline-size: 100%; border-collapse: collapse; font-size: 11px; }
   .a4 th, .a4 td { border: 1px solid #999; padding: 3px 5px; text-align: start; }
 }

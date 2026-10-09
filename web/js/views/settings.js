@@ -7,6 +7,7 @@ import { printHTML } from '../print.js';
 import { prefs } from '../prefs.js';
 import { CUR, raw, $, $$, html, put, icon, date, open, empty, skeleton, errorText, toast, run, confirm, seg, bindSeg, initials, download, parseMoney } from '../ui.js';
 import { signal } from '../guide.js';
+import { makeNewCode } from '../recovery.js';
 
 const TAB_GUIDE = { shop: 'settings.shop.tab', users: 'settings.users.tab', backup: 'settings.backup.tab' };
 const TABS = [['shop', 'store', 'settings.edit'], ['licence', 'key', 'settings.edit'], ['users', 'users', 'users.manage'], ['places', 'warehouse', 'settings.edit'],
@@ -86,7 +87,9 @@ async function users(body, again) {
   let d;
   try { d = await api.get('/api/users'); } catch (e) { put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); return; }
   const profOf = (u) => d.profiles.find((p) => p.id === u.role);
-  put(body, html`<div class="stack"><div class="row between wrap"><p class="muted">${t('users.sub')}</p>
+  put(body, html`<div class="stack">${S.me?.recovery ? html`<div class="card"><div class="card-head"><h2>${icon('key')}${t('recovery.card')}</h2>
+      <button class="btn" data-recovery>${t('recovery.new')}</button></div><p class="small muted">${t('recovery.cardHint')}</p></div>` : ''}
+    <div class="row between wrap"><p class="muted">${t('users.sub')}</p>
       <div class="row wrap"><button class="btn" data-matrix>${icon('layers')}${t('users.matrix')}</button><button class="btn primary" data-new data-guide="users.add">${icon('plus')}${t('users.add')}</button></div></div>
     <div class="grid">${d.users.map((u) => html`<button class="card flat user-card" data-id="${u.id}"><div class="row"><span class="avatar">${initials(u.full_name)}</span>
       <span class="grow"><b>${u.full_name}</b><bdi class="small muted"> @${u.username}</bdi><div class="small">${pname(profOf(u))}${u.max_discount_pct ? ' · ' + t('users.discountN', { n: u.max_discount_pct }) : ''}</div></span>
@@ -96,6 +99,7 @@ async function users(body, again) {
       <div class="grid">${d.profiles.map((p) => html`<button class="card flat user-card" data-prof="${p.id}"><div class="row">${icon(p.locked ? 'lock' : 'shield')}
         <span class="grow"><b>${pname(p)}</b><div class="small muted">${p.builtin && !p.name ? t('role.' + p.id + '.hint') : t('profiles.nPerms', { n: p.perms.length })}</div>
         <div class="xs faint">${t('profiles.nPeople', { n: p.users })}</div></span></div></button>`)}</div></div></div>`);
+  $('[data-recovery]', body)?.addEventListener('click', () => makeNewCode(S.lookups?.settings?.shop_name || ''));
   $('[data-new]', body).addEventListener('click', () => editUser(null, d, again));
   $('[data-newprof]', body).addEventListener('click', () => editProfile(null, d, again));
   $('[data-matrix]', body).addEventListener('click', () => matrix(d));

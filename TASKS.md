@@ -19,9 +19,11 @@
 
 - [x] 1.3.0 cash only everywhere (other ways hidden until the owner turns them on); ready-to-sell plan in `docs/03-ready-to-sell.md`
 
+- [x] 1.4.0 owner recovery code (IAM-01): paper code at setup, «نسيت كلمة السر؟», new code from Settings → People
+
 ## Next (in order) — full list and reasons in docs/03-ready-to-sell.md
-- [ ] Engineering gaps for the gate: owner password recovery (IAM-01), newer-data refusal test (DATA-06), kill-process drill (OPS-06), practice passwords refused in a real shop (IAM-06), secrets scan in CI (SEC-02), export formula test (SEC-07), drop `nuitka-4.2.2.tar.gz` from the repository
-- [ ] Release-commit proofs: ui-lab rerun (PERF-01, A11Y-01 + a manual keyboard journey), Windows workflow run id and SHA in the release notes (OPS-01, OPS-07), upgrade 1.2.2 → 1.3.0 on a realistic copy (REL-03)
+- [ ] Engineering gaps for the gate: newer-data refusal test (DATA-06), kill-process drill (OPS-06), practice passwords refused in a real shop (IAM-06), secrets scan in CI (SEC-02), export formula test (SEC-07), drop `nuitka-4.2.2.tar.gz` from the repository
+- [ ] Release-commit proofs: ui-lab rerun (PERF-01, A11Y-01 + a manual keyboard journey), Windows workflow run id and SHA in the release notes (OPS-01, OPS-07), upgrade 1.3.0 → 1.4.0 on a realistic copy (REL-03)
 - [ ] Trademark/domain check for "Mizan / ميزان" in EG, SA, AE (owner) — **gate before renaming the installer and data folder**
 - [ ] One-hour usability session with a real cashier on the new counter (owner)
 - [ ] Field visit: 5 Beni Suef shops answer the 5 questions in docs/01-research.md §7 (owner) — **gate before selling**

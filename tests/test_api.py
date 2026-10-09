@@ -213,6 +213,93 @@ class RestoreTests(unittest.TestCase):
 
 
 @unittest.skipUnless(HAVE_CRYPTO, 'cryptography is needed to sign test licence codes')
+class RecoveryTests(unittest.TestCase):
+    """A forgotten owner password: the paper code from setup, once, counted like wrong passwords; no master password."""
+
+    def setUp(self):
+        self.S = Server(setup=False)
+        self.owner = self.S.client()
+        st, d, _ = self.owner.post('/api/setup', {'username': OWNER[0], 'full_name': 'Owner', 'password': OWNER[1], 'shop_name': 'Shop'})
+        self.assertEqual(st, 200, d)
+        self.code = d['recovery_code']
+        if HAVE_CRYPTO:
+            import licence
+            licence.activate(self.S.app.db, code_for(licence.device(self.S.app.db)))
+
+    def tearDown(self):
+        self.S.stop()
+
+    def test_setup_gives_a_paper_code_and_only_its_hash_is_kept(self):
+        self.assertRegex(self.code, r'^[A-HJKMNP-Z2-9]{4}(-[A-HJKMNP-Z2-9]{4}){3}$')
+        kept = self.S.app.db.value("SELECT value FROM meta WHERE key = 'recovery'")
+        self.assertNotIn(self.code.replace('-', ''), kept)
+        self.assertTrue(self.owner.get('/api/me')[1]['recovery'])
+        st, d, _ = self.owner.post('/api/setup', {'username': 'x2', 'full_name': 'X', 'password': 'another-pass-1', 'shop_name': 'S'})
+        self.assertEqual(st, 409)
+
+    def test_right_code_sets_a_new_password_once_and_ends_old_sessions(self):
+        st, d, _ = self.S.client().post('/api/recover', {'code': 'AAAA-BBBB-CCCC-DDDD', 'password': 'new-secret-77'})
+        self.assertEqual((st, d['key']), (400, 'auth.err.recovery'))
+        st, d, _ = self.S.client().post('/api/recover', {'code': self.code, 'password': 'abc'})
+        self.assertEqual(d['key'], 'auth.err.short')  # a weak password changes nothing and keeps the code
+        c = self.S.client()
+        typed = self.code.lower().replace('-', ' ')  # read off paper: small letters and spaces are fine
+        st, d, _ = c.post('/api/recover', {'code': typed, 'password': 'new-secret-77'})
+        self.assertEqual(st, 200, d)
+        self.assertEqual(d['user']['username'], OWNER[0])
+        self.assertNotEqual(d['recovery_code'], self.code)
+        self.assertEqual(c.get('/api/me')[0], 200)
+        self.assertEqual(self.owner.get('/api/me')[0], 401)  # the old session ended
+        st, d, _ = self.S.client().post('/api/recover', {'code': self.code, 'password': 'other-secret-88'})
+        self.assertEqual(d['key'], 'auth.err.recovery')  # the old paper works once
+        self.S.client().login(OWNER[0], 'new-secret-77')
+        audit = self.S.app.db.one("SELECT * FROM audit WHERE action = 'password.recover'")
+        self.assertNotIn(self.code.replace('-', ''), audit['detail'])
+
+    def test_a_locked_owner_gets_back_in_and_wrong_codes_are_throttled(self):
+        for _ in range(6):
+            self.S.client().post('/api/login', {'username': OWNER[0], 'password': 'wrong-wrong'})
+        st, d, _ = self.S.client().post('/api/login', {'username': OWNER[0], 'password': OWNER[1]})
+        self.assertEqual(d['key'], 'auth.err.locked')
+        st, d, _ = self.S.client().post('/api/recover', {'code': self.code, 'password': 'new-secret-77'})
+        self.assertEqual(st, 200, d)
+        self.S.app.failed_ips.clear()
+        for _ in range(20):
+            self.S.client().post('/api/recover', {'code': 'AAAA-BBBB-CCCC-DDDD', 'password': 'new-secret-77'})
+        st, d, _ = self.S.client().post('/api/recover', {'code': d['recovery_code'], 'password': 'new-secret-78'})
+        self.assertEqual((st, d['key']), (429, 'auth.err.locked'))
+
+    def test_recovery_works_while_the_licence_is_locked(self):
+        S = Server(setup=False)
+        try:
+            c = S.client()
+            st, d, _ = c.post('/api/setup', {'username': OWNER[0], 'full_name': 'Owner', 'password': OWNER[1], 'shop_name': 'Shop'})
+            self.assertFalse(S.app.licence()['full'])
+            st, d, _ = c.post('/api/recovery/new', {'password': OWNER[1]})
+            self.assertEqual(st, 200, d)
+            st, d, _ = S.client().post('/api/recover', {'code': d['recovery_code'], 'password': 'new-secret-77'})
+            self.assertEqual(st, 200, d)
+        finally:
+            S.stop()
+
+    @unittest.skipUnless(HAVE_CRYPTO, 'cryptography needed')
+    def test_only_the_holder_makes_a_new_code_after_typing_the_password(self):
+        st, d, _ = self.owner.post('/api/user/save', {'username': 'boss', 'full_name': 'Boss', 'role': 'manager', 'password': PW})
+        self.assertEqual(st, 200, d)
+        boss = self.S.client()
+        boss.login('boss', PW)
+        self.assertFalse(boss.get('/api/me')[1]['recovery'])
+        self.assertEqual(boss.post('/api/recovery/new', {'password': PW})[0], 403)
+        st, d, _ = self.owner.post('/api/recovery/new', {'password': 'wrong-wrong'})
+        self.assertEqual(d['key'], 'auth.err.wrong')
+        st, d, _ = self.owner.post('/api/recovery/new', {'password': OWNER[1]})
+        self.assertEqual(st, 200, d)
+        st, d2, _ = self.S.client().post('/api/recover', {'code': self.code, 'password': 'new-secret-77'})
+        self.assertEqual(d2['key'], 'auth.err.recovery')  # the lost paper stopped working
+        st, d2, _ = self.S.client().post('/api/recover', {'code': d['recovery_code'], 'password': 'new-secret-77'})
+        self.assertEqual(st, 200, d2)
+
+
 class LicenceGateTests(unittest.TestCase):
     def setUp(self):
         self.S = Server(licensed=False)

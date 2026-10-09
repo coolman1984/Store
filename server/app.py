@@ -56,7 +56,7 @@ TYPES = {'.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf
          '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png',
          '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon'}
 # writes allowed while the licence does not give full access: reading, keeping data safe, and getting a new code
-OPEN_WRITES = {'/api/setup', '/api/login', '/api/logout', '/api/password', '/api/licence/activate', '/api/backup/now',
+OPEN_WRITES = {'/api/setup', '/api/login', '/api/logout', '/api/password', '/api/recover', '/api/licence/activate', '/api/backup/now',
                '/api/shift/close', '/api/watch/review', '/api/support/save', '/api/support/ping',
                '/api/guide/progress', '/api/consent/decide', '/api/telemetry/events',
                '/api/telemetry/feedback', '/api/telemetry/feedback/preview'}
@@ -140,7 +140,8 @@ class App:
                 stock.save_location(ctx, {'name': 'المخزن', 'kind': 'warehouse'})
                 stock.save_location(ctx, {'name': 'تالف وصيانة', 'kind': 'damaged'})
             ctx.audit('setup', 'shop', self.org_id, {'shop': data.get('shop_name')})
-        return user
+            code = self.auth.new_recovery(user['id'])
+        return user, code
 
     def backup_now(self, tag=''):
         item = backup.make(self.db, self.backup_dir, tag, self.cfg.get('extra_backup_dirs') or [])
@@ -561,16 +562,32 @@ class Handler(BaseHTTPRequestHandler):
         if not u:
             return None
         shift = cash.open_shift_of(APP.db, u['id'])
-        return {**auth_mod.public(u), 'shift_id': shift['id'] if shift else None}
+        holder = APP.auth.recovery_holder()
+        return {**auth_mod.public(u), 'shift_id': shift['id'] if shift else None,
+                'recovery': holder == u['id'] or (holder is None and 'users.manage' in auth_mod.effective_perms(u))}
 
     # ------------------------------------------------------------ POST
     def api_post(self, path):
         db = APP.db
         if path == '/api/setup':
             data = self.body(65536)
-            user = APP.setup(data, self.ip)
+            user, code = APP.setup(data, self.ip)
             token = APP.auth.start_session(user, self.ip)
-            return self.send(200, {'ok': True}, headers=self.cookie(token))
+            return self.send(200, {'ok': True, 'recovery_code': code}, headers=self.cookie(token))
+        if path == '/api/recover':  # forgotten owner password: the paper code from setup, counted like wrong passwords
+            data = self.body(65536)
+            if self.too_many(self.ip):
+                raise Problem('auth.err.locked', 'Too many wrong tries. Try again after a few minutes.', 429)
+            try:
+                with db.tx():
+                    user, code = APP.auth.recover(data.get('code'), data.get('password'))
+                    Ctx(db, user, [], self.ip, APP.org_id, APP.branch_id).audit('password.recover', 'user', user['id'])
+            except AuthError as e:
+                if e.key == 'auth.err.recovery':
+                    self.too_many(self.ip, add=True)
+                raise
+            token = APP.auth.start_session(user, self.ip)
+            return self.send(200, {'ok': True, 'user': self.me(user), 'recovery_code': code}, headers=self.cookie(token))
         if path == '/api/login':
             data = self.body(65536)
             if self.too_many(self.ip):
@@ -608,6 +625,15 @@ class Handler(BaseHTTPRequestHandler):
             with APP.db.tx():
                 self.ctx(u).audit('backup.restore', 'backup', data.get('name'))
             return self.send(200, {'ok': True})
+        if path == '/api/recovery/new':  # a lost paper: the code's holder types the password again and gets a new code
+            holder = APP.auth.recovery_holder()
+            if holder != u['id'] and not (holder is None and ctx.can('users.manage')):
+                raise Forbidden('users.manage', 'Only the person who holds the recovery code can make a new one.')
+            APP.auth.verify(u['username'], data.get('password'))  # outside the transaction, so a wrong password is counted
+            with db.tx():
+                code = APP.auth.new_recovery(u['id'])
+                ctx.audit('recovery.new', 'user', u['id'])
+            return self.send(200, {'ok': True, 'recovery_code': code})
         if path in ('/api/guide/progress', '/api/consent/decide', '/api/telemetry/events',
                     '/api/telemetry/feedback', '/api/telemetry/feedback/preview'):
             return self.assist_post(path, u, data)

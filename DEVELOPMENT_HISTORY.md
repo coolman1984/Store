@@ -1,5 +1,21 @@
 # Development history (newest first)
 
+## 2026-10-09 — 1.4.0: the owner's recovery code (factory IAM-01)
+**Why:** the owner account had no safe way back in. A shop owner who forgets the password would be locked out of their own people, profits and settings. The data would be safe, but only a visit could fix it. The owner approved a paper code that only the shop owner holds, with no master password for the vendor.
+
+**What:** `auth.Auth.new_recovery` makes 16 letters from an alphabet without 0/O/1/I/L, about 79 bits. Only its PBKDF2 hash and the holder's id are kept, in `meta['recovery']`. `/api/setup` returns the code once. The setup page shows it in a dialog that cannot be closed until «كتبته وحفظته في مكان أمين» is ticked, and it can be printed on A4. `/api/recover` runs before sign-in: small letters, spaces and dashes are accepted. It sets the new password (same strength rules), unlocks and switches on the account, ends all its sessions, signs in, audits `password.recover` without the code, and shows a new code. A wrong code counts toward the per-PC limit (20 per 15 minutes, then 429), like wrong passwords. `/api/recovery/new` is for the holder only (or a people manager when no code exists yet). It checks the password outside the transaction so a wrong one is counted, and it works while the licence is locked. `/api/me` tells the page whether to show the Settings → People card.
+
+**Found on the way:** the guide button on the sign-in page read «الدليلnull». The factory's af-guide passed a `null` badge to `replaceChildren`, which prints the word "null". It is fixed in the factory (af-guide 0.1.2, with a browser regression test that fails on 0.1.1) and vendored here with `scripts/vendor_guide.py`.
+
+**Evidence:** `test_api.RecoveryTests` has 5 tests:
+- setup code format, only the hash kept, setup cannot run twice;
+- wrong code, weak password, a right code typed in small letters with spaces, old session ended, the code works once, the audit row has no code;
+- a locked owner gets back in, and wrong codes are throttled;
+- it works while the licence is locked;
+- only the holder can make a new code, after the password, and the lost code stops working.
+
+Browser `OwnerRecovery` covers setup → the dialog cannot be passed before the tick → forgot → wrong code → right code → new code → the shop opens, with no «null» on the guide button. Full suite with Chromium: **171 passed, 0 failures, 0 skips**.
+
 ## 2026-10-09 — 1.3.0: cash only, and the ready-to-sell plan
 **Why:** the owner decided that cash is the basic way shops pay. Seven ways at the counter confuse a new cashier and make the first sale slower. The other ways stay in the program for shops that ask for them.
 

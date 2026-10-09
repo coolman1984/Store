@@ -1,4 +1,4 @@
-/* Vendored from Apps-Factory packages/af-guide 0.1.1 - do not edit here. */
+/* Vendored from Apps-Factory packages/af-guide 0.1.2 - do not edit here. */
 /* Update with: python scripts/vendor_guide.py <product repo> (from the Apps-Factory checkout) */
 /* af-guide 0.1.0: guide widget, panel, coach card and target highlight. Uses af-ui tokens when present
    (packages/af-ui/css/tokens.css) and falls back to plain values; logical properties so RTL and LTR both work. */

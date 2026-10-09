@@ -1,5 +1,9 @@
 # Release notes
 
+## 1.4.0
+- New: the owner's recovery code. When the shop is first set up, the program shows a code to print or write down. The owner cannot continue until they tick that it is kept. If the owner forgets the password, «نسيت كلمة السر؟» on the sign-in page takes the code and a new password. It also unlocks a locked account and signs out every old session. The code works once, then the program shows a new one. If the paper is lost, the owner can make a new code in Settings → People after typing their password; the old code stops working. There is no master password. Only the code's protected form is kept on the PC, and wrong codes are counted like wrong passwords. It works while the licence is locked.
+- Fixed: the guide button on the sign-in page read «الدليلnull» (factory af-guide 0.1.2).
+
 ## 1.3.0
 - Cash only: every shop, new or updated, takes cash only. The counter shows no payment choices, returns refund in cash, and collections are cash. Card, mobile wallet, InstaPay, finance companies, on account and shop instalments are hidden everywhere and refused by the server until the owner ticks them in Settings → Shop → How customers pay. Cash can never be turned off.
 - Turning a way off never removes or hides old sales; they stay in the reports. A return on an old card or wallet sale is refunded in cash.

@@ -6,6 +6,7 @@ import { $, $$, html, icon, put, open, closeAll, anyOpen, toast, fail, run, init
 import { transition, after, shake } from './motion.js';
 import { mark } from './brand.js';
 import { attachHelp, guideRole, maybeConsent, mountGuide, onRoute, signal } from './guide.js';
+import { showRecoveryCode } from './recovery.js';
 
 export const S = { boot: null, me: null, lookups: null, route: 'home', params: {}, counts: {} };
 
@@ -118,8 +119,10 @@ function showAuth() {
     <div class="field"><label for="password">${t('f.password')}</label><input id="password" type="password" class="input big" data-guide="signin.password" autocomplete="current-password" required></div>
     <p class="err small" id="auth-err" role="alert"></p>
     <button class="btn accent lg block" type="submit" data-guide="signin.submit">${t('auth.signIn')}${icon('chev-l', 'flip')}</button>
+    ${S.boot?.practice ? '' : html`<button class="btn ghost sm" type="button" data-forgot>${icon('key')}${t('auth.forgot')}</button>`}
   </form>`);
   mountGuide({ live: false, role: 'guest', person: 'me', can: () => false, go });
+  $('[data-forgot]')?.addEventListener('click', showRecover);
   $('#auth-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = e.submitter;
@@ -134,6 +137,39 @@ function showAuth() {
       showError($('#auth-err'), err);
       shake($('#auth-form'));
       $('#password').select();
+    } finally { btn.removeAttribute('aria-busy'); }
+  });
+}
+
+/** Forgotten owner password: the paper code from setup sets a new one, then a new code is shown. */
+function showRecover() {
+  document.body.dataset.route = 'signin';  // the same page for the guide and its problem entries
+  authFrame(html`<form class="card auth-card form" id="recover-form" autocomplete="off">
+    <div><h1>${t('recover.title')}</h1><p class="muted">${t('recover.sub')}</p></div>
+    <div class="field"><label for="rc-code">${t('recover.code')}</label><input id="rc-code" class="input big ltr" dir="ltr" autocomplete="off"
+      autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX" required autofocus></div>
+    <div class="field"><label for="rc-new">${t('recover.newPassword')}</label><input id="rc-new" type="password" class="input big" autocomplete="new-password" required>
+      <span class="hint">${t('setup.pwHint')}</span></div>
+    <p class="err small" id="rc-err" role="alert"></p>
+    <button class="btn accent lg block" type="submit">${t('recover.go')}</button>
+    <button class="btn ghost sm" type="button" data-back>${t('recover.back')}</button>
+  </form>`);
+  mountGuide({ live: false, role: 'guest', person: 'me', can: () => false, go });
+  $('[data-back]').addEventListener('click', showAuth);
+  $('#recover-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.submitter;
+    btn.setAttribute('aria-busy', 'true');
+    try {
+      const r = await api.post('/api/recover', { code: $('#rc-code').value, password: $('#rc-new').value });
+      S.me = r.user;
+      S.boot = await api.get('/api/boot');
+      await showRecoveryCode(r.recovery_code, S.boot.shop_name);
+      await startShell();
+      signal('session.started');
+    } catch (err) {
+      showError($('#rc-err'), err);
+      shake($('#recover-form'));
     } finally { btn.removeAttribute('aria-busy'); }
   });
 }
@@ -156,8 +192,9 @@ function showSetup() {
   $('#setup-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      await api.post('/api/setup', { shop_name: $('#shop').value, shop_phone: $('#phone').value, shop_address: $('#addr').value,
+      const r = await api.post('/api/setup', { shop_name: $('#shop').value, shop_phone: $('#phone').value, shop_address: $('#addr').value,
         full_name: $('#fn').value, username: $('#un').value, password: $('#pw').value });
+      await showRecoveryCode(r.recovery_code, $('#shop').value);
       S.boot = await api.get('/api/boot');
       S.me = S.boot.user;
       await startShell();
