@@ -58,6 +58,19 @@ def _machine_id(value):
     return None
 
 
+def _report_fields(data):
+    """Kind, text and contact must be text. A junk body (a number, a list) is a bad request, not a crash."""
+    data = data if isinstance(data, dict) else {}
+    kind = data.get('kind')
+    text = data.get('text')
+    contact = data.get('contact')
+    return data, (
+        kind if isinstance(kind, str) and kind else 'problem',
+        text if isinstance(text, str) else '',
+        contact if isinstance(contact, str) and contact else 'none',
+    )
+
+
 class Assist:
     def __init__(self, app):
         self.app = app
@@ -271,22 +284,22 @@ class Assist:
         return None
 
     def preview(self, data):
-        diag = self._diagnostics(data.get('diagnostics') if isinstance(data, dict) else None)
-        data = data if isinstance(data, dict) else {}
+        data, (kind, text, contact) = _report_fields(data)
+        diag = self._diagnostics(data.get('diagnostics'))
         with self.lock:
             return self.tel.preview(
-                data.get('kind') or 'problem', data.get('text') or '', page=_machine_id(data.get('page')),
+                kind, text, page=_machine_id(data.get('page')),
                 guide=_machine_id(data.get('guide')), problem=_machine_id(data.get('problem')),
-                contact=data.get('contact') or 'none', diagnostics=diag)
+                contact=contact, diagnostics=diag)
 
     def feedback(self, user, data):
-        data = data if isinstance(data, dict) else {}
+        data, (kind, text, contact) = _report_fields(data)
         diag = self._diagnostics(data.get('diagnostics'))
         with self.lock:
             eid = self.tel.feedback(
-                data.get('kind') or 'problem', data.get('text') or '', user=user['id'], confirm=data.get('confirm'),
+                kind, text, user=user['id'], confirm=data.get('confirm'),
                 page=_machine_id(data.get('page')), guide=_machine_id(data.get('guide')),
-                problem=_machine_id(data.get('problem')), contact=data.get('contact') or 'none', diagnostics=diag)
+                problem=_machine_id(data.get('problem')), contact=contact, diagnostics=diag)
         return {'ok': True, 'id': eid}
 
     def sent_public(self):

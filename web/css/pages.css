@@ -276,3 +276,5 @@ html[data-print="r80"] { --page: 80mm; } html[data-print="r58"] { --page: 58mm; 
 @media (max-width: 860px) {
   .afg-fab { inset-block-end: 76px; }
 }
+/* The coach outline pulse is endless. The factory sheet stops it for prefers-reduced-motion only. */
+[data-motion="off"] .afg-target { animation: none; }
