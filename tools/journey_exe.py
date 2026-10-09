@@ -51,11 +51,16 @@ class Shop:
         return data
 
 
-def start(cmd, home, env):
+def free_port():
     s = socket.socket()
     s.bind(('127.0.0.1', 0))
     port = s.getsockname()[1]
     s.close()
+    return port
+
+
+def start(cmd, home, env):
+    port = free_port()
     log = open(os.path.join(home, 'journey-output.txt'), 'a', encoding='utf-8', errors='replace')
     proc = subprocess.Popen([*cmd, '--no-browser', '--port', str(port), '--host', '127.0.0.1', '--home', home],
                             stdout=log, stderr=subprocess.STDOUT, env=env)
@@ -87,6 +92,9 @@ def first(home, cmd):
     pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
     public = base64.urlsafe_b64encode(key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)).decode().rstrip('=')
     os.makedirs(home, exist_ok=True)
+    practice_port = free_port()  # the practice shop of this run listens here, not on the usual port (the runner may use it)
+    with open(os.path.join(home, 'config.json'), 'w', encoding='utf-8') as f:
+        json.dump({'practice_port': practice_port}, f)
     env = {**os.environ, 'STORE_LICENCE_KEYS': public}
     proc, shop = start(cmd, home, env)
     try:
@@ -113,8 +121,38 @@ def first(home, cmd):
         json.dump({'public': public, 'product': product, 'sale': sale['number'], 'backup': kept['name']},
                   open(os.path.join(home, 'journey.json'), 'w'))
         print(f"OK first: shop set up, licensed (subscription), sold {sale['number']} for cash, backup {kept['name']}")
+        # the practice shop from Help: it starts from this very program, in its own folder, with nothing of the real shop in it
+        assert shop.call('GET', '/api/practice')['state'] == 'stopped'
+        shop.call('POST', '/api/login', {'username': OWNER, 'password': PASSWORD})
+        try:
+            shop.call('POST', '/api/practice/open')
+        except SystemExit:
+            log_path = os.path.join(home, 'store.log')
+            if os.path.exists(log_path):
+                print('--- the shop log, last lines ---')
+                print(''.join(open(log_path, encoding='utf-8', errors='replace').readlines()[-25:]))
+            raise
+        for _ in range(180):
+            if shop.call('GET', '/api/practice')['state'] == 'running':
+                break
+            time.sleep(0.5)
+        else:
+            raise SystemExit('the practice shop did not start from the program in 90 seconds')
+        boot = Shop(practice_port).call('GET', '/api/boot')
+        assert boot['practice'] is True and boot['setup'] is False and boot['shop_name'] != 'محل التجربة', boot
+        print(f'OK practice: started from the program on port {practice_port}, made-up shop {ascii(boot["shop_name"])}')  # ascii(): a Windows console may not print Arabic
     finally:
         stop(proc)
+    # it must leave with the real shop, or it would hold the installed program's files and the next update would fail
+    for _ in range(60):
+        try:
+            urllib.request.urlopen(f'http://127.0.0.1:{practice_port}/api/boot', timeout=2).read()
+            time.sleep(0.5)
+        except OSError:
+            print('OK practice: gone with the real shop')
+            break
+    else:
+        raise SystemExit('the practice shop stayed behind after the real shop stopped')
 
 
 def after(home, cmd):

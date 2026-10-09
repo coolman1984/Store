@@ -118,8 +118,7 @@ class DataSafety(unittest.TestCase):
             money = (app.db.value('SELECT SUM(total) FROM sales'), app.db.value('SELECT SUM(amount) FROM cash_moves'),
                      app.db.value('SELECT SUM(qty) FROM stock_moves'))
             self.assertGreater(count['sales'], 50)
-            app.db.conn.execute('DROP TABLE guide_progress')  # what schema 3 added; schema 2 is the previous release's data
-            app.db.conn.execute('DROP TABLE consent_log')
+            app.db.conn.execute('ALTER TABLE returns DROP COLUMN fee')  # what schema 4 added; schema 3 is the previous release's data
             app.db.conn.execute("UPDATE meta SET value = ? WHERE key = 'schema'", (str(version.SCHEMA - 1),))
             app.db.close()
             app = app_mod.build(home, practice=True)
@@ -294,6 +293,13 @@ class Secrets(unittest.TestCase):
             if line:
                 key = line.split(':', 1)[-1]
                 self.assertRegex(key, r'^[A-Za-z0-9_-]{43}$', 'only a 32-byte public key may be listed')
+
+    def test_licence_relay_file_holds_a_public_https_address_only(self):
+        lines = [line.split('#', 1)[0].strip() for line in open(os.path.join(ROOT, 'licence_relay.txt'), encoding='utf-8')]
+        for line in [x for x in lines if x]:
+            self.assertRegex(line, r'^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~-]*)*$', 'an https address with no user, password, token or query')
+            self.assertNotRegex(line, r'(?i)token|secret|key|pass', 'a relay address carries no secret')
+        self.assertLessEqual(len([x for x in lines if x]), 1)
 
     def test_no_large_binary_or_archive_is_committed(self):
         try:

@@ -12,11 +12,13 @@ import catalog
 import core
 import ids
 import money as cash
+import practice
 import sales
 import stock
 from core import Ctx
 
 DEMO_PASSWORD = 'practice-1234'
+SHOP_NAME = 'الستور – محل تدريب'
 DEMO_USERS = [('owner', 'صاحب المحل (تدريب)', 'owner'), ('manager', 'المدير (تدريب)', 'manager'),
               ('cashier', 'الكاشير (تدريب)', 'cashier'), ('store', 'أمين المخزن (تدريب)', 'storekeeper')]
 
@@ -90,7 +92,8 @@ def load(app, days=21, seed=7):
                 users[role] = app.auth.create(username, name, role, DEMO_PASSWORD)
             owner = users['owner']
             ctx = Ctx(db, owner, auth_mod.effective_perms(owner), '127.0.0.1', app.org_id, app.branch_id)
-            core.set_setting(db, 'shop_name', 'الستور – محل تدريب')
+            core.set_setting(db, 'shop_name', SHOP_NAME)
+            practice.mark(db)
             core.set_setting(db, 'shop_address', 'شارع التدريب، بني سويف')
             core.set_setting(db, 'instalment_markup_pct', 2)
             core.set_setting(db, 'pay_methods', list(core.PAY_METHODS))  # the history uses every way; the counter goes back to cash below
@@ -228,6 +231,7 @@ def load(app, days=21, seed=7):
                                                                'starts_on': ids.local_day(), 'reason': 'زيادة أسعار الشركة'}, True)
             core.set_setting(db, 'pay_methods', ['cash'])
         app.backup_now('practice')
+        practice.write_marker(app.home)
     finally:
         clock.restore()
 

@@ -19,7 +19,7 @@ from version import DEVELOPER, PRODUCT, VERSION  # noqa: E402
 
 EXE = 'Al-Store.exe'
 DIST = os.path.join(BUILD, 'app.dist')
-SHIPPED = ('server/app.py', 'web/index.html', 'web/js/app.js', 'web/css/tokens.css', 'web/img/icons.svg', 'licence_keys.txt',
+SHIPPED = ('server/app.py', 'web/index.html', 'web/js/app.js', 'web/css/tokens.css', 'web/img/icons.svg', 'licence_keys.txt', 'licence_relay.txt',
            'installer/store.iss', 'tools/make_icon.py', 'docs/RELEASE_NOTES.md',
            'guide/catalogue.json', 'guide/ar.json', 'guide/en.json')
 # Folders copied whole into the program folder (source folder -> folder inside app.dist).
@@ -33,7 +33,7 @@ def runtime_files():
     (for example server/aftelemetry_events.json) must sit at the top of app.dist, and web/ and guide/ keep
     their folder names (ROOT is the program folder when compiled; see server/version.py).
     """
-    out = [('licence_keys.txt', 'licence_keys.txt')]
+    out = [('licence_keys.txt', 'licence_keys.txt'), ('licence_relay.txt', 'licence_relay.txt')]
     for name in sorted(os.listdir(os.path.join(ROOT, 'server'))):
         full = os.path.join(ROOT, 'server', name)
         if os.path.isfile(full) and not name.endswith(('.py', '.pyc')):

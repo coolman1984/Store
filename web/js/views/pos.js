@@ -147,7 +147,7 @@ async function search(q, cat) {
   if (!box) return;
   const mine = ++searchSeq;  // a slow old answer must never replace a newer one (a scanner could then add the wrong product)
   try {
-    const r = await api.get(q || !catId ? '/api/pos/search' : '/api/products', { q, location_id: cart.location_id, category_id: catId, limit: 24 });
+    const r = await api.get('/api/pos/search', { q, location_id: cart.location_id, category_id: catId, limit: 24 });  // the counter's own search: the counter permission alone is enough
     if (mine !== searchSeq) return;
     results = r.items;
     focus = 0;

@@ -1065,6 +1065,12 @@
       "roles": []
     },
     {
+      "id": "practice-shop",
+      "page": "help",
+      "errors": ["err.practiceOnly", "err.practicePort", "err.trainingUsers", "err.practiceStart"],
+      "roles": []
+    },
+    {
       "id": "licence-locked",
       "page": "settings",
       "errors": [
@@ -1081,7 +1087,7 @@
         "lic.err.unbound_perpetual",
         "lic.err.no_keys",
         "lic.err.unknown_version",
-        "lic.err.invalid"
+        "lic.err.invalid", "err.trialOff", "err.trialHave"
       ],
       "roles": []
     },
@@ -1205,6 +1211,7 @@
       "page": "pos",
       "errors": [
         "err.needCustomer",
+        "err.creditMix",
         "err.nothingToFinance",
         "err.downPayment",
         "err.totalChanged",

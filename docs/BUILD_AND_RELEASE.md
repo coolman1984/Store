@@ -14,7 +14,7 @@ Since 1.5.0 the same workflow also:
 **Rollback:** run the previous Setup. Data is never touched by Setup. A newer database is refused by an older program, and the copy made before the upgrade (`…-before-upgrade.db`) can be restored from Settings → Backups.
 
 1. Change `server/version.py` (VERSION) and describe the version in `docs/RELEASE_NOTES.md` (the build refuses otherwise).
-2. Put the vendor's **public** key line(s) in `licence_keys.txt` (from Licence Studio → Keys). Never a private key.
+2. Put the vendor's **public** key line(s) in `licence_keys.txt` (from Licence Studio → Keys). Never a private key. Put the licence relay's **https address** in `licence_relay.txt` (a public address, no token): with it the licence screen asks for the trial by itself; without it only the manual way is offered.
 3. Merge to `main` (every push to main builds a tested installer artifact), push a tag `vX.Y.Z` for a release, or run the workflow `windows installer` by hand. It: checks the files → compiles with Nuitka (no readable source
    in the program folder) → builds `Al-Store-Setup-<version>.exe` with Inno Setup → starts the program folder and the installed copy and
    checks they serve pages → uninstalls and checks the shop's data survived.

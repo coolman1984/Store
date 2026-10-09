@@ -1,0 +1,4 @@
+# The address of the company's licence relay (a public address, like licence_keys.txt): one line, https://...
+# With it, the licence screen's «اطلب تجربة 14 يوم» works by itself (the request goes out, the signed code comes back and switches the
+# program on). Without it, only the manual way is offered: copy the device code, send it to the company on Telegram, paste the code.
+# Never put a token, a password or a key here. Owner action: deploy the relay (Apps-Factory templates/telemetry-relay), then write its address.

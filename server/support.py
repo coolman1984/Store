@@ -85,7 +85,7 @@ def payload(app):
 
 def send(app):
     cfg = load(app.home)
-    if not (cfg['enabled'] and cfg['url'] and cfg['token']):
+    if app.practice or not (cfg['enabled'] and cfg['url'] and cfg['token']):  # the practice shop never calls out
         raise Problem('err.supportOff', 'Support sharing is switched off.', 409)
     body = payload(app)
     assert set(body) == set(SENT_FIELDS)
