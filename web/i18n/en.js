@@ -76,6 +76,7 @@ export default {
   'lic.req.activated': 'Switched on by itself ✓',
   'lic.req.again': 'New request',
   'lic.req.closed': 'The request ran out of time. Send a new one.',
+  'lic.req.closedManual': 'Switched on with a code you typed; the earlier request was cancelled.',
   'lic.req.off': 'Asking by itself is not set up on this copy. Copy the "Device code", send it to the company on Telegram, and paste the code below.',
   'lic.req.codeBad': 'The code that arrived does not work on this PC ({r}). Send the device code to the company on Telegram.',
   'lic.req.paidTitle': 'Subscription or permanent activation',

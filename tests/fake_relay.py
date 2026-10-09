@@ -3,6 +3,7 @@ calls, for tests: request (replay-safe by nonce, token shown once), status (poll
 program with `issue()` / `refuse()`. The real Worker is exercised against the real Studio in the Apps Factory's tests."""
 import json
 import threading
+import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -18,6 +19,8 @@ class FakeRelay:
         self.by_nonce = {}
         self.log = []           # every call: (method, path)
         self.drop_next_answer = False
+        self.delay = 0          # seconds every answer waits: a slow relay
+        self.fail_status = None  # e.g. 503: every status look gets this answer (the relay is in trouble)
         self.auto = None        # a function(request) -> ('issue', code) | ('refuse', reason) | None, answered at once
         relay = self
 
@@ -34,6 +37,7 @@ class FakeRelay:
                 self.wfile.write(raw)
 
             def do_POST(self):
+                time.sleep(relay.delay)
                 n = int(self.headers.get('Content-Length') or 0)
                 body = json.loads(self.rfile.read(n) or b'{}')
                 relay.log.append(('POST', self.path))
@@ -49,7 +53,10 @@ class FakeRelay:
                 self.send(404, {})
 
             def do_GET(self):
+                time.sleep(relay.delay)
                 relay.log.append(('GET', self.path.split('?')[0]))
+                if self.path.startswith('/licence/status') and relay.fail_status:
+                    return self.send(relay.fail_status, {'error': 'unavailable'})
                 if self.path.startswith('/licence/status'):
                     r = relay.own(self.headers, self.path.split('id=')[-1])
                     if not r:

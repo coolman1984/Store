@@ -258,6 +258,7 @@ async function requestArea(box, lic, onDone) {
     else if (wait) line = html`<div class="lic-line warn">${icon('alert')}<span>${t('lic.req.offline', { when: q.next_try ? time(q.next_try) : '' })}</span></div>`;
     else if (q.status === 'failed') line = html`<div class="lic-line warn">${icon('alert')}<span>${t('lic.req.codeBad', { r: q.reason || q.error || '' })}</span></div>`;
     else if (q.status === 'refused') line = html`<div class="lic-line bad">${icon('x')}<span>${reasonText(q.reason)}</span></div>`;
+    else if (q.status === 'closed' && q.reason === 'manual') line = html`<div class="lic-line good">${icon('check')}<span>${t('lic.req.closedManual')}</span></div>`;
     else if (q.status === 'closed') line = html`<div class="lic-line warn">${icon('alert')}<span>${t('lic.req.closed')}</span></div>`;
     else if (q.status === 'activated') line = html`<div class="lic-line good">${icon('check')}<span>${t('lic.req.activated')}</span></div>`;
     put(area, html`${line}<div class="row wrap">
@@ -266,31 +267,33 @@ async function requestArea(box, lic, onDone) {
       ${wait ? html`<button class="btn" data-retry>${icon('refresh')}${t('lic.req.retry')}</button>` : ''}
       ${['refused', 'closed', 'activated', 'failed'].includes(q.status) && !wait ? html`<button class="btn" data-again>${icon('plus')}${t('lic.req.again')}</button>` : ''}
       ${q.available ? html`<button class="btn ghost sm" data-what>${icon('info')}${t('lic.req.what')}</button>` : ''}</div>`);
-    $$('[data-req]', area).forEach((b) => b.addEventListener('click', () => (b.dataset.req === 'trial' ? send('trial') : paidDialog())));
-    $('[data-retry]', area)?.addEventListener('click', async () => { try { draw(await api.post('/api/licence/request/retry')); } catch (e) { fail(e); } });
-    $('[data-again]', area)?.addEventListener('click', async () => { try { draw(await api.post('/api/licence/request/clear')); } catch (e) { fail(e); } });
+    $$('[data-req]', area).forEach((b) => b.addEventListener('click', () => (b.dataset.req === 'trial' ? send('trial', '', b) : paidDialog())));
+    $('[data-retry]', area)?.addEventListener('click', async (e) => { const q = await run(api.post('/api/licence/request/retry'), null, e.currentTarget); if (q) settle(q); });
+    $('[data-again]', area)?.addEventListener('click', async (e) => { const q = await run(api.post('/api/licence/request/clear'), null, e.currentTarget); if (q) draw(q); });
     $('[data-what]', area)?.addEventListener('click', () => whatDialog());
     if (['sending', 'waiting', 'failed'].includes(q.status) && !timer) timer = setInterval(look, 5000);
     if (!['sending', 'waiting', 'failed'].includes(q.status)) stop();
   };
-  const send = async (kind, ref = '') => {
-    try { draw(await api.post('/api/licence/request', { kind, ref })); } catch (e) { fail(e); }
+  // Every answer goes through here, whichever button or timer asked: an activation found by "try again now" switches the page on too
+  // (review of PR #17: it only redrew the line and the page stayed locked until a reload).
+  let announced = false;
+  const settle = async (q) => {
+    if (q.status === 'activated' && !announced) {
+      announced = true;
+      stop();
+      const fresh = await api.get('/api/licence').catch(() => null);
+      if (fresh) { S.boot.licence = fresh; renderBanners(); onDone && onDone(fresh); }
+      toast(t('lic.req.activated'));
+    }
+    if (document.body.contains(area)) draw(q);
+  };
+  const send = async (kind, ref = '', btn = null) => {  // the button is held while the request goes out: a double click sends once
+    const q = await run(api.post('/api/licence/request', { kind, ref }), null, btn);
+    if (q) settle(q);
   };
   const look = async () => {
     if (!document.body.contains(area)) { stop(); return; }
-    try {
-      const q = await api.get('/api/licence/request');
-      if (q.status === 'activated') {
-        stop();
-        const fresh = await api.get('/api/licence');
-        S.boot.licence = fresh;
-        renderBanners();
-        toast(t('lic.req.activated'));
-        onDone && onDone(fresh);
-        return;
-      }
-      draw(q);
-    } catch { /* the next look tries again */ }
+    try { await settle(await api.get('/api/licence/request')); } catch { /* the next look tries again */ }
   };
   const whatDialog = async (kind = 'trial') => {
     let p;

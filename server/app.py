@@ -645,13 +645,11 @@ class Handler(BaseHTTPRequestHandler):
         if path in ('/api/licence/request', '/api/licence/request/retry', '/api/licence/request/clear'):
             # asking the company: the state is saved in a transaction, the network call happens outside it (and works while the licence is locked)
             ctx.need('settings.edit')
-            if path.endswith('/clear'):
-                with APP.db.tx():
-                    return self.send(200, trial.clear(APP, ctx))
+            if path.endswith('/clear'):  # trial takes its own lock, then its own transaction: never the other way round
+                return self.send(200, trial.clear(APP, ctx))
             if path.endswith('/retry'):
                 return self.send(200, trial.step(APP, force=True))
-            with APP.db.tx():
-                trial.begin(APP, ctx, data.get('kind'), str(data.get('ref') or ''))
+            trial.begin(APP, ctx, data.get('kind'), str(data.get('ref') or ''))
             return self.send(200, trial.step(APP))
         if path == '/api/support/ping':  # network call: never while the database is locked for a write
             ctx.need('settings.edit')
@@ -705,6 +703,7 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as e:
                 raise Problem('lic.err.' + str(e), 'This code does not work on this PC.', 400, reason=str(e))
             ctx.audit('licence.activate', 'licence', st.get('serial') or '', {'state': st['state'], 'last_day': st.get('last_day')})
+            trial.note_manual(db)  # an answer to an earlier request that arrives later must not replace this code
             return st
         if path == '/api/product/save':
             pid = catalog.save_product(ctx, data)

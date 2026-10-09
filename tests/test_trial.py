@@ -42,6 +42,48 @@ class Asking(unittest.TestCase):
     def step(self):
         return self.owner.post('/api/licence/request/retry')[1]
 
+    def test_a_second_press_during_a_slow_answer_never_freezes_the_shop(self):
+        """Review of PR #17: the request route held the database while waiting for the trial lock, and a look at the relay held the trial
+        lock while waiting for the database: with a slow relay a double click froze every page of the shop."""
+        import threading
+        import time
+        self.assertEqual(self.ask()[1]['status'], 'waiting')
+        self.relay.delay = 2.5
+        done = {}
+        a = threading.Thread(target=lambda: done.setdefault('retry', self.S.client().call('POST', '/api/licence/request/retry', {},
+                                                                                         headers={'Cookie': self.owner.cookie})[0]))
+        a.start()
+        time.sleep(0.4)  # the look at the relay is under way and holds the trial lock
+        b = threading.Thread(target=lambda: done.setdefault('again', self.ask()[0]))
+        b.start()
+        time.sleep(0.3)
+        t0 = time.time()
+        self.assertEqual(self.owner.get('/api/me')[0], 200, 'other pages answer while the relay is slow')
+        self.assertLess(time.time() - t0, 2, 'and they do not wait for it')
+        a.join(15)
+        b.join(15)
+        self.assertFalse(a.is_alive() or b.is_alive(), 'both presses finished: nothing is frozen')
+        self.assertEqual((done['retry'], done['again']), (200, 200))
+        self.relay.delay = 0
+        self.assertEqual(self.owner.post('/api/customer/save', {'name': 'x'})[0], 402, 'and the database still takes writes (licence-locked answer)')
+
+    def test_a_code_typed_by_hand_is_never_replaced_by_a_late_answer(self):
+        """Review of PR #17: a trial answer arriving after the owner pasted a permanent code replaced it, and the shop would stop in 14 days."""
+        self.assertEqual(self.ask()[1]['status'], 'waiting')
+        self.relay.issue(self.relay.last(), code_for(self.device))  # the company answers the trial request...
+        typed = code_for(self.device, days=365, edition='standard')
+        self.assertEqual(self.owner.post('/api/licence/activate', {'code': typed})[0], 200)  # ...but the owner already typed a yearly code
+        self.assertEqual((self.state()['status'], self.state()['reason']), ('closed', 'manual'), 'the screen says so at once')
+        self.assertEqual(self.step()['status'], 'closed')
+        lic = self.owner.get('/api/licence')[1]
+        self.assertEqual(lic['edition'], 'standard', 'the code the person typed stays')
+        self.assertEqual(self.app.db.value("SELECT COUNT(*) FROM audit WHERE action = 'licence.auto'"), 0)
+        # a new request made after the typed code is answered normally
+        self.owner.post('/api/licence/request/clear')
+        self.assertEqual(self.ask('monthly')[1]['status'], 'waiting')
+        self.relay.issue(self.relay.last(), code_for(self.device, days=30, edition='standard'))
+        self.assertEqual(self.step()['status'], 'activated')
+
     def test_the_relay_is_not_set_up_so_only_the_manual_way_is_offered(self):
         os.environ.pop('STORE_LICENCE_RELAY')
         self.assertEqual(self.state()['available'], False)

@@ -432,6 +432,52 @@ class AskingTheCompany(Browser):
 
 
 @SKIP
+class AskingTheCompanyTryNow(Browser):
+    """«حاول تاني دلوقتي» finds the code: the page switches on at once, without a reload (review of PR #17: it only redrew the line)."""
+    practice = False
+    licensed = False
+
+    @classmethod
+    def setUpClass(cls):
+        from fake_relay import FakeRelay
+        cls.relay = FakeRelay()
+        os.environ['STORE_LICENCE_RELAY'] = cls.relay.base
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.relay.stop()
+        os.environ.pop('STORE_LICENCE_RELAY', None)
+
+    def test_try_now_switches_the_page_on(self):
+        from harness import code_for
+        pg = self.open(OWNER[0], OWNER[1])
+        pg.wait_for_selector('.banner.licence')
+        try:
+            pg.wait_for_selector('[data-afc="decline"]', timeout=5000)
+            pg.click('[data-afc="decline"]')
+            pg.wait_for_selector('[data-afc="card"]', state='detached')
+        except Exception:
+            pass
+        self.go(pg, 'settings?tab=licence')
+        pg.wait_for_selector('[data-req="trial"]')
+        device = pg.inner_text('#dev')
+        import trial
+        pg.click('[data-req="trial"]')
+        pg.wait_for_selector('.lic-line.busy')
+        self.relay.fail_status = 503  # the relay is in trouble when the program next looks (the background loop does this look)
+        trial.step(self.S.app, force=True)
+        pg.wait_for_selector('[data-retry]', timeout=15000)  # the page shows «no connection» and the button
+        self.relay.fail_status = None
+        self.relay.issue(self.relay.last(), code_for(device))  # meanwhile the company answered
+        pg.click('[data-retry]')  # only this press looks: no background look runs in the test
+        self.until(pg, "document.querySelector('.banner.licence.bad') === null && document.querySelector('.lic.good') !== null", 4)
+        self.assertEqual(self.S.app.licence()['state'], 'trial')
+        self.assertEqual([e for e in self.errors if '400' not in e], [])
+
+
+@SKIP
 class OwnerRecovery(Browser):
     """Setup shows the paper code until the owner ticks that it is kept; «نسيت كلمة السر؟» uses it and shows a new one."""
     practice = False
