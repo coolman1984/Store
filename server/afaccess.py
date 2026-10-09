@@ -108,9 +108,10 @@ def check(cat):
             if n not in known:
                 bad('page-unknown-perm', route, f'"{n}" is not a permission.')
             page_perms_used.add(n)
-    has_pages = any(p.get('kind') == 'page' for p, _ in perms)
-    if has_pages and not cat.get('pages'):
-        bad('pages-missing', 'pages', 'Page permissions exist, so the catalogue must say which permission opens each page (route -> permissions).')
+    if not any(p.get('kind') == 'page' for p, _ in perms):
+        bad('no-page-perms', 'groups', 'Mark the permissions that open pages (kind "page"): one permission per page is the standard.')
+    if not cat.get('pages'):
+        bad('pages-missing', 'pages', 'Say which permission opens each page (route -> permissions), so the gate can prove every page is guarded.')
     if cat.get('pages'):
         for p, _ in perms:
             if p.get('kind') == 'page' and p['id'] not in page_perms_used:
