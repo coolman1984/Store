@@ -1,5 +1,23 @@
 # Development history (newest first)
 
+## 2026-10-09 — independent review: a return gives back only money that came in
+**Why:** the same review as the entry below. Reading `take_return`, the reviewer asked what happens to a sale that was never paid.
+
+**Found (money, confirmed by running):** a sale put on the customer's account (nothing paid) was returned with "refund in cash". The drawer paid out the full price, the goods went back on the shelf, **and the customer's account still showed the full debt**. The shop lost the price twice. The same held for the instalment part of a sale (down payment in cash, the rest on a plan), and a fee added to a plan was never taken back. Only a shop that turned on "on account" or "instalments" (both hidden until the owner ticks them) could meet it, but then any cashier with the return right could do it by choosing cash.
+
+**Fixed (server, `sales.take_return`):** money goes back only for money that came in.
+- What the customer **still owes for this sale** (the part put on the account or on a plan, less earlier returns, less what they already collected, never more than the plan or the account holds) is wiped from their account **first**.
+- Only the rest is paid back, in the way the cashier chose (cash needs an open shift and enough cash in the drawer for that part only; card/wallet/InstaPay/finance as before).
+- The financing fee of a plan goes back in proportion to the goods returned, so a customer who gives everything back owes nothing and keeps nothing of the fee.
+- Choosing "account" is still available: all of it goes on the account as store credit, nothing leaves the drawer.
+- The answer carries `on_account`, `paid_back` and `method`; the return row says `account` when no money moved; the audit row has both amounts.
+
+**Screen:** the return dialog tells the cashier (both languages) that what is owed is taken off the account first, and the message after saving says how much came off the account and how much was paid back.
+
+**Evidence:** `test_domain.RefundFollowsTheMoneyTests` (9 tests; the first fails on the old code: the drawer lost 1,000,000 for goods nobody paid); `test_e2e_browser.ReturnOnCredit` returns a practice-shop instalment sale in a real browser.
+
+**Not changed (decision, not a bug):** the sale's own fee is not refunded when the customer chooses store credit for an unpaid plan beyond what they owe (the account just goes negative = the shop owes them). The owner can see it on the customer's page.
+
 ## 2026-10-09 — independent review: three read leaks closed (return, warranty look-up, export)
 **Why:** the owner asked a reviewer who did not build 1.5.0 to open every page, button and permission in a real browser and to doubt "all tests green". The role matrix (every read route × owner, manager, cashier, storekeeper, and a person with no ticks at all) found what the existing tests never asked.
 

@@ -172,6 +172,35 @@ class CoreJourney(Browser):
 
 
 @SKIP
+class ReturnOnCredit(Browser):
+    """An instalment sale returned from the screen: what the customer still owes is wiped first, and the drawer pays only money that came in
+    (the independent review of 2026-10-09 found a cash refund of goods nobody had paid for)."""
+
+    def test_returning_an_instalment_sale_wipes_the_debt_and_says_so(self):
+        db = self.S.app.db
+        plan = db.one('SELECT * FROM plans ORDER BY created_at LIMIT 1')
+        owed_before = db.value('SELECT COALESCE(SUM(amount), 0) FROM ar_entries WHERE customer_id = ?', plan['customer_id'])
+        pg = self.open('manager')
+        status = pg.evaluate("fetch('/api/shift/open', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({opening_float: 5000000})}).then((r) => r.status)")
+        self.assertIn(status, (200, 400))  # 400: this person already has a shift open today
+        self.go(pg, 'sales?id=' + plan['sale_id'])
+        pg.wait_for_selector('[data-return]')
+        pg.click('[data-return]')
+        pg.wait_for_selector('[data-rq]')
+        self.assertIn('حسابه الأول', pg.inner_text('.dialog'))  # the hint about the account comes before the money
+        pg.fill('[data-rq]', pg.get_attribute('[data-rq]', 'data-max'))
+        pg.fill('#r-why', 'العميل رجّع الجهاز')
+        pg.click('.dialog [data-ok]')
+        pg.wait_for_selector('.toast')
+        self.assertIn('اتخصم', pg.inner_text('.toasts'))  # "taken off the customer's account", not just "returned"
+        wiped = db.value("SELECT COALESCE(SUM(amount), 0) FROM ar_entries WHERE kind = 'return' AND customer_id = ?", plan['customer_id'])
+        self.assertLess(wiped, 0)
+        owed_after = db.value('SELECT COALESCE(SUM(amount), 0) FROM ar_entries WHERE customer_id = ?', plan['customer_id'])
+        self.assertEqual(owed_after, owed_before + wiped)
+        self.assertEqual(self.errors, [])
+
+
+@SKIP
 class PeopleAndProfiles(Browser):
     """The owner checks who can do what, makes a profile and takes a page away from the cashier; the cashier no longer
     sees it in the menu and gets the "not allowed" card when typing its address (the server refuses its data too)."""
