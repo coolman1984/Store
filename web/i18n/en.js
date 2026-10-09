@@ -298,6 +298,7 @@ export default {
   'tr.realTitle': 'Practice with no fear', 'tr.realText': 'Learn by doing in a make-believe practice shop: the names, money and goods are all made up, and nothing in your real shop changes.',
   'tr.openBtn': 'Open the practice shop', 'tr.starting': 'Getting the practice shop ready… a few seconds.', 'tr.go': 'Go to the practice shop', 'tr.ready': 'The practice shop is ready.',
   'tr.failed': 'The practice shop did not start. Try again in a moment.',
+  'tr.remote': 'The practice shop runs on the counter PC only. Open Help on that PC and press the button there.',
   'tr.head': 'Exercises on real problems', 'tr.headText': 'Each exercise sets up a problem with made-up goods and money. Do the steps yourself, then click Check my work: the program opens its own books and tells you what is right and what is not.',
   'tr.you': 'You are signed in as {user}', 'tr.needUser': 'This exercise uses the account {user}', 'tr.switch': 'Change account',
   'tr.start': 'Start the exercise', 'tr.check': 'Check my work', 'tr.restart': 'Start again', 'tr.steps': 'Steps', 'tr.attempt': 'Attempt {n}',

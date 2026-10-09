@@ -24,6 +24,12 @@
 - `tools/journey_exe.py first` (run on the built program in the Windows job) now also opens the practice shop from the program itself, checks it is a different, made-up shop on its own port, and fails if it stays behind after the real shop stops (it would hold the installed program's files and break the update that follows). Run here on the source; the compiled program is exercised by the installer job.
 - Not claimed: a shop with a real customer has not used the exercises yet; they are written in the words of the screens as they are today, so a changed label needs the dictionary updated (the browser tests click the real controls and would fail).
 
+**Found in the independent review of this PR (Codex: one P1, three P2) and fixed in it:**
+- An older practice folder (no mark, no `PRACTICE.txt`) opened **as a real shop** was served as real, with its made-up sales. It is now recognised and refused in that direction too.
+- The refusal came after the database was opened (migration, upgrade copy, new ids). `practice.preflight` now judges the folder from a read-only connection first; a refused real database stays byte for byte the same.
+- From a phone on the shop's network, «افتح محل التدريب» gave a link to `127.0.0.1`, the phone itself. The server now answers `remote` and the page says to open Help on the counter PC; nothing is started.
+- Rebuilding the practice shop left no audit line (the old audit went with the old shop). The rebuild is now the first line of the new audit.
+
 ## 2026-10-09 — 1.6.0: ask for the trial from the licence screen; the code switches the program on by itself
 **Why (owner decision, 2026-10-09):** the customer presses «طلب تجربة 14 يوم»; a secure request with the device code reaches the company; the company's phone is told on **Telegram** (not WhatsApp); the company's trusted licensing program issues a code for that device by a trial policy the owner approved; the shop receives it, checks it and switches itself on, with no copy and paste. The signing key stays on the owner's trusted PC. Chain, reuse inventory and threat model: Apps-Factory `docs/LICENCE_ACTIVATION.md`.
 

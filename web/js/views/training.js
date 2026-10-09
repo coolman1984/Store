@@ -23,6 +23,7 @@ function realBox(host) {
   $('[data-open-practice]', host).addEventListener('click', async (e) => {
     const r = await run(api.post('/api/practice/open'), null, e.currentTarget);
     if (!r) return;
+    if (r.state === 'remote') { put(msg, html`${t('tr.remote')}`); return; }
     put(msg, html`${t('tr.starting')}`);
     for (let i = 0; i < 60; i += 1) {
       let st;

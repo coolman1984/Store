@@ -102,6 +102,7 @@ class App:
             self.cfg['host'] = host
         self.data_dir = os.path.join(home, 'data')
         self.backup_dir = os.path.join(home, 'backups')
+        practice_mod.preflight(os.path.join(self.data_dir, 'store.db'), practice)  # before any migration or write
         self.db = Database(os.path.join(self.data_dir, 'store.db'), self.backup_dir)
         self.org_id = self._meta_id('org_id')
         self.branch_id = self._meta_id('branch_id')
@@ -262,6 +263,10 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     # ------------------------------------------------------------ plumbing
+    def local(self):
+        """The request comes from this PC itself (not a phone or another PC on the shop's network)."""
+        return self.client_address[0] in ('127.0.0.1', '::1', '::ffff:127.0.0.1')
+
     @property
     def ip(self):
         return self.client_address[0]
@@ -582,7 +587,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/licence':
             d = {**APP.licence(), 'vendor_telegram': vendor_telegram(APP.cfg.get('vendor_telegram'))}
         elif path == '/api/practice':  # the real shop asks whether the practice shop runs; the practice shop just says it is the one
-            d = {'state': 'here', 'url': ''} if APP.practice else practice_mod.status(APP)
+            d = {'state': 'here', 'url': ''} if APP.practice else practice_mod.status(APP) if self.local() else {'state': 'remote', 'url': ''}
         elif path == '/api/training':  # the three exercises and where this person stands (practice shop only)
             if not APP.practice:
                 raise Problem('err.practiceOnly', 'Training is available in the practice shop only.', 403)
@@ -688,14 +693,20 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/practice/open':  # starts the practice shop (its own folder and port) for the person who asked; touches no shop data
             if APP.practice:
                 return self.send(200, {'state': 'here', 'url': ''})
+            if not self.local():  # the practice shop listens on the counter PC only: a phone would open a dead link (review of PR #19)
+                return self.send(200, {'state': 'remote', 'url': ''})
             out = practice_mod.launch(APP)
             with APP.db.tx():
                 ctx.audit('practice.open', 'practice', '', {'state': out['state']})
             return self.send(200, out)
         if path == '/api/practice/reset':  # practice shop only: the made-up shop is rebuilt; everyone signs in again
             ctx.need('settings.edit')
+            who = u['full_name']
             APP.reset_practice()
             log.info('practice shop rebuilt on request')
+            with APP.db.tx():  # the old audit went with the old made-up shop: the rebuild itself is the first line of the new one
+                APP.db.insert('audit', {'id': ids.uuid7(), 'at': ids.iso(), 'user_id': '', 'user_name': who, 'ip': self.ip,
+                                        'action': 'practice.reset', 'entity': 'practice', 'entity_id': '', 'detail': ''})
             return self.send(200, {'ok': True, 'login': True},
                              headers={'Set-Cookie': f'{cookie_name()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
         if path == '/api/support/ping':  # network call: never while the database is locked for a write

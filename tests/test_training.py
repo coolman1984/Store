@@ -123,6 +123,40 @@ class Isolation(unittest.TestCase):
             again.db.close()
             shutil.rmtree(home, ignore_errors=True)
 
+    def test_an_older_practice_folder_is_refused_by_the_real_shop_too(self):
+        """Review of PR #19: without its mark, an older practice folder opened as a real shop served its made-up sales as real."""
+        app, home = new_practice()
+        app.db.run("DELETE FROM meta WHERE key = ?", practice.KIND_KEY)
+        os.remove(os.path.join(home, practice.MARKER))
+        app.assist.close()
+        app.db.close()
+        try:
+            with self.assertRaises(practice.WrongShop) as e:
+                app_mod.App(home, practice=False)
+            self.assertEqual(e.exception.key, 'real_on_practice')
+        finally:
+            shutil.rmtree(home, ignore_errors=True)
+
+    def test_a_refused_folder_is_not_touched_at_all(self):
+        """Review of PR #19: the refusal came after the database was opened (migrations, upgrade copy, ids). Now it comes first."""
+        import hashlib
+        shop = Shop()
+        path = os.path.join(shop.dir, 'data', 'store.db')
+        shop.app.assist.close()
+        shop.db.close()
+        for extra in ('-wal', '-shm'):
+            if os.path.exists(path + extra):
+                os.remove(path + extra)
+        before = hashlib.sha256(open(path, 'rb').read()).hexdigest()
+        backups = sorted(os.listdir(os.path.join(shop.dir, 'backups'))) if os.path.isdir(os.path.join(shop.dir, 'backups')) else []
+        try:
+            with self.assertRaises(practice.WrongShop):
+                app_mod.App(shop.dir, practice=True)
+            self.assertEqual(hashlib.sha256(open(path, 'rb').read()).hexdigest(), before, 'the real database file is byte for byte the same')
+            self.assertEqual(sorted(os.listdir(os.path.join(shop.dir, 'backups'))) if os.path.isdir(os.path.join(shop.dir, 'backups')) else [], backups)
+        finally:
+            shutil.rmtree(shop.dir, ignore_errors=True)
+
     def test_four_users_with_the_demo_names_in_a_real_shop_are_not_taken_for_a_practice_shop(self):
         shop = Shop()
         try:
@@ -357,6 +391,17 @@ class OverHttp(unittest.TestCase):
         self.assertEqual(x['state'], 'open')
         self.assertEqual(x['account'], 'cashier')
 
+    def test_a_phone_on_the_shop_network_is_told_to_use_the_counter_pc(self):
+        """Review of PR #19: a phone got a 127.0.0.1 link, which is the phone itself: a dead page."""
+        import app as app_mod2
+        real = app_mod2.Handler.local
+        app_mod2.Handler.local = lambda self: False
+        try:
+            c = self.login('owner')
+            self.assertEqual(c.get('/api/practice')[1]['state'], 'here')  # this test server is itself a practice shop
+        finally:
+            app_mod2.Handler.local = real
+
     def test_only_a_person_who_may_edit_settings_can_rebuild_the_shop(self):
         c = self.login('cashier')
         self.assertEqual(c.post('/api/practice/reset')[0], 403)
@@ -405,6 +450,8 @@ class RebuildAndLaunch(unittest.TestCase):
             self.assertEqual([x['state'] for x in self.call(port, 'GET', '/api/training', cookie=cookie)[1]['lessons']], ['new'] * 3)
             self.assertGreater(len(self.call(port, 'GET', '/api/products', cookie=cookie)[1]['items']), 10, 'a fresh made-up shop with its goods')
             self.assertTrue(os.path.exists(os.path.join(home, practice.MARKER)))
+            rows = self.call(port, 'GET', '/api/audit?limit=20', cookie=cookie)[1]
+            self.assertIn('practice.reset', [r['action'] for r in rows], 'the rebuild is the first line of the new audit')
         finally:
             proc.terminate()
             proc.wait(15)
@@ -419,6 +466,14 @@ class RebuildAndLaunch(unittest.TestCase):
             c = shop.client()
             self.assertEqual(c.post('/api/login', {'username': OWNER[0], 'password': OWNER[1]})[0], 200)
             self.assertEqual(c.get('/api/practice')[1]['state'], 'stopped')
+            real_local = app_mod.Handler.local
+            app_mod.Handler.local = lambda self: False  # the same press from a phone on the shop network
+            try:
+                self.assertEqual(c.post('/api/practice/open')[1], {'state': 'remote', 'url': ''})
+                self.assertEqual(c.get('/api/practice')[1]['state'], 'remote')
+            finally:
+                app_mod.Handler.local = real_local
+            self.assertIsNone(practice._child, 'nothing was started for the phone')
             self.assertEqual(c.get('/api/training')[0], 403, 'the real shop has no training')
             st, d, _ = c.post('/api/practice/open')
             self.assertEqual(st, 200, d)
