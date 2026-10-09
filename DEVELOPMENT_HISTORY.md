@@ -1,5 +1,21 @@
 # Development history (newest first)
 
+## 2026-10-09 — 1.6.0: ask for the trial from the licence screen; the code switches the program on by itself
+**Why (owner decision, 2026-10-09):** the customer presses «طلب تجربة 14 يوم»; a secure request with the device code reaches the company; the company's phone is told on **Telegram** (not WhatsApp); the company's trusted licensing program issues a code for that device by a trial policy the owner approved; the shop receives it, checks it and switches itself on, with no copy and paste. The signing key stays on the owner's trusted PC. Chain, reuse inventory and threat model: Apps-Factory `docs/LICENCE_ACTIVATION.md`.
+
+**What (this repository):**
+- `server/trial.py`: the request (kind `trial`, `monthly` or `permanent`) goes to the vendor's relay with exactly these fields: product, kind, device code, a hash of this PC (never the machine id), the request's own id, shop name, payment reference, version. `GET /api/licence/preview` shows them first. The poll token stays on the server (never in an answer, never in the audit).
+- **Replay-safe:** the request keeps its id; a lost answer is a new request, never two activations. **One trial per PC:** the PC's hash does not change when the program is reinstalled, so the company refuses a second trial (the device code does change).
+- **The answer is checked like a pasted code** (`licence.activate`: signature with the vendor's public key, product, this device, dates). A code for another PC or a forged one is refused, shown with the manual way, and **not acknowledged** to the relay. Only a working code is saved, then acknowledged, and the relay forgets it.
+- **Offline is a state, not an error:** `sending → waiting → activated`, or `failed` with the next try (1, 5, 15, 60 minutes, then every hour) and a «حاول تاني دلوقتي» button; `refused` says why (a second trial: ask for a subscription); the manual way (device code, Telegram contact from `config.json` `vendor_telegram`, paste box) is always on the same screen. A background loop looks every 20 seconds, so the program activates even if nobody has the page open.
+- Works while the licence is locked (it is how a locked shop gets unlocked); the network call never happens inside a database transaction; only `settings.edit` can ask; the practice shop never asks. The relay address is public configuration: `licence_relay.txt` (shipped like `licence_keys.txt`), `STORE_LICENCE_RELAY` or `config.json`; only https (or a program on this PC).
+- Screen: the licence card has the request area, «إيه اللي هيتبعت؟», the manual way naming Telegram; both dictionaries; two new error codes in the guide (`err.trialOff`, `err.trialHave`) and one more step in «licence-locked».
+- Version 1.6.0 and its release notes cover this and the three review fixes before it (#14, refund, hardening).
+
+**Evidence:** `tests/test_trial.py` (13, against a stand-in relay with real signed codes); `test_e2e_browser.AskingTheCompany` (ask, see what is sent, offline with a retry button on a phone, answer switches on by itself); the guide and release checks; and, in the Apps Factory, `test_relay_chain.py` runs the **real relay Worker and the real Licence Studio** over HTTP.
+
+**Not claimed:** nothing is deployed. The shipped `licence_keys.txt` has no key and `licence_relay.txt` no address until the owner creates the key on the trusted PC and deploys the relay; until then the installed program offers only the manual way (it says so on screen).
+
 ## 2026-10-09 — independent review: the practice shop no longer signs the real shop out; document headers are append-only
 **Found by the review (confirmed by running):**
 1. **Cookie collision.** Cookies belong to a host, not to a port. The real shop (port 8096) and the practice shop (8097) both used the cookie `store_session` on `127.0.0.1`. In one browser, signing in to the practice shop **signed the real shop out** (and the real shop's "please sign in" answer deleted the practice cookie in turn). A trainee opening the practice shop from the real one would lose the real session. The practice shop now has its own cookie name, `store_practice_session`; the real shop keeps `store_session`, so nobody is signed out by an update.

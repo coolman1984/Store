@@ -1,5 +1,11 @@
 # Release notes
 
+## 1.6.0
+- **Ask for the trial from the licence screen.** «اطلب تجربة 14 يوم» sends a small request to the company (the device code, a fingerprint of this PC, the shop name and the version: «إيه اللي هيتبعت؟» shows it before anything goes out; no sales, customers or prices). The company's phone is told on Telegram, the company's licensing program signs a code for this device, and the program collects it, checks it with the company's public key and **switches itself on**, with nothing to copy. A PC gets one trial, even after a reinstall. A subscription or a permanent activation is requested the same way, and only goes out after the company has confirmed the payment.
+- **No connection?** The screen says so, says when it will try again, and has a «حاول تاني دلوقتي» button. The manual way (device code out, code in) is always on the same screen and now names Telegram, not WhatsApp. The program keeps working in read / print / export / backup mode while it waits.
+- **Safer:** a person with no permissions can no longer read a return or the warranty look-up (customer name and phone), and the export file leaves out purchase costs and national IDs for a person who may not see them. A sale put on the customer's account can no longer be returned in cash: what the customer still owes is taken off their account first, and only the rest is paid back. The practice shop no longer signs the real shop out of the same browser. Document headers (sales, returns, purchases, transfers, plans) are protected from edits like their lines.
+- Needs the company to deploy the relay and write its address in `licence_relay.txt` (and the public key in `licence_keys.txt`) before a build. Without them only the manual way is offered.
+
 ## 1.5.0
 - Activation codes come in three kinds:
   - a 14-day trial;

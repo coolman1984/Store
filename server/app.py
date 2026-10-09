@@ -43,6 +43,7 @@ import reports  # noqa: E402
 import sales  # noqa: E402
 import stock  # noqa: E402
 import support  # noqa: E402
+import trial  # noqa: E402
 from auth import AuthError, Forbidden  # noqa: E402
 from core import Ctx, Problem  # noqa: E402
 from db import Database, NewerData  # noqa: E402
@@ -551,7 +552,14 @@ class Handler(BaseHTTPRequestHandler):
                  'addresses': [f'http://{ip}:{APP.cfg["port"]}' for ip in _lan_ips()], 'version': VERSION,
                  'locations': db.all('SELECT * FROM locations ORDER BY active DESC, kind DESC, name')}
         elif path == '/api/licence':
-            d = APP.licence()
+            d = {**APP.licence(), 'vendor_telegram': vendor_telegram(APP.cfg.get('vendor_telegram'))}
+        elif path == '/api/licence/request':  # where the request for a code stands (the poll token never leaves the server)
+            ctx.need('settings.edit')
+            d = trial.public(APP)
+        elif path == '/api/licence/preview':  # exactly what a request sends, shown before the person presses the button
+            ctx.need('settings.edit')
+            kind = qs.get('kind') if qs.get('kind') in trial.KINDS else 'trial'
+            d = {'kind': kind, 'sends': trial.preview(APP, kind, qs.get('ref', '')), 'available': bool(trial.relay_url(APP))}
         elif path == '/api/support':
             ctx.need('settings.edit')
             d = support.public(APP.home)
@@ -634,6 +642,17 @@ class Handler(BaseHTTPRequestHandler):
                 ctx.audit('backup', 'backup', item['name'])
             self._track('/api/backup/now', u)
             return self.send(200, item)
+        if path in ('/api/licence/request', '/api/licence/request/retry', '/api/licence/request/clear'):
+            # asking the company: the state is saved in a transaction, the network call happens outside it (and works while the licence is locked)
+            ctx.need('settings.edit')
+            if path.endswith('/clear'):
+                with APP.db.tx():
+                    return self.send(200, trial.clear(APP, ctx))
+            if path.endswith('/retry'):
+                return self.send(200, trial.step(APP, force=True))
+            with APP.db.tx():
+                trial.begin(APP, ctx, data.get('kind'), str(data.get('ref') or ''))
+            return self.send(200, trial.step(APP))
         if path == '/api/support/ping':  # network call: never while the database is locked for a write
             ctx.need('settings.edit')
             return self.send(200, support.send(APP))
@@ -839,6 +858,14 @@ class Handler(BaseHTTPRequestHandler):
         return len(hits) >= 20
 
 
+def vendor_telegram(value):
+    """The company's Telegram contact for the manual way (config.json `vendor_telegram`): a t.me link or an @name, nothing else."""
+    import re
+    value = str(value or '').strip()
+    m = re.fullmatch(r'(?:https://t\.me/|@)([A-Za-z0-9_]{4,32})', value)
+    return f'https://t.me/{m.group(1)}' if m else ''
+
+
 def afaccess_page(name):
     """The permissions any one of which opens a page (auth.PAGES, the same table as the menu)."""
     return auth_mod.PAGES[name]
@@ -910,6 +937,7 @@ def serve(app, open_browser=None):
     threading.Thread(target=keep_reporting, daemon=True).start()
     if not app.practice:
         threading.Thread(target=support.loop, args=(app,), daemon=True).start()
+        threading.Thread(target=trial.loop, args=(app,), daemon=True).start()
     url = f'http://127.0.0.1:{app.cfg["port"]}/'
     say(f'{PRODUCT_AR} {VERSION}{" (تدريب)" if app.practice else ""} يعمل الآن: {url}')
     for ip in _lan_ips():

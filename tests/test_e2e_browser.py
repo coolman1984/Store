@@ -349,6 +349,72 @@ class LicenceLock(Browser):
 
 
 @SKIP
+class AskingTheCompany(Browser):
+    """The licence screen in a real browser: ask for the trial, see what is sent, see "no connection" with a retry button (never an error
+    page), and watch the answer switch the program on by itself, with nothing copied. A stand-in relay plays the company."""
+    practice = False
+    licensed = False
+
+    @classmethod
+    def setUpClass(cls):
+        from fake_relay import FakeRelay
+        cls.relay = FakeRelay()
+        os.environ['STORE_LICENCE_RELAY'] = cls.relay.base
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.relay.stop()
+        os.environ.pop('STORE_LICENCE_RELAY', None)
+
+    def test_ask_offline_retry_then_switch_on_by_itself(self):
+        import trial
+        from fake_relay import FakeRelay
+        from harness import code_for
+        pg = self.open(OWNER[0], OWNER[1], width=390, height=844)
+        pg.wait_for_selector('.banner.licence')
+        try:  # the first-sign-in agreement card covers the lower part of a phone: answer it, as a person would
+            pg.wait_for_selector('[data-afc="decline"]', timeout=5000)
+            pg.click('[data-afc="decline"]')
+            pg.wait_for_selector('[data-afc="card"]', state='detached')
+        except Exception:
+            pass
+        self.go(pg, 'settings?tab=licence')
+        pg.wait_for_selector('[data-req="trial"]')
+        device = pg.inner_text('#dev')
+        self.assertIn('تليجرام', pg.inner_text('.lic'))  # the manual way names Telegram, not WhatsApp
+        self.assertNotIn('واتساب', pg.inner_text('.lic') + pg.inner_text('.steps'))
+        pg.click('[data-what]')
+        pg.wait_for_selector('.dialog .stat-line')
+        self.assertIn(device, pg.inner_text('.dialog'))  # exactly what would be sent is on the screen first
+        self.assertEqual(self.relay.requests, {})
+        pg.click('.dialog [data-close]')
+        # no connection: a visible state with a retry button
+        port = self.relay.port
+        self.relay.stop()
+        pg.click('[data-req="trial"]')
+        pg.wait_for_selector('.lic-line.warn')
+        self.assertIn('مفيش اتصال', pg.inner_text('#lic-auto'))
+        pg.wait_for_selector('[data-retry]')
+        self.assertIsNotNone(pg.query_selector('#lic-code'), 'the manual way is still there')
+        # the company is reachable again: one press and the request goes through
+        type(self).relay = FakeRelay(port)
+        pg.click('[data-retry]')
+        pg.wait_for_selector('.lic-line.busy')
+        self.assertIn('بنستنى الرد', pg.inner_text('#lic-auto'))
+        self.assertEqual(pg.evaluate(OVERFLOW), [], 'nothing spills out of the screen on a phone while waiting')
+        # the owner's program answers; the program switches itself on, with nothing pasted
+        self.relay.issue(self.relay.last(), code_for(device))
+        trial.step(self.S.app, force=True)  # (in the running program the background loop does this every 20 seconds)
+        self.until(pg, "document.querySelector('.lic.good') !== null", 20)
+        self.assertEqual(self.S.app.licence()['state'], 'trial')
+        self.assertEqual(pg.input_value('#lic-code'), '')
+        self.assertIsNone(pg.query_selector('.banner.licence.bad'))
+        self.assertEqual([e for e in self.errors if '400' not in e], [])
+
+
+@SKIP
 class OwnerRecovery(Browser):
     """Setup shows the paper code until the owner ticks that it is kept; «نسيت كلمة السر؟» uses it and shows a new one."""
     practice = False

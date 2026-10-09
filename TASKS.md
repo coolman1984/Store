@@ -27,10 +27,12 @@
 - [x] Support heartbeat to the Vendor Control Center (opt-in, exact fields; Settings → Support)
 - [x] Barcode on the receipt + sticker labels (per copy or per serial) — Code 128, decoded by a real scanner library in the check
 
+- [x] 1.6.0 ask for the trial from the licence screen; the signed code switches the program on by itself (Telegram to the owner, owner-approved policy in the Licence Studio); independent review fixes: read leaks, refund by tender, practice cookie, header triggers
+
 ## Next (in order) — full list and reasons in docs/03-ready-to-sell.md
 - [ ] Vendor licence key from Licence Studio → public key in `licence_keys.txt`, build the pilot copy (owner)
 - [ ] Prices for the monthly and permanent codes, and who pays for support → DECISIONS.md (owner)
-- [ ] Vendor WhatsApp number for the licence page, set at install time in config, not in this public repository (owner)
+- [ ] Deploy the licence relay and write its address in `licence_relay.txt`; the company's Telegram contact in `config.json` (`vendor_telegram`) for the manual way — not in this public repository (owner; steps in Apps-Factory `docs/LICENCE_ACTIVATION.md` §9)
 - [ ] Trademark/domain check for "Mizan / ميزان" in EG, SA, AE (owner) — gate before renaming the installer and data folder
 - [ ] Clean-PC install + restore on a second clean PC (DATA-05, clean_device_restore) (field)
 - [ ] One-hour session with a real cashier, including a keyboard-only journey (A11Y-01) (field)

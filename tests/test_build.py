@@ -34,7 +34,7 @@ class Manifest(unittest.TestCase):
                 for name in names:
                     rel = os.path.relpath(os.path.join(folder, name), ROOT).replace(os.sep, '/')
                     self.assertEqual(self.files.get(rel), rel, rel)
-        for must in ('guide/catalogue.json', 'guide/ar.json', 'guide/en.json', 'web/index.html', 'licence_keys.txt'):
+        for must in ('guide/catalogue.json', 'guide/ar.json', 'guide/en.json', 'web/index.html', 'licence_keys.txt', 'licence_relay.txt'):
             self.assertIn(must, self.files)
             self.assertIn(must, build_windows.SHIPPED)
 

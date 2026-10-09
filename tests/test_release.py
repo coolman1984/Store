@@ -295,6 +295,13 @@ class Secrets(unittest.TestCase):
                 key = line.split(':', 1)[-1]
                 self.assertRegex(key, r'^[A-Za-z0-9_-]{43}$', 'only a 32-byte public key may be listed')
 
+    def test_licence_relay_file_holds_a_public_https_address_only(self):
+        lines = [line.split('#', 1)[0].strip() for line in open(os.path.join(ROOT, 'licence_relay.txt'), encoding='utf-8')]
+        for line in [x for x in lines if x]:
+            self.assertRegex(line, r'^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~-]*)*$', 'an https address with no user, password, token or query')
+            self.assertNotRegex(line, r'(?i)token|secret|key|pass', 'a relay address carries no secret')
+        self.assertLessEqual(len([x for x in lines if x]), 1)
+
     def test_no_large_binary_or_archive_is_committed(self):
         try:
             files = subprocess.run(['git', 'ls-files'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()

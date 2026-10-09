@@ -1081,7 +1081,7 @@
         "lic.err.unbound_perpetual",
         "lic.err.no_keys",
         "lic.err.unknown_version",
-        "lic.err.invalid"
+        "lic.err.invalid", "err.trialOff", "err.trialHave"
       ],
       "roles": []
     },
