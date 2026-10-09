@@ -277,10 +277,14 @@ html[data-print="r80"] { --page: 80mm; } html[data-print="r58"] { --page: 58mm; 
    page and the dock, and under a dialog (z-index 60). On a phone it sits above the dock.
    Vendor CSS is not edited. */
 .afg-fab { z-index: 35; }
-.afg-panel { z-index: 36; }
-.afg-coach { z-index: 37; }
+/* The open help panel must stay clickable even with a paused lesson at the same corner. */
+.afg-coach { z-index: 36; }
+.afg-panel { z-index: 37; }
 .afg-panel[hidden], .afg-coach[hidden] { display: none; }
 .report-preview { white-space: pre-wrap; overflow-wrap: anywhere; max-inline-size: 100%; }
+.report-dialog { display: flex; flex-direction: column; }
+.report-dialog .dialog-body { overflow: auto; min-block-size: 0; }
+.report-dialog .dialog-head, .report-dialog .dialog-foot { flex-shrink: 0; }
 @media (max-width: 860px) {
   .afg-fab { inset-block-end: 76px; }
 }

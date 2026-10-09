@@ -585,6 +585,7 @@ class Handler(BaseHTTPRequestHandler):
                 Ctx(db, user, [], self.ip, APP.org_id, APP.branch_id).audit('login')
             return self.send(200, {'ok': True, 'user': self.me(user)}, headers=self.cookie(token))
         if path == '/api/logout':
+            self.body(65536)
             APP.auth.end_session(self.token())
             return self.send(200, {'ok': True}, headers={'Set-Cookie': f'{COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
         u = self.user()

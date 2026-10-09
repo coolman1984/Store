@@ -151,6 +151,33 @@ class Privacy(unittest.TestCase):
         st, d, _ = self.cash.get('/api/telemetry/config')
         self.assertEqual(st, 403, d)
 
+    def test_free_text_report_is_redacted_and_confirmed_over_http(self):
+        data = {'kind': 'problem', 'page': 'pos',
+                'text': 'Sale screen freezes password=fixture-only phone 01000000000'}
+        st, preview, _ = self.cash.post('/api/telemetry/feedback/preview', data)
+        self.assertEqual(st, 200, preview)
+        self.assertEqual(preview['event']['data']['text'],
+                         'Sale screen freezes password=[SECRET] phone [PHONE]')
+        confirmed = dict(data, confirm=preview['digest'])
+        st, _, _ = self.cash.post('/api/telemetry/feedback', confirmed)
+        self.assertEqual(st, 400)
+        self.owner.post('/api/consent/decide', {'decision': 'agree', 'scope': 'install',
+            'text_id': 'consent.help.remote.ar.v1', 'lang': 'ar'})
+        st, _, _ = self.cash.post('/api/telemetry/feedback', confirmed)
+        self.assertEqual(st, 400)  # shop approval alone never substitutes for this person's choice
+        self.cash.post('/api/consent/decide', {'decision': 'agree', 'scope': 'person',
+            'text_id': 'consent.help.remote.ar.v1', 'lang': 'ar'})
+        st, _, _ = self.cash.post('/api/telemetry/feedback', data)
+        self.assertEqual(st, 400)
+        self.assertEqual(self.tel.pending(), [])
+        st, saved, _ = self.cash.post('/api/telemetry/feedback', confirmed)
+        self.assertEqual(st, 200, saved)
+        event = next(e for e in self.tel.pending() if e['id'] == saved['id'])
+        self.assertEqual(event['data'], preview['event']['data'])
+        self.assertEqual(event['subject'], self.tel.subject(self.cash_id))
+        self.assertNotIn('fixture-only', json.dumps(event))
+        self.assertNotIn('01000000000', json.dumps(event))
+
 
 class GluePrivacy(unittest.TestCase):
     """Real SQLite and factory APIs, including concurrent sends, without a network server."""
@@ -273,7 +300,7 @@ class GluePrivacy(unittest.TestCase):
         self.assertEqual(opener.open.call_count, 1)
 
     def test_old_reports_and_events_without_current_consent_are_purged_before_send(self):
-        # Legacy factory reports had a consent bypass and could carry text.
+        # The factory allowed reports without consent. The product still requires both scopes.
         self.assist.tel.db.execute("INSERT INTO outbox (id, created, type, prio, subject, body, size) VALUES (?,?,?,?,?,?,?)",
             ('legacy', 1, 'fb.problem', 0, None, json.dumps({'type': 'fb.problem', 'data': {'text': 'private'}}), 1))
         self.configured()
@@ -358,29 +385,36 @@ class GluePrivacy(unittest.TestCase):
             self.assertEqual(self.assist.flush_remote(), ('failed', 0))
         self.assertEqual(sum(e['data']['count'] for e in self.assist.tel.pending()), 2)
 
-    def test_reports_need_consent_confirmation_and_never_queue_free_text(self):
-        data = {'kind': 'problem', 'page': 'pos', 'text': 'Alice paid 999 EGP password=unsafe',
-                'diagnostics': {'version': 'Alice'}}
+    def test_reports_need_consent_confirmation_and_redact_free_text(self):
+        data = {'kind': 'problem', 'page': 'pos',
+                'text': 'Sale screen freezes password=fixture-only phone 01000000000',
+                'diagnostics': {'version': 'browser-supplied'}}
         preview = self.assist.preview(data)
-        self.assertNotIn('Alice', json.dumps(preview))
-        self.assertEqual(preview['event']['data']['text'], 'user.report')
+        self.assertNotIn('diagnostics', preview['event']['data'])
+        self.assertEqual(preview['event']['data']['text'],
+                         'Sale screen freezes password=[SECRET] phone [PHONE]')
         with self.assertRaises(aftelemetry.PrivacyError):
             self.assist.feedback(self.owner, dict(data, confirm=preview['digest']))
         self.decide()
         with self.assertRaises(aftelemetry.PrivacyError):
             self.assist.feedback(self.owner, data)
-        safe = {'kind': 'problem', 'page': 'pos', 'confirm': preview['digest']}
+        safe = dict(data, diagnostics=False, confirm=preview['digest'])
+        for changed in ({'text': 'A different problem'}, {'page': 'cash'}, {'confirm': 'forged'}):
+            with self.subTest(changed=changed), self.assertRaises(aftelemetry.PrivacyError):
+                self.assist.feedback(self.owner, dict(safe, **changed))
+        self.assertEqual(self.assist.tel.pending(), [])
         self.assertTrue(self.assist.feedback(self.owner, safe)['id'])
         blob = json.dumps(self.assist.tel.pending())
-        self.assertNotIn('Alice', blob)
-        self.assertNotIn('unsafe', blob)
-        self.assertEqual(self.assist.tel.pending()[0]['data']['text'], 'user.report')
+        self.assertNotIn('browser-supplied', blob)
+        self.assertNotIn('fixture-only', blob)
+        self.assertNotIn('01000000000', blob)
+        self.assertEqual(self.assist.tel.pending()[0]['data'], preview['event']['data'])
         self.decide('withdraw', 'person')
         self.assertEqual(self.assist.tel.pending(), [])
 
     def test_diagnostic_snapshot_is_exact_and_cannot_be_forged(self):
         self.decide()
-        data = {'kind': 'problem', 'page': 'pos', 'diagnostics': True}
+        data = {'kind': 'problem', 'page': 'pos', 'text': 'Sale screen freezes', 'diagnostics': True}
         preview = self.assist.preview(data)
         snapshot = preview['event']['data']['diagnostics']
         with mock.patch.object(self.assist, 'diagnostics', side_effect=AssertionError('must use preview')):
@@ -389,6 +423,44 @@ class GluePrivacy(unittest.TestCase):
         self.assertEqual(self.assist.tel.pending()[0]['data']['diagnostics'], snapshot)
         with self.assertRaises(aftelemetry.PrivacyError):
             self.assist.feedback(self.owner, dict(data, diagnostics={'version': 'Alice'}, confirm=preview['digest']))
+
+    def test_consented_factory_free_text_reports_survive_restart_rebind_and_send(self):
+        from assist import Assist
+        self.decide()
+        preview = self.assist.tel.preview('problem', 'Existing free-text problem', page='pos')
+        eid = self.assist.tel.feedback('problem', 'Existing free-text problem', page='pos',
+                                       user=self.owner['id'], confirm=preview['digest'])
+        self.assist.close()
+        self.app.assist = self.assist = Assist(self.app)
+        self.assist.rebind()
+        self.assertEqual(self.assist.tel.pending()[0]['id'], eid)
+        self.configured()
+        batches = []
+        def post(url, body, headers):
+            batches.extend(json.loads(gzip.decompress(body)))
+            return 200, None
+        with mock.patch.object(self.assist, '_post_remote', side_effect=post):
+            self.assertEqual(self.assist.flush_remote(), ('sent', 1))
+        self.assertEqual(batches[0]['id'], eid)
+        self.assertEqual(batches[0]['data'], preview['event']['data'])
+        self.assertEqual(self.assist.tel.pending(), [])
+
+    def test_reports_reject_unknown_context_and_empty_text(self):
+        self.decide()
+        data = {'kind': 'problem', 'text': 'Sale screen freezes', 'page': 'pos',
+                'guide': 'make-sale', 'problem': 'err.noShift'}
+        # Valid IDs in the catalogue are used below; every arbitrary context is rejected.
+        data['problem'] = self.assist.catalogue['problems'][0]['id']
+        for key in ('page', 'guide', 'problem'):
+            for value in ('unknown-context', [], '01000000000'):
+                with self.subTest(key=key, value=value), self.assertRaises(aftelemetry.PrivacyError):
+                    self.assist.preview(dict(data, **{key: value}))
+        for text in ('', '   ', [], None):
+            empty = dict(data, text=text)
+            preview = self.assist.preview(empty)
+            with self.subTest(text=text), self.assertRaises(aftelemetry.PrivacyError):
+                self.assist.feedback(self.owner, dict(empty, confirm=preview['digest']))
+        self.assertEqual(self.assist.tel.pending(), [])
 
     def test_restore_rebinds_consent_and_purges_outbox_that_no_longer_has_consent(self):
         saved = self.app.backup_now('manual')

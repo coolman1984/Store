@@ -195,23 +195,36 @@ async function reportProblem(ctx = {}) {
   await refreshConsent();
   open({ title: t('privacy.reportTitle'), body: html`<p>${t('privacy.reportNote')}</p>
     ${!telemetryAllowed ? html`<p>${t('privacy.reportConsent')}</p>` : html`
+      <div class="field"><label for="report-text">${t('privacy.reportText')}</label>
+      <textarea class="input" id="report-text" data-report-text dir="auto" rows="4" maxlength="2000"></textarea></div>
       <label class="check"><input type="checkbox" data-report-diag>${t('privacy.reportDiagnostics')}</label>
-      <pre class="report-preview" data-report-preview hidden></pre>
-      <div class="row wrap"><button class="btn" data-report-check>${t('privacy.reportPreview')}</button>
-      <button class="btn accent" data-report-send disabled>${t('privacy.reportSend')}</button></div>`}`,
+      <pre class="report-preview" data-report-preview dir="ltr" hidden></pre>`}`,
+  foot: telemetryAllowed ? html`<button class="btn" data-report-check>${t('privacy.reportPreview')}</button>
+    <button class="btn accent" data-report-send disabled>${t('privacy.reportSend')}</button>` : null,
   mount(box, close) {
+    box.classList.add('report-dialog');
     if (!telemetryAllowed) return;
     const current = generation;
     let preview = null;
     let body = null;
-    $('[data-report-diag]', box).addEventListener('change', () => {
+    let revision = 0;
+    const invalidate = () => {
+      revision++;
       preview = null; $('[data-report-send]', box).disabled = true; $('[data-report-preview]', box).hidden = true;
-    });
+    };
+    $('[data-report-text]', box).addEventListener('input', invalidate);
+    $('[data-report-diag]', box).addEventListener('change', invalidate);
     $('[data-report-check]', box).addEventListener('click', async (e) => {
+      invalidate();
+      const requested = revision;
+      const text = $('[data-report-text]', box).value.trim();
+      if (!text) { $('[data-report-text]', box).focus(); return; }
       body = { kind: 'problem', page: ctx.page || document.body.dataset.route,
+        text,
         guide: ctx.guide || null, problem: ctx.problem || null, diagnostics: $('[data-report-diag]', box).checked };
-      preview = await run(api.post('/api/telemetry/feedback/preview', body), null, e.currentTarget);
-      if (!preview || current !== generation) return;
+      const result = await run(api.post('/api/telemetry/feedback/preview', body), null, e.currentTarget);
+      if (!result || requested !== revision || current !== generation || !box.isConnected) return;
+      preview = result;
       const node = $('[data-report-preview]', box);
       node.textContent = JSON.stringify(preview.event, null, 2); node.hidden = false;
       $('[data-report-send]', box).disabled = false;

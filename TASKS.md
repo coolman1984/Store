@@ -14,7 +14,7 @@
 - [x] Design system v2 + Mizan (ميزان) identity on every screen, logo files, icon, splash; contrast and mark tests (docs/DESIGN.md)
 
 - [x] 1.1.0 People, profiles and pages (factory access standard, BAMS model): editable profiles, page permissions, lock-out guard, who-can-do-what, audit of ticks; gate `afaccess` in tests
-- [x] 1.2.0 implemented: role courses and coach, per-person progress, every server error explained, two-scope consent, and IDs/counts-only telemetry and confirmed reports. Nothing leaves the PC without receiver URL and token; withdrawals work while licence-locked.
+- [x] 1.2.0 implemented: role courses and coach, per-person progress, every server error explained, two-scope consent, IDs/counts-only usage/error telemetry and redacted free-text reports with explicit preview/send. Nothing leaves the PC without receiver URL and token; withdrawals work while licence-locked.
 - [ ] 1.2.0 release verification: run the unchanged full browser-enabled suite in a socket-enabled environment. This sandbox produced 102 tests run / 19 socket-permission errors; all 14 browser tests remain unverified. Do not release until the whole suite is green.
 
 ## Next (in order)

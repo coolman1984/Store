@@ -5,7 +5,6 @@ This module is the product glue: live states, the two guide routes' data, the co
 and a local outbox that stays on this PC unless a receiver address and token are both set.
 """
 import json
-import copy
 import gzip
 import hashlib
 import hmac
@@ -89,16 +88,11 @@ class Assist:
         self.catalogue, self.texts = afguide.load_dir(os.path.join(ROOT, 'guide'))
         self._ensure_cfg()
         self.consent = afconsent.Consent(app.db.conn, on_change=self._on_consent)
-        # Product privacy is stricter than the factory's optional free-text feedback.
-        tax = copy.deepcopy(aftelemetry.TAXONOMY)
-        for name, spec in tax['types'].items():
-            if name.startswith('fb.'):
-                spec['data']['text'] = {'type': 'id'}
         self.tel = aftelemetry.Telemetry(
             os.path.join(app.home, 'telemetry.db'), self.app.cfg['telemetry_install_id'],
             node='shop', product=PRODUCT_ID, version=VERSION,
             env='practice' if app.practice else 'real', secret=self.app.cfg['telemetry_secret'],
-            consent=self.consent, taxonomy=tax)
+            consent=self.consent)
         with self.app.db.lock, self.lock:
             self._prune_pending()
 
@@ -400,7 +394,7 @@ class Assist:
         return None
 
     def _report_preview(self, data, snapshot=False):
-        data, (kind, _, contact) = _report_fields(data)
+        data, (kind, text, contact) = _report_fields(data)
         if kind not in ('problem', 'idea', 'question'):
             raise aftelemetry.PrivacyError('kind is problem, idea or question')
         known = {'page': PAGES, 'guide': {g['id'] for g in self.catalogue['guides']},
@@ -417,7 +411,7 @@ class Assist:
             diag = self._diagnostics(data.get('diagnostics'), snapshot)
             if diag is not None:
                 args['diagnostics'] = diag
-        return self.tel.preview(kind, 'user.report', **args), kind, args
+        return self.tel.preview(kind, text, **args), kind, text, args
 
     def _report_digest(self, event):
         return hmac.new(self.tel.secret.encode(), json.dumps(event, sort_keys=True).encode(), hashlib.sha256).hexdigest()
@@ -430,7 +424,7 @@ class Assist:
         else:
             snapshot = False
         with self.lock:
-            result, _, _ = self._report_preview(data, snapshot)
+            result, _, _, _ = self._report_preview(data, snapshot)
             result['digest'] = self._report_digest(result['event'])
             return result
 
@@ -443,11 +437,11 @@ class Assist:
         with self.app.db.lock, self.lock:
             if not self.consent.allowed(user['id']):
                 raise aftelemetry.PrivacyError('remote help needs shop and person consent')
-            result, kind, args = self._report_preview(data, snapshot=True)
+            result, kind, text, args = self._report_preview(data, snapshot=True)
             if not hmac.compare_digest(data['confirm'], self._report_digest(result['event'])):
                 raise aftelemetry.PrivacyError('the report changed after the preview')
             eid = self.tel.feedback(
-                kind, 'user.report', user=user['id'], confirm=result['digest'], **args)
+                kind, text, user=user['id'], confirm=result['digest'], **args)
         return {'ok': True, 'id': eid}
 
     def sent_public(self, user):
@@ -478,10 +472,8 @@ class Assist:
                     subjects.add(self.tel.subject(row['id']))
         for eid, subject, body in self.tel.db.execute('SELECT id, subject, body FROM outbox').fetchall():
             event = json.loads(body)
-            # Remove old factory free-text reports too; they never meet this product's privacy rule.
             if (not self.consent.install_allowed() or (subject is not None and subject not in subjects)
-                    or (event['type'].startswith('fb.') and
-                        (subject not in subjects or event['data'].get('text') != 'user.report'))):
+                    or (event['type'].startswith('fb.') and subject not in subjects)):
                 self.tel.db.execute('DELETE FROM outbox WHERE id = ?', (eid,))
 
     def _post_remote(self, url, body, headers):
