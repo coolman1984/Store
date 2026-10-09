@@ -28,6 +28,7 @@ balances and instalment collection) exists to make that journey correct.
 | A11 | Arabic RTL and English LTR, light/dark/high-contrast, text size up to XL: no page wider than the screen, no text out of its card at 360 / 390 / 820 / 1366 px | `test_e2e_browser.LayoutSweep` |
 | A12 | Strict CSP, Host and Origin checks, HttpOnly SameSite cookie | `test_boot_and_security_headers`, `test_dns_rebinding_and_cross_site_writes_refused` |
 | A13 | A new shop takes cash only: other ways are hidden at the counter, in returns and in collections and refused by the server until the owner ticks them; cash cannot be turned off; old sales stay visible and are refunded in cash | `test_domain.PayMethodTests`, `test_api.test_only_the_owner_turns_on_other_ways_of_paying`, `test_e2e_browser.CoreJourney` |
+| A14 | The owner can get back in after forgetting the password with the one-time paper code from setup; wrong codes are throttled; old sessions end; a lost paper is replaced after typing the password; no master password | `test_api.RecoveryTests`, `test_e2e_browser.OwnerRecovery` |
 
 ## Scope
 **In v1.0:** everything above, plus practice shop (separate folder, demo accounts, PRACTICE on receipts), command palette,

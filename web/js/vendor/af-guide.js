@@ -1,4 +1,4 @@
-/* Vendored from Apps-Factory packages/af-guide 0.1.1 - do not edit here. */
+/* Vendored from Apps-Factory packages/af-guide 0.1.2 - do not edit here. */
 /* Update with: python scripts/vendor_guide.py <product repo> (from the Apps-Factory checkout) */
 /* af-guide 0.1.0: the factory's in-app guide (role courses, coach with auto-advance, per-page help, problem
    entries, per-guide language switch, progress saved per person on the server). No dependencies; DOM built with textContent only.
@@ -191,8 +191,9 @@
     function setDir(node) { node.setAttribute('lang', lang()); node.setAttribute('dir', lang() === 'ar' ? 'rtl' : 'ltr'); }
     function renderFab() {
       const c = myCourse();
+      // no course (signed out, or a role without one): no badge. replaceChildren would print a null as the word "null"
       fab.replaceChildren(el('span', {class: 'afg-fab-label', text: W('guide')}),
-        c.total ? el('span', {class: 'afg-badge', 'aria-label': fmt(W('progress'), {d: c.done, t: c.total}), text: c.done + '/' + c.total}) : null);
+        ...(c.total ? [el('span', {class: 'afg-badge', 'aria-label': fmt(W('progress'), {d: c.done, t: c.total}), text: c.done + '/' + c.total})] : []));
       setDir(fab);
     }
     function guideRow(g, item) {
