@@ -207,6 +207,7 @@ class Upgrade(unittest.TestCase):
             S.user('cashier', 'late1')  # a fresh row, possibly still only in the WAL file
             db.conn.execute('DROP TABLE profiles')
             db.conn.execute('ALTER TABLE users DROP COLUMN perms')
+            db.conn.execute('ALTER TABLE returns DROP COLUMN fee')  # schema 4 added it
             db.conn.execute("UPDATE meta SET value = '1' WHERE key = 'schema'")
             db.close()
             app = app_mod.build(home)
