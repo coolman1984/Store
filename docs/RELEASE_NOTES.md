@@ -1,5 +1,8 @@
 # Release notes
 
+## 1.2.2
+- Fixed: the Windows installer now includes the in-app guide and the privacy settings files, so the installed program starts and shows the guide. The build checks that every file the program needs is in the program folder.
+
 ## 1.2.1
 - Problem reports: before you send, you now see a plain summary in your language. It shows what will be sent (your description with passwords and phone numbers removed, the program version, the problem type, and the page) and what will not be sent. The technical details are still available on request. Cancel closes the report without saving anything.
 

@@ -62,7 +62,10 @@ def main(*cmd):
         for asset in ('/js/app.js', '/css/tokens.css', '/img/icons.svg', '/fonts/readex-pro-arabic-wght-normal.woff2', '/i18n/ar.js'):
             st, _, data = get(port, asset)
             assert st == 200 and data, f'{asset} is not served from the program folder'
-        print('OK: the program starts, serves its pages and assets, practice mode is on')
+        for name in ('catalogue', 'ar', 'en'):  # the in-app guide is read from the program folder
+            st, _, data = get(port, f'/guide/{name}.json')
+            assert st == 200 and json.loads(data), f'/guide/{name}.json is not served from the program folder'
+        print('OK: the program starts, serves its pages, assets and guide, practice mode is on')
     finally:
         proc.terminate()
         try:

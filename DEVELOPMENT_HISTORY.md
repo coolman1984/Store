@@ -1,5 +1,19 @@
 # Development history (newest first)
 
+## 2026-10-09 — 1.2.2: the Windows build ships the guide and the server's data files
+**Why:** after 1.2.0 the `windows installer` workflow on main failed at "Smoke-test the program folder" with `FileNotFoundError: ...\build\app.dist\guide\catalogue.json`. The build copied only `web/` and `licence_keys.txt`. `guide/` was missing, and so were the vendored `server/afguide_ar_lexicon.json` and `server/aftelemetry_events.json`. Compiled modules look for those files in the program folder; without the taxonomy, telemetry would silently refuse every event.
+
+**What:** `tools/build_windows.py` now builds one manifest, `runtime_files()`. It holds `licence_keys.txt`, every non-Python file beside `server/*.py` (copied to the top of `app.dist`), and the whole of `web/` and `guide/`. The Nuitka data flags are generated from that manifest, and after compiling the build fails if any manifest file is missing from `app.dist`. `SHIPPED` (the `--check` preflight) now includes the three guide files. `tools/smoke_exe.py` also checks that `/guide/catalogue.json`, `/guide/ar.json` and `/guide/en.json` are served by the built and the installed program.
+
+**Evidence:** new `tests/test_build.py` (4 tests, any OS, no Nuitka) checks that:
+- every non-Python server file and every `web/` and `guide/` file is in the manifest at the right place;
+- the Nuitka flags cover the whole manifest;
+- a program folder laid out from the manifest lets the vendored `afguide` find its style lexicon and load the guide, and `aftelemetry` load its taxonomy.
+
+Removing `guide` from the build list makes the test fail. The smoke test passes against the source program.
+
+**Test fix:** `PeopleAndProfiles.test_owner_controls_what_each_person_sees` counted the cashier's cards after a fixed 400 ms wait. It sometimes still counted the previous page (3 != 1; it failed 2 of 4 runs here). It now waits for the products route to render one card, then checks that the count stays at one. The assertion itself is unchanged.
+
 ## 2026-10-09 — 1.2.1: plain-language problem-report review
 **Why:** the review before sending showed the raw JSON payload, which a shop owner or cashier cannot read. They must understand what leaves the PC before they agree to send it.
 
