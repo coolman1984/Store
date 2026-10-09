@@ -47,7 +47,7 @@ STORE_CHROMIUM=/home/box/.cache/ms-playwright/chromium-1194/chrome-linux/chrome 
 Output was captured without changing discovery or skipping tests. Final result:
 
 ```text
-Ran 102 tests in 9.944s
+Ran 102 tests in 10.537s
 FAILED (errors=19)
 ```
 
