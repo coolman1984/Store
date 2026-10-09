@@ -209,7 +209,9 @@ class PeopleAndProfiles(Browser):
         self.assertEqual(cashier.locator('.rail a[data-route="products"], .rail a[data-route="stock"]').count(), 0)
         self.assertEqual(cashier.locator('.rail a[data-route="pos"]').count(), 1)
         cashier.goto(self.S.base + '/#/products')
-        cashier.wait_for_timeout(400)
+        # wait for the products route to render (a fixed 400 ms sometimes still counted the previous page's cards)
+        self.until(cashier, "document.body.dataset.route === 'products' && document.querySelectorAll('#page .card').length === 1")
+        cashier.wait_for_timeout(300)  # and it stays a single card
         self.assertEqual(cashier.locator('#page .card').count(), 1)
         for api in ('/api/products', '/api/stock'):
             self.assertEqual(cashier.evaluate("(u) => fetch(u).then((r) => r.status)", api), 403, api)
