@@ -332,7 +332,7 @@ def sales_list(db, ctx, day_from=None, day_to=None, q='', user_id=None, limit=30
     return rows
 
 
-def warranty(db, serial):
+def warranty(db, serial, can_see_customer=True):
     serial = (serial or '').strip().upper()
     line = db.one('SELECT sl.*, s.number, s.at, s.id AS sale_id, c.name AS customer, c.phone FROM sale_lines sl JOIN sales s ON '
                   's.id = sl.sale_id LEFT JOIN customers c ON c.id = s.customer_id WHERE sl.serial = ? ORDER BY s.at DESC LIMIT 1', serial)
@@ -344,8 +344,9 @@ def warranty(db, serial):
         out['product'] = db.value('SELECT name FROM products WHERE id = ?', state['product_id'])
     if line:
         today = ids.local_day()
-        out.update({'sale_id': line['sale_id'], 'sale_number': line['number'], 'sold_at': line['at'], 'customer': line['customer'],
-                    'phone': line['phone'], 'product': line['name'], 'price': line['unit_price'],
+        out.update({'sale_id': line['sale_id'], 'sale_number': line['number'], 'sold_at': line['at'],
+                    'customer': line['customer'] if can_see_customer else None, 'phone': line['phone'] if can_see_customer else None,
+                    'customer_hidden': bool(line['customer']) and not can_see_customer, 'product': line['name'], 'price': line['unit_price'],
                     'warranty_until': line['warranty_until'],
                     'warranty_days_left': ids.days_between(today, line['warranty_until']) if line['warranty_until'] else None,
                     'days_since_sale': ids.days_between(ids.local_day(ids.parse(line['at'])), today)})
@@ -353,6 +354,23 @@ def warranty(db, serial):
 
 
 # ------------------------------------------------------------------ returns
+def credit_outstanding(db, sale):
+    """What the customer still owes for THIS sale: the part of it put on their account or on instalments, less what a return already
+    wiped, less what they already paid (collections), never more than their account holds. A return clears this first, so goods
+    that came back never turn into cash the customer never paid. (A fee added to an instalment plan is not part of the goods and
+    stays owed.)"""
+    credit = db.value("SELECT COALESCE(SUM(amount), 0) FROM tenders WHERE ref_type = 'sale' AND ref_id = ? AND method IN ('account', 'installment')",
+                      sale['id'])
+    if not credit or not sale['customer_id']:
+        return 0
+    wiped = -db.value("SELECT COALESCE(SUM(a.amount), 0) FROM ar_entries a JOIN returns r ON r.id = a.ref_id "
+                      "WHERE a.kind = 'return' AND a.ref_type = 'return' AND r.sale_id = ?", sale['id'])
+    left = max(0, credit - wiped)
+    plan = db.one('SELECT * FROM plans WHERE sale_id = ?', sale['id'])
+    owed = cash.plan_schedule(db, plan)['remaining'] if plan else cash.customer_balance(db, sale['customer_id'])
+    return max(0, min(left, owed))
+
+
 def take_return(ctx, data):
     key = text(data.get('idem_key'), 'idem_key', 64, True)
     done = ctx.db.one('SELECT id, number FROM returns WHERE idem_key = ?', key)
@@ -413,38 +431,49 @@ def take_return(ctx, data):
         raise Problem('err.needCustomer', 'This sale has no customer account.')
     if method not in sale['refund_methods']:
         raise Problem('err.methodOff', 'This way of paying is turned off. The owner can turn it on in Settings.')
+    # Money goes back only for money that came in. What the customer still owes for this sale is wiped from their account first;
+    # only the rest is paid back in the chosen way. (Choosing "account" puts all of it on the account, as store credit.)
+    # A fee added to an instalment plan belongs to the goods that were financed: it goes back in proportion to the goods returned,
+    # so a customer who gives everything back owes nothing and is not charged for financing they did not use.
+    goods = sale['subtotal'] - sale['discount']
+    before = ctx.db.value('SELECT COALESCE(SUM(total), 0) FROM returns WHERE sale_id = ?', sale['id'])
+    fee_back = (round(sale['fee'] * (before + total) / goods) - round(sale['fee'] * before / goods)) if sale['fee'] and goods else 0
+    worth = total + fee_back  # what the customer gave: the goods' price plus the fee that goes with them
+    on_account = worth if method == 'account' else min(worth, credit_outstanding(ctx.db, sale))
+    paid_back = worth - on_account
+    paid_by = method if paid_back else 'account'
     shift = cash.open_shift_of(ctx.db, ctx.uid)
-    if method == 'cash':
+    if paid_by == 'cash':
         shift = cash.need_shift(ctx)
-        if total > cash.drawer_expected(ctx.db, shift['id']):
+        if paid_back > cash.drawer_expected(ctx.db, shift['id']):
             raise Problem('err.drawerShort', 'There is not enough cash in the drawer for this refund.')
     rid, at = ids.uuid7(), ids.iso()
     number = ctx.number('return')
     ctx.db.insert('returns', {'id': rid, 'org_id': ctx.org_id, 'branch_id': ctx.branch_id, 'number': number, 'idem_key': key,
                               'sale_id': sale['id'], 'at': at, 'by_user': ctx.uid, 'approved_by': approver['id'] if approver else None,
-                              'shift_id': shift['id'] if shift else None, 'reason': reason, 'refund_method': method, 'total': total})
+                              'shift_id': shift['id'] if shift else None, 'reason': reason, 'refund_method': paid_by, 'total': total})
     for line, qty, amount, to, condition in prepared:
         ctx.db.insert('return_lines', {'id': ids.uuid7(), 'return_id': rid, 'sale_line_id': line['id'], 'qty': qty, 'amount': amount,
                                        'to_location_id': to, 'condition': condition})
         stock.move(ctx, line['product_id'], to, qty, 'return', 'return', rid, line['unit_cost'], line['serial'],
                    condition, at)
-    if method == 'cash':
-        cash.cash_move(ctx, 'drawer', 'refund', -total, shift['id'], ref_type='return', ref_id=rid, note=number, at=at)
-        cash.tender(ctx, 'return', rid, 'cash', -total, '', shift['id'], at)
-    elif method == 'account':
+    if on_account:
         plan = ctx.db.one('SELECT id FROM plans WHERE sale_id = ?', sale['id'])
-        cash.ar_entry(ctx, sale['customer_id'], -total, 'return', 'return', rid, plan['id'] if plan else None, number, at=at)
-    else:
-        provider = next((t['provider'] for t in sale['tenders'] if t['method'] == method), '')
-        cash.tender(ctx, 'return', rid, method, -total, provider, shift['id'] if shift else None, at)
-    ctx.audit('return', 'sale', sale['id'], {'number': number, 'total': total, 'method': method, 'reason': reason,
+        cash.ar_entry(ctx, sale['customer_id'], -on_account, 'return', 'return', rid, plan['id'] if plan else None, number, at=at)
+    if paid_back and paid_by == 'cash':
+        cash.cash_move(ctx, 'drawer', 'refund', -paid_back, shift['id'], ref_type='return', ref_id=rid, note=number, at=at)
+        cash.tender(ctx, 'return', rid, 'cash', -paid_back, '', shift['id'], at)
+    elif paid_back:
+        provider = next((t['provider'] for t in sale['tenders'] if t['method'] == paid_by), '')
+        cash.tender(ctx, 'return', rid, paid_by, -paid_back, provider, shift['id'] if shift else None, at)
+    ctx.audit('return', 'sale', sale['id'], {'number': number, 'total': total, 'method': paid_by, 'on_account': on_account, 'reason': reason,
                                              'approved_by': approver['full_name'] if approver else None,
                                              'days_since_sale': sale['days_since']})
-    return {'id': rid, 'number': number, 'total': total}
+    return {'id': rid, 'number': number, 'total': total, 'on_account': on_account, 'paid_back': paid_back, 'method': paid_by}
 
 
 def return_view(db, return_id):
-    r = db.one('SELECT r.*, s.number AS sale_number, u.full_name AS by_name FROM returns r JOIN sales s ON s.id = r.sale_id '
+    r = db.one('SELECT r.*, s.number AS sale_number, s.by_user AS sale_by_user, u.full_name AS by_name FROM returns r JOIN sales s ON s.id = r.sale_id '
                'JOIN users u ON u.id = r.by_user WHERE r.id = ? OR r.number = ?', return_id, return_id)
     if not r:
         raise NotFound('return')

@@ -492,7 +492,10 @@ class Assist:
                 return exc.code, aftelemetry._server_time(exc.read(65536), exc.headers.get('Date'))
 
     def flush_remote(self):
-        """Send one batch only when a receiver and a token are both configured. Never call this on a request."""
+        """Send one batch only when a receiver and a token are both configured. Never call this on a request.
+        The practice shop never sends anything, whatever its settings say."""
+        if self.app.practice:
+            return None
         if not self.send_lock.acquire(blocking=False):
             return None
         try:

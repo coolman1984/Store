@@ -46,8 +46,8 @@ async function drawer(body, again) {
         <button class="btn accent block lg" data-close data-guide="shift.close">${icon('lock')}${t('cash.closeShift')}</button></div>
         ${nonCash.length ? html`<div class="stack tight split"><p class="small muted">${t('cash.nonCash')}</p>${nonCash.map(([m, v]) => html`<div class="stat-line small"><span>${t('pay.' + m)}</span>${moneyH(v)}</div>`)}</div>` : ''}</div></div>
     <div class="card"><div class="card-head"><h2>${t('cash.moves')}</h2></div>${s.moves.length ? html`<div class="timeline">${s.moves.map((m) => html`<div class="ev">
-      <span class="badge ${m.amount < 0 ? 'warn' : 'ok'}">${t('cashk.' + m.kind)}</span><span class="small"><span class="num">${time(m.at)}</span> · ${m.category ? t('exp.' + m.category) + ' · ' : ''}${m.note} · ${m.by_name}</span>
-      <span class="row"><span class="money num">${money(m.amount, { sign: true })}</span>${m.kind === 'expense' && !m.reverses ? html`<button class="icon-btn sm" data-rev="${m.id}" aria-label="${t('act.reverse')}">${icon('return')}</button>` : ''}</span></div>`)}</div>`
+      <span class="badge ${m.amount < 0 ? 'warn' : 'ok'}">${t('cashk.' + m.kind)}</span><span class="small"><span class="num">${time(m.at)}</span> · ${m.category ? t('exp.' + m.category) + ' · ' : ''}${m.note} · ${m.by_name}${m.reversed ? html` <span class="badge bad">${t('state.reversed')}</span>` : ''}</span>
+      <span class="row"><span class="money num">${money(m.amount, { sign: true })}</span>${m.kind === 'expense' && !m.reverses && !m.reversed ? html`<button class="icon-btn sm" data-rev="${m.id}" aria-label="${t('act.reverse')}">${icon('return')}</button>` : ''}</span></div>`)}</div>`
       : html`<p class="muted small">${t('cash.noMoves')}</p>`}</div></div>`);
   settle(body);
   $('[data-expense]', body)?.addEventListener('click', () => expense(again));

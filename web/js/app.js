@@ -1,8 +1,8 @@
 // The shell: start-up, sign-in, first-run setup, licence screen, navigation, command palette, keyboard shortcuts.
 import { api, on, isOnline } from './api.js';
-import { applyLang, lang, setLang, t } from './i18n.js';
+import { applyLang, has, lang, setLang, t } from './i18n.js';
 import { apply as applyPrefs, prefs } from './prefs.js';
-import { $, $$, html, icon, put, open, closeAll, anyOpen, toast, fail, run, initials, esc, money, showError } from './ui.js';
+import { $, $$, html, icon, put, open, closeAll, anyOpen, toast, fail, run, initials, esc, money, showError, time, seg, bindSeg } from './ui.js';
 import { transition, after, shake } from './motion.js';
 import { mark } from './brand.js';
 import { attachHelp, guideRole, maybeConsent, mountGuide, onRoute, signal } from './guide.js';
@@ -204,7 +204,8 @@ function showSetup() {
   });
 }
 
-/** The licence card: device code to send to the vendor, a box to paste the code, what works without a code. */
+/** The licence card: ask the company from this screen (the code comes back and switches the program on), the device code for the manual
+ *  way, a box to paste a code, and what keeps working without a code. */
 export function licenceCard(lic, onDone) {
   const st = lic.state;
   const good = ['trial', 'active', 'grace', 'practice'].includes(st);
@@ -214,9 +215,11 @@ export function licenceCard(lic, onDone) {
         ${lic.edition && st !== 'practice' ? html`<div class="small" data-lic-kind>${t('lic.kind.' + lic.edition)}</div>` : ''}
         ${lic.last_day ? html`<div class="small muted">${t('lic.until', { day: lic.last_day, n: lic.days_left })}</div>`
           : lic.edition === 'perpetual' && lic.full ? html`<div class="small muted">${t('lic.forever')}</div>` : ''}</div></div>
+      ${st === 'practice' ? '' : html`<div class="lic-auto" id="lic-auto" aria-live="polite"></div>`}
       <div class="field"><span class="label">${t('lic.device')}</span>
         <div class="device"><code class="num" id="dev">${lic.device || ''}</code><button class="btn sm" data-copy>${icon('clipboard')}${t('act.copy')}</button></div>
-        <span class="hint">${t('lic.deviceHint')}</span></div>
+        <span class="hint">${t('lic.deviceHint')}</span>
+        ${lic.vendor_telegram ? html`<a class="btn sm" target="_blank" rel="noopener" href="${lic.vendor_telegram}">${icon('message')}${t('lic.telegram')}</a>` : ''}</div>
       <div class="field"><label for="lic-code">${t('lic.paste')}</label>
         <textarea id="lic-code" class="input code-box" spellcheck="false" autocomplete="off" placeholder="XXXXXX-XXXXXX-XXXXXX-…"></textarea>
         <span class="err small" id="lic-err" role="alert"></span></div>
@@ -233,8 +236,85 @@ export function licenceCard(lic, onDone) {
         if (r) { S.boot.licence = r; renderBanners(); onDone && onDone(r); }
         else { shake($('#lic-code', box)); }
       });
+      if ($('#lic-auto', box)) requestArea(box, lic, onDone);
     },
   };
+}
+
+/** Asking the company: one status line that is never silent (sending, waiting, no connection and when it tries again, refused and why,
+ *  activated), a button for each way out, and what exactly would be sent before anything is sent. */
+async function requestArea(box, lic, onDone) {
+  const area = $('#lic-auto', box);
+  let timer = null;
+  const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+  const reasonText = (r) => (has('lic.req.refused.' + r) ? t('lic.req.refused.' + r) : t('lic.req.refused.other', { r }));
+  const offline = (q) => /^offline|^http_|^busy|^token|^relay_off/.test(q.error || '');
+  const draw = (q) => {
+    const wait = q.status === 'sending' || q.status === 'waiting' || (q.status === 'failed' && offline(q));
+    let line = '';
+    if (!q.available) line = html`<div class="tip">${icon('info')}<div>${t('lic.req.off')}</div></div>`;
+    else if (q.status === 'sending') line = html`<div class="lic-line busy">${icon('clock')}<span>${t('lic.req.sending')}</span></div>`;
+    else if (q.status === 'waiting' && !q.error) line = html`<div class="lic-line busy">${icon('clock')}<span>${t('lic.req.waiting')}</span></div>`;
+    else if (wait) line = html`<div class="lic-line warn">${icon('alert')}<span>${t('lic.req.offline', { when: q.next_try ? time(q.next_try) : '' })}</span></div>`;
+    else if (q.status === 'failed') line = html`<div class="lic-line warn">${icon('alert')}<span>${t('lic.req.codeBad', { r: q.reason || q.error || '' })}</span></div>`;
+    else if (q.status === 'refused') line = html`<div class="lic-line bad">${icon('x')}<span>${reasonText(q.reason)}</span></div>`;
+    else if (q.status === 'closed') line = html`<div class="lic-line warn">${icon('alert')}<span>${t('lic.req.closed')}</span></div>`;
+    else if (q.status === 'activated') line = html`<div class="lic-line good">${icon('check')}<span>${t('lic.req.activated')}</span></div>`;
+    put(area, html`${line}<div class="row wrap">
+      ${q.available && q.status === 'none' && !lic.full ? html`<button class="btn accent" data-req="trial">${icon('message')}${t('lic.req.trial')}</button>` : ''}
+      ${q.available && q.status === 'none' && !(lic.full && lic.edition !== 'trial') ? html`<button class="btn ${lic.full ? '' : 'ghost'}" data-req="paid">${icon('key')}${t('lic.req.paid')}</button>` : ''}
+      ${wait ? html`<button class="btn" data-retry>${icon('refresh')}${t('lic.req.retry')}</button>` : ''}
+      ${['refused', 'closed', 'activated', 'failed'].includes(q.status) && !wait ? html`<button class="btn" data-again>${icon('plus')}${t('lic.req.again')}</button>` : ''}
+      ${q.available ? html`<button class="btn ghost sm" data-what>${icon('info')}${t('lic.req.what')}</button>` : ''}</div>`);
+    $$('[data-req]', area).forEach((b) => b.addEventListener('click', () => (b.dataset.req === 'trial' ? send('trial') : paidDialog())));
+    $('[data-retry]', area)?.addEventListener('click', async () => { try { draw(await api.post('/api/licence/request/retry')); } catch (e) { fail(e); } });
+    $('[data-again]', area)?.addEventListener('click', async () => { try { draw(await api.post('/api/licence/request/clear')); } catch (e) { fail(e); } });
+    $('[data-what]', area)?.addEventListener('click', () => whatDialog());
+    if (['sending', 'waiting', 'failed'].includes(q.status) && !timer) timer = setInterval(look, 5000);
+    if (!['sending', 'waiting', 'failed'].includes(q.status)) stop();
+  };
+  const send = async (kind, ref = '') => {
+    try { draw(await api.post('/api/licence/request', { kind, ref })); } catch (e) { fail(e); }
+  };
+  const look = async () => {
+    if (!document.body.contains(area)) { stop(); return; }
+    try {
+      const q = await api.get('/api/licence/request');
+      if (q.status === 'activated') {
+        stop();
+        const fresh = await api.get('/api/licence');
+        S.boot.licence = fresh;
+        renderBanners();
+        toast(t('lic.req.activated'));
+        onDone && onDone(fresh);
+        return;
+      }
+      draw(q);
+    } catch { /* the next look tries again */ }
+  };
+  const whatDialog = async (kind = 'trial') => {
+    let p;
+    try { p = await api.get('/api/licence/preview', { kind }); } catch (e) { fail(e); return; }
+    open({
+      title: t('lic.req.whatTitle'),
+      body: html`<p class="muted small">${t('lic.req.whatHint')}</p><div class="card flat">${['kind', 'product', 'device', 'machine', 'shop', 'version', 'ref'].filter((k) => p.sends[k] !== undefined && p.sends[k] !== '').map((k) =>
+        html`<div class="stat-line small"><span>${t('lic.req.f.' + k)}</span><b class="num ltr">${k === 'machine' ? p.sends[k].slice(0, 12) + '…' : k === 'kind' ? t('lic.req.kind.' + p.sends[k]) : p.sends[k]}</b></div>`)}</div>`,
+      foot: html`<button class="btn primary" data-close>${t('act.ok')}</button>`,
+    });
+  };
+  const paidDialog = () => open({
+    title: t('lic.req.paidTitle'),
+    body: html`<p class="muted small">${t('lic.req.paidHint')}</p>
+      <div class="field"><span class="label">${t('lic.req.kind')}</span>${seg('pk', [['monthly', t('lic.req.kind.monthly')], ['permanent', t('lic.req.kind.permanent')]], 'monthly')}</div>
+      <div class="field"><label for="pref">${t('lic.req.ref')}</label><input id="pref" class="input" maxlength="60" autocomplete="off"></div>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok>${icon('message')}${t('lic.req.send')}</button>`,
+    mount(dlg, close) {
+      let kind = 'monthly';
+      bindSeg(dlg, 'pk', (v) => { kind = v; });
+      $('[data-ok]', dlg).addEventListener('click', async () => { close(); await send(kind, $('#pref', dlg).value.trim()); });
+    },
+  });
+  try { draw(await api.get('/api/licence/request')); } catch { put(area, html``); }
 }
 
 // ---------------------------------------------------------------- shell

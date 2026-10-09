@@ -104,6 +104,7 @@ function returnDialog(s, onChange) {
         <td class="num">${num(l.qty - l.returned)}</td><td><input class="input q-in num" data-rq="${l.id}" data-max="${l.qty - l.returned}" value="0" inputmode="decimal"></td>
         <td><select class="input" data-rc="${l.id}"><option value="good">${t('sales.good')}</option><option value="damaged">${t('sales.damaged')}</option></select></td></tr>`)}</tbody></table></div>
       ${methods.length > 1 ? html`<div class="field"><span class="label">${t('sales.refundBy')}</span>${seg('refund', methods.map((m) => [m, t('pay.' + m)]), def)}</div>` : ''}
+      ${paidBy.includes('account') || paidBy.includes('installment') ? html`<div class="tip">${icon('info')}<div>${t('sales.returnCreditHint')}</div></div>` : ''}
       <div class="field"><label for="r-why">${t('f.reason')}</label><textarea id="r-why" class="input" data-guide="return.reason" placeholder="${t('sales.reasonHint')}"></textarea></div>
       <p class="err small" id="r-err" role="alert"></p>`,
     foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok data-guide="return.save">${icon('return')}${t('sales.doReturn')}</button>`,
@@ -126,7 +127,9 @@ function returnDialog(s, onChange) {
           const r = await withApproval((approval) => api.post('/api/return', { idem_key: idem, sale_id: s.id, lines, reason, refund_method: refund, approval }));
           close();
           signal('return.done');
-          toast(t('sales.returnDone', { n: r.number, m: money(r.total) }));
+          toast(r.on_account && r.paid_back ? t('sales.returnSplit', { n: r.number, a: money(r.on_account), m: money(r.paid_back) })
+            : r.on_account && refund !== 'account' ? t('sales.returnToAccount', { n: r.number, a: money(r.on_account) })
+              : t('sales.returnDone', { n: r.number, m: money(r.total) }));
           onChange && onChange();
         } catch (err) { if (!err.cancelled) showError($('#r-err', box), err); } finally { btn.removeAttribute('aria-busy'); }
       });
@@ -150,7 +153,7 @@ function warrantyTab(body, params) {
         <div class="row between wrap"><h2>${w.product || ''}</h2><span class="badge num">${w.serial}</span></div>
         ${w.sale_id ? html`<div class="grid kpis">
           <div class="kpi"><span class="label">${t('sales.soldOn')}</span><span class="value num">${date(w.sold_at)}</span></div>
-          <div class="kpi"><span class="label">${t('f.customer')}</span><span class="value">${w.customer || t('pos.walkIn')}</span></div>
+          <div class="kpi"><span class="label">${t('f.customer')}</span><span class="value">${w.customer_hidden ? '—' : (w.customer || t('pos.walkIn'))}</span></div>
           <div class="kpi"><span class="label">${t('sales.warrantyLeft')}</span><span class="value">${w.warranty_until ? (ok ? t('sales.daysLeft', { n: w.warranty_days_left }) : t('sales.warrantyOver')) : t('sales.noWarranty')}</span></div></div>
           <div class="row wrap"><button class="btn" data-sale="${w.sale_id}">${icon('receipt')}${t('sales.openInvoice')} <span class="num">${w.sale_number}</span></button></div>`
           : html`<p>${w.state?.in_stock ? t('sales.inStockNotSold') : t('sales.notSoldHere')}</p>`}</div>`);

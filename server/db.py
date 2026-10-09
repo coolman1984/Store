@@ -16,7 +16,9 @@ import afguide
 from version import SCHEMA
 
 LEDGER = ('stock_moves', 'cash_moves', 'tenders', 'ar_entries', 'ap_entries', 'prices', 'costs', 'sale_lines',
-          'purchase_lines', 'return_lines', 'audit')
+          'purchase_lines', 'return_lines', 'audit',
+          # the headers of money and goods documents carry the totals: refused too (no code edits them; a mistake is a new, reversing row)
+          'sales', 'returns', 'purchases', 'transfers', 'plans')
 
 MIGRATIONS = {1: """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT) STRICT;

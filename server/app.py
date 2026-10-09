@@ -39,10 +39,13 @@ import core  # noqa: E402
 import ids  # noqa: E402
 import licence  # noqa: E402
 import money as cash  # noqa: E402
+import practice as practice_mod  # noqa: E402
 import reports  # noqa: E402
 import sales  # noqa: E402
 import stock  # noqa: E402
 import support  # noqa: E402
+import training  # noqa: E402
+import trial  # noqa: E402
 from auth import AuthError, Forbidden  # noqa: E402
 from core import Ctx, Problem  # noqa: E402
 from db import Database, NewerData  # noqa: E402
@@ -50,6 +53,11 @@ from version import FROZEN, PRODUCT, PRODUCT_AR, ROOT, VERSION  # noqa: E402
 
 WEB = os.path.join(ROOT, 'web')
 COOKIE = 'store_session'
+PRACTICE_COOKIE = 'store_practice_session'  # cookies are per host, not per port: the practice shop must not share the real shop's cookie
+
+
+def cookie_name():
+    return PRACTICE_COOKIE if APP is not None and APP.practice else COOKIE
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
        "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
 TYPES = {'.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8',
@@ -57,7 +65,7 @@ TYPES = {'.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf
          '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon'}
 # writes allowed while the licence does not give full access: reading, keeping data safe, and getting a new code
 OPEN_WRITES = {'/api/setup', '/api/login', '/api/logout', '/api/password', '/api/recover', '/api/licence/activate', '/api/backup/now',
-               '/api/shift/close', '/api/watch/review', '/api/support/save', '/api/support/ping',
+               '/api/shift/close', '/api/watch/review', '/api/support/save', '/api/support/ping', '/api/practice/open',
                '/api/guide/progress', '/api/consent/decide', '/api/telemetry/events',
                '/api/telemetry/feedback', '/api/telemetry/feedback/preview'}
 DRAIN_LIMIT = 8 * 1048576  # a too-large body up to this size is read and dropped before the answer
@@ -97,6 +105,7 @@ class App:
         self.db = Database(os.path.join(self.data_dir, 'store.db'), self.backup_dir)
         self.org_id = self._meta_id('org_id')
         self.branch_id = self._meta_id('branch_id')
+        practice_mod.guard(self.db, practice, home)  # a made-up shop never opens real data, and the real shop never opens made-up data
         self.auth = auth_mod.Auth(self.db, self.org_id, self.practice)
         self.assist = assist.Assist(self)
         self._static = {}
@@ -181,6 +190,31 @@ class App:
                 if getattr(self, 'assist', None):
                     self.assist.rebind()
 
+    def reset_practice(self):
+        """Practice shop only: throw the made-up shop away (database, backups) and build a fresh one with the same accounts.
+        Refused anywhere else, and in any folder that is not marked as a practice folder, so it can never touch a real shop."""
+        if not self.practice or practice_mod.kind_of(self.db) != 'practice' or not os.path.exists(os.path.join(self.home, practice_mod.MARKER)):
+            raise Problem('err.practiceOnly', 'This is available in the practice shop only.', 403)
+        import sample
+        target = self.db.path
+        with self.db.lock:
+            self.db.conn.close()
+            for suffix in ('', '-wal', '-shm'):
+                try:
+                    os.remove(target + suffix)
+                except FileNotFoundError:
+                    pass
+            shutil.rmtree(self.backup_dir, ignore_errors=True)
+            os.makedirs(self.backup_dir, exist_ok=True)
+            fresh = Database(target, self.backup_dir)
+            self.db.conn = fresh.conn
+        self.org_id = self._meta_id('org_id')
+        self.branch_id = self._meta_id('branch_id')
+        self.auth = auth_mod.Auth(self.db, self.org_id, self.practice)
+        self.assist.rebind()
+        self.failed_ips = {}
+        sample.load(self)
+
     def static(self, rel, gz):
         """Static file bytes (+ gzip copy) cached in memory, with an ETag from the content."""
         path = os.path.normpath(os.path.join(WEB, rel))
@@ -247,7 +281,7 @@ class Handler(BaseHTTPRequestHandler):
     def token(self):
         for part in (self.headers.get('Cookie') or '').split(';'):
             k, _, v = part.strip().partition('=')
-            if k == COOKIE:
+            if k == cookie_name():
                 return v
         return ''
 
@@ -312,7 +346,7 @@ class Handler(BaseHTTPRequestHandler):
             fn()
         except NotLoggedIn:
             self.send(401, {'error': 'Please sign in.', 'key': 'err.signIn', 'login': True},
-                      headers={'Set-Cookie': f'{COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
+                      headers={'Set-Cookie': f'{cookie_name()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
         except LicenceLocked:
             self.send(402, {'error': 'The licence does not allow changes now.', 'key': 'err.licence', 'licence': APP.licence()})
         except Forbidden as e:
@@ -423,9 +457,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/product':
             ctx.need_any('products.view', 'stock.view')
             d = stock.detail(db, qs.get('id'), can_cost)
-        elif path == '/api/pos/search':
+        elif path == '/api/pos/search':  # the counter's own search: it must work with the counter permission alone (categories too)
             ctx.need('pos.sell')
-            d = catalog.search(db, qs.get('q', ''), 12, True, qs.get('location_id'))
+            d = catalog.search(db, qs.get('q', ''), qint(qs, 'limit', 12, 1, 60), True, qs.get('location_id'), False,
+                               {'category_id': qs.get('category_id')})
         elif path == '/api/serials':
             ctx.need_any('pos.sell', 'products.view', 'stock.view')
             d = stock.serials_in_stock(db, qs.get('product_id'), qs.get('location_id'))
@@ -437,9 +472,13 @@ class Handler(BaseHTTPRequestHandler):
                 raise Forbidden('sales.view_all')
             d = s
         elif path == '/api/return':
+            ctx.need_any(*afaccess_page('sales'))  # the same rule as the Sales page and /api/sale: seeing a return is seeing the sale it belongs to
             d = sales.return_view(db, qs.get('id'))
+            if u['id'] not in (d['by_user'], d['sale_by_user']) and not ctx.can('sales.view_all') and not ctx.can('sales.return'):
+                raise Forbidden('sales.view_all')
         elif path == '/api/warranty':
-            d = sales.warranty(db, qs.get('serial'))
+            ctx.need_any(*afaccess_page('sales'))  # the warranty look-up lives on the Sales page; its customer fields follow the customers page
+            d = sales.warranty(db, qs.get('serial'), ctx.can('customers.view'))
         elif path == '/api/customers':
             ctx.need_any('customers.view', 'pos.sell')  # the counter picks the customer of a credit sale
             d = cash.customers_list(db, qs.get('q', ''), qs.get('only', 'all'))
@@ -541,7 +580,20 @@ class Handler(BaseHTTPRequestHandler):
                  'addresses': [f'http://{ip}:{APP.cfg["port"]}' for ip in _lan_ips()], 'version': VERSION,
                  'locations': db.all('SELECT * FROM locations ORDER BY active DESC, kind DESC, name')}
         elif path == '/api/licence':
-            d = APP.licence()
+            d = {**APP.licence(), 'vendor_telegram': vendor_telegram(APP.cfg.get('vendor_telegram'))}
+        elif path == '/api/practice':  # the real shop asks whether the practice shop runs; the practice shop just says it is the one
+            d = {'state': 'here', 'url': ''} if APP.practice else practice_mod.status(APP)
+        elif path == '/api/training':  # the three exercises and where this person stands (practice shop only)
+            if not APP.practice:
+                raise Problem('err.practiceOnly', 'Training is available in the practice shop only.', 403)
+            d = training.view(APP)
+        elif path == '/api/licence/request':  # where the request for a code stands (the poll token never leaves the server)
+            ctx.need('settings.edit')
+            d = trial.public(APP)
+        elif path == '/api/licence/preview':  # exactly what a request sends, shown before the person presses the button
+            ctx.need('settings.edit')
+            kind = qs.get('kind') if qs.get('kind') in trial.KINDS else 'trial'
+            d = {'kind': kind, 'sends': trial.preview(APP, kind, qs.get('ref', '')), 'available': bool(trial.relay_url(APP))}
         elif path == '/api/support':
             ctx.need('settings.edit')
             d = support.public(APP.home)
@@ -558,8 +610,9 @@ class Handler(BaseHTTPRequestHandler):
             d = APP.assist.receiver_public()
         elif path == '/api/export':
             ctx.need('settings.edit')
-            body = backup.export_zip(db)
-            ctx.audit('export', 'shop', '', {'bytes': len(body)})
+            cost, private = can_cost, ctx.can('customers.private')  # the file shows what this person may already see on screen, nothing more
+            body = backup.export_zip(db, cost=cost, private=private)
+            ctx.audit('export', 'shop', '', {'bytes': len(body), **({} if cost and private else {'left_out': [n for n, ok in (('cost', cost), ('national_id', private)) if not ok]})})
             name = f'al-store-export-{ids.local_day()}.zip'
             return self.send(200, body, 'application/zip', {'Content-Disposition': f'attachment; filename="{name}"'})
         else:
@@ -612,7 +665,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/logout':
             self.body(65536)
             APP.auth.end_session(self.token())
-            return self.send(200, {'ok': True}, headers={'Set-Cookie': f'{COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
+            return self.send(200, {'ok': True}, headers={'Set-Cookie': f'{cookie_name()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
         u = self.user()
         ctx = self.ctx(u)
         data = self.body(2 * 1048576)
@@ -623,6 +676,30 @@ class Handler(BaseHTTPRequestHandler):
                 ctx.audit('backup', 'backup', item['name'])
             self._track('/api/backup/now', u)
             return self.send(200, item)
+        if path in ('/api/licence/request', '/api/licence/request/retry', '/api/licence/request/clear'):
+            # asking the company: the state is saved in a transaction, the network call happens outside it (and works while the licence is locked)
+            ctx.need('settings.edit')
+            if path.endswith('/clear'):
+                with APP.db.tx():
+                    return self.send(200, trial.clear(APP, ctx))
+            if path.endswith('/retry'):
+                return self.send(200, trial.step(APP, force=True))
+            with APP.db.tx():
+                trial.begin(APP, ctx, data.get('kind'), str(data.get('ref') or ''))
+            return self.send(200, trial.step(APP))
+        if path == '/api/practice/open':  # starts the practice shop (its own folder and port) for the person who asked; touches no shop data
+            if APP.practice:
+                return self.send(200, {'state': 'here', 'url': ''})
+            out = practice_mod.launch(APP)
+            with APP.db.tx():
+                ctx.audit('practice.open', 'practice', '', {'state': out['state']})
+            return self.send(200, out)
+        if path == '/api/practice/reset':  # practice shop only: the made-up shop is rebuilt; everyone signs in again
+            ctx.need('settings.edit')
+            APP.reset_practice()
+            log.info('practice shop rebuilt on request')
+            return self.send(200, {'ok': True, 'login': True},
+                             headers={'Set-Cookie': f'{cookie_name()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
         if path == '/api/support/ping':  # network call: never while the database is locked for a write
             ctx.need('settings.edit')
             return self.send(200, support.send(APP))
@@ -663,6 +740,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def write(self, path, ctx, u, data):
         db = APP.db
+        if path == '/api/training/start':  # sets an exercise up with made-up rows (practice shop only), or sets it up again
+            return training.start(APP, ctx, data.get('lesson'), data.get('restart') is True)
         if path == '/api/password':
             APP.auth.verify(u['username'], data.get('old'))
             APP.auth.update(u['id'], {'password': data.get('new')})
@@ -817,7 +896,7 @@ class Handler(BaseHTTPRequestHandler):
             log.warning('telemetry note failed', exc_info=True)
 
     def cookie(self, token):
-        return {'Set-Cookie': f'{COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict'}
+        return {'Set-Cookie': f'{cookie_name()}={token}; Path=/; HttpOnly; SameSite=Strict'}
 
     def too_many(self, ip, add=False):
         now = time.time()
@@ -826,6 +905,19 @@ class Handler(BaseHTTPRequestHandler):
             hits.append(now)
         APP.failed_ips[ip] = hits
         return len(hits) >= 20
+
+
+def vendor_telegram(value):
+    """The company's Telegram contact for the manual way (config.json `vendor_telegram`): a t.me link or an @name, nothing else."""
+    import re
+    value = str(value or '').strip()
+    m = re.fullmatch(r'(?:https://t\.me/|@)([A-Za-z0-9_]{4,32})', value)
+    return f'https://t.me/{m.group(1)}' if m else ''
+
+
+def afaccess_page(name):
+    """The permissions any one of which opens a page (auth.PAGES, the same table as the menu)."""
+    return auth_mod.PAGES[name]
 
 
 def qint(qs, name, default, low, high):
@@ -846,8 +938,10 @@ def _is_private_ip(host):
 
 
 def default_home(practice):
-    if os.environ.get('STORE_HOME'):
-        return os.environ['STORE_HOME']
+    if practice and os.environ.get('STORE_PRACTICE_HOME'):
+        return os.environ['STORE_PRACTICE_HOME']
+    if os.environ.get('STORE_HOME'):  # the practice shop sits beside it, never inside it and never on it
+        return practice_mod.home_for(os.environ['STORE_HOME']) if practice else os.environ['STORE_HOME']
     if os.name == 'nt' and os.environ.get('PROGRAMDATA') and FROZEN:
         base = os.path.join(os.environ['PROGRAMDATA'], 'Al-Store')
     else:
@@ -864,9 +958,11 @@ def build(home, practice=False, port=None, host=None):
     return APP
 
 
-def serve(app, open_browser=None):
+def serve(app, open_browser=None, parent=None):
     httpd = ThreadingHTTPServer((app.cfg['host'], int(app.cfg['port'])), Handler)
     httpd.daemon_threads = True
+    if parent and app.practice:  # started by the real shop: ends with it
+        practice_mod.follow(parent, httpd.shutdown)
 
     def keep_backing_up():
         while True:
@@ -894,6 +990,7 @@ def serve(app, open_browser=None):
     threading.Thread(target=keep_reporting, daemon=True).start()
     if not app.practice:
         threading.Thread(target=support.loop, args=(app,), daemon=True).start()
+        threading.Thread(target=trial.loop, args=(app,), daemon=True).start()
     url = f'http://127.0.0.1:{app.cfg["port"]}/'
     say(f'{PRODUCT_AR} {VERSION}{" (تدريب)" if app.practice else ""} يعمل الآن: {url}')
     for ip in _lan_ips():
@@ -932,6 +1029,7 @@ def main(argv=None):
     parser.add_argument('--port', type=int)
     parser.add_argument('--host')
     parser.add_argument('--no-browser', action='store_true')
+    parser.add_argument('--parent', type=int, help=argparse.SUPPRESS)  # the real shop that started this practice shop
     parser.add_argument('--version', action='store_true')
     args = parser.parse_args(argv)
     if args.version:
@@ -946,7 +1044,10 @@ def main(argv=None):
     except NewerData:
         say('هذه البيانات من نسخة أحدث من البرنامج. ثبّت النسخة الأحدث.')
         return 2
-    serve(app, False if args.no_browser else None)
+    except practice_mod.WrongShop as e:
+        say(e.words())
+        return 3
+    serve(app, False if args.no_browser else None, args.parent)
     return 0
 
 

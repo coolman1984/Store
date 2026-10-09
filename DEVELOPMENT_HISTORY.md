@@ -1,5 +1,99 @@
 # Development history (newest first)
 
+## 2026-10-09 — 1.7.0: the practice shop opens from Help, three exercises checked from the books, and it can never mix with the real shop
+**Why (owner request, 2026-10-09):** a new cashier or owner should learn by doing, inside the guide, on made-up data; three real problems to solve; a way to reset the made-up data; and nothing of the real shop may be touched. The practice shop already existed (`--practice`, port 8097, `sample.py`) but was only started by a separate `.bat` and nothing proved it was separate.
+
+**Found while building it (confirmed by running):**
+- **Isolation bug:** `default_home(practice=True)` returned the **same folder** as the real shop whenever `STORE_HOME` was set (an administrator's way to keep the data on another drive; the tests use it too; no installer sets it, so a normal install was not exposed). The practice shop would then have run on, and written its banner, receipts and sample users into, the real database. Now the practice folder is `STORE_HOME + '-practice'` (or `STORE_PRACTICE_HOME`), always beside, never on.
+- **No guard at all** against a folder of one kind opened as the other (`--practice --home <real folder>`, or the real program pointed at the practice folder). Now `practice.guard` refuses both with a plain message (exit code 3) before anything is read or written; the practice database carries `meta.shop_kind = 'practice'`, and a practice folder from an older version is recognised only by all four made-up accounts **and** the made-up shop name, then marked.
+- The practice shop could be given a telemetry or support receiver in its own settings. `flush_remote` and `support.send` now do nothing in the practice shop whatever the settings say.
+
+**What:**
+- `server/practice.py`: the guard, the marker file `PRACTICE.txt`, the launcher (`launch`, `status`): the real shop starts the practice program on `127.0.0.1` only (never on the LAN, where its published password would be public), in its folder beside the real one, and tells whether it runs; a port held by another program is said plainly (`err.practicePort`). A silent listener counts as "another program", not "stopped".
+- `server/training.py`: three exercises (`return`, `drawer`, `count`). Setting one up **adds** made-up rows through the normal domain functions (a cash sale of a fridge, a shift with sales and a 15-pound gap, stock and a count that is two fans short); nothing is edited or deleted (the ledger tables refuse that). "Done" is read from the books: a damaged return with a different person approving and cash back; an expense of exactly the gap plus a closed shift with a zero difference (a cancelled expense does not count); a closed count that settled exactly the missing pieces. Each check is shown on its own so the person sees what is still missing. A restart sets the same problem up again (attempt 2); an unfinished count or an open shift of an earlier try never blocks it.
+- `App.reset_practice`: throws the made-up database and its backups away and builds a fresh practice shop with the same accounts (everyone signs in again). Refused in a real shop and in any folder without the practice marker. Only `settings.edit` may call it.
+- **No hidden program left behind:** the practice shop that the real shop starts is given `--parent <pid>` and leaves when the real shop leaves (`practice.follow`; on Windows it asks for the process with `OpenProcess`, never `os.kill(pid, 0)`, which would end it there). Without this a hidden practice program could keep the installed `.exe` locked and make the next update fail.
+- Routes: `GET /api/practice`, `POST /api/practice/open` (works while the licence is locked: it moves no shop data), `POST /api/practice/reset`, `GET /api/training`, `POST /api/training/start`. The real shop answers 403 `err.practiceOnly` to every training call.
+- Screens: Help shows, in the real shop, one button that starts the practice shop and offers its link; in the practice shop, the three exercises (story, steps with the real labels of the screens, live checklist, «اتأكد من شغلي», «ابدأ من الأول», «غيّر الحساب») and, for the owner, «امسح وابدأ من جديد». Texts are in both languages (`web/i18n/training-ar.js`, `training-en.js`, and the `tr.*` / `err.practice*` keys).
+
+**Evidence:**
+- `tests/test_training.py`, 29 tests: isolation (home folder, both refusals, the plain message, an older practice folder, four demo-named users in a real shop, nothing sent, rebuild refused in a real shop and in an unmarked folder), the exercises (done only with the right books; wrong paths are not done; restart; only rows added), over HTTP, real processes (rebuild and sign in again; the real shop starting the practice shop beside itself with nothing crossing; a busy port), and both languages have the same shape and `{places}`.
+- `tests/test_e2e_browser.py`: `TrainingByClicking` does each exercise with real clicks by the account it names, and the restart and the rebuild; `OpeningThePracticeShop` clicks the button in a real shop.
+- `tools/journey_exe.py first` (run on the built program in the Windows job) now also opens the practice shop from the program itself, checks it is a different, made-up shop on its own port, and fails if it stays behind after the real shop stops (it would hold the installed program's files and break the update that follows). Run here on the source; the compiled program is exercised by the installer job.
+- Not claimed: a shop with a real customer has not used the exercises yet; they are written in the words of the screens as they are today, so a changed label needs the dictionary updated (the browser tests click the real controls and would fail).
+
+## 2026-10-09 — 1.6.0: ask for the trial from the licence screen; the code switches the program on by itself
+**Why (owner decision, 2026-10-09):** the customer presses «طلب تجربة 14 يوم»; a secure request with the device code reaches the company; the company's phone is told on **Telegram** (not WhatsApp); the company's trusted licensing program issues a code for that device by a trial policy the owner approved; the shop receives it, checks it and switches itself on, with no copy and paste. The signing key stays on the owner's trusted PC. Chain, reuse inventory and threat model: Apps-Factory `docs/LICENCE_ACTIVATION.md`.
+
+**What (this repository):**
+- `server/trial.py`: the request (kind `trial`, `monthly` or `permanent`) goes to the vendor's relay with exactly these fields: product, kind, device code, a hash of this PC (never the machine id), the request's own id, shop name, payment reference, version. `GET /api/licence/preview` shows them first. The poll token stays on the server (never in an answer, never in the audit).
+- **Replay-safe:** the request keeps its id; a lost answer is a new request, never two activations. **One trial per PC:** the PC's hash does not change when the program is reinstalled, so the company refuses a second trial (the device code does change).
+- **The answer is checked like a pasted code** (`licence.activate`: signature with the vendor's public key, product, this device, dates). A code for another PC or a forged one is refused, shown with the manual way, and **not acknowledged** to the relay. Only a working code is saved, then acknowledged, and the relay forgets it.
+- **Offline is a state, not an error:** `sending → waiting → activated`, or `failed` with the next try (1, 5, 15, 60 minutes, then every hour) and a «حاول تاني دلوقتي» button; `refused` says why (a second trial: ask for a subscription); the manual way (device code, Telegram contact from `config.json` `vendor_telegram`, paste box) is always on the same screen. A background loop looks every 20 seconds, so the program activates even if nobody has the page open.
+- Works while the licence is locked (it is how a locked shop gets unlocked); the network call never happens inside a database transaction; only `settings.edit` can ask; the practice shop never asks. The relay address is public configuration: `licence_relay.txt` (shipped like `licence_keys.txt`), `STORE_LICENCE_RELAY` or `config.json`; only https (or a program on this PC).
+- Screen: the licence card has the request area, «إيه اللي هيتبعت؟», the manual way naming Telegram; both dictionaries; two new error codes in the guide (`err.trialOff`, `err.trialHave`) and one more step in «licence-locked».
+- Version 1.6.0 and its release notes cover this and the three review fixes before it (#14, refund, hardening).
+
+**Evidence:** `tests/test_trial.py` (13, against a stand-in relay with real signed codes); `test_e2e_browser.AskingTheCompany` (ask, see what is sent, offline with a retry button on a phone, answer switches on by itself); the guide and release checks; and, in the Apps Factory, `test_relay_chain.py` runs the **real relay Worker and the real Licence Studio** over HTTP.
+
+**Not claimed:** nothing is deployed. The shipped `licence_keys.txt` has no key and `licence_relay.txt` no address until the owner creates the key on the trusted PC and deploys the relay; until then the installed program offers only the manual way (it says so on screen).
+
+## 2026-10-09 — independent review: the practice shop no longer signs the real shop out; document headers are append-only
+**Found by the review (confirmed by running):**
+1. **Cookie collision.** Cookies belong to a host, not to a port. The real shop (port 8096) and the practice shop (8097) both used the cookie `store_session` on `127.0.0.1`. In one browser, signing in to the practice shop **signed the real shop out** (and the real shop's "please sign in" answer deleted the practice cookie in turn). A trainee opening the practice shop from the real one would lose the real session. The practice shop now has its own cookie name, `store_practice_session`; the real shop keeps `store_session`, so nobody is signed out by an update.
+2. **Document headers were not protected.** The ledger triggers covered the lines and moves (`sale_lines`, `stock_moves`, `tenders`…) but not the headers that carry the totals: `sales`, `returns`, `purchases`, `transfers`, `plans`. A hand-typed SQL line changed what a sale was worth and nothing refused it. No code in the program edits those rows, so the guards cost nothing. They are created every time the database opens, so a shop that upgrades has them with no migration (a test starts from a 1.5.0-shaped database).
+3. A reversed expense still offered "reverse" in the drawer list (the server then said "already reversed"). The shift list now carries `reversed`, and the screen marks it and stops offering.
+
+**Evidence:** `test_api.CookieIsolationTests`, `test_e2e_browser.TwoShopsOneBrowser` (a real practice shop process and a real shop in one browser: both signed in, a reload keeps both) — both fail on the old code; `test_domain.HeaderTests` (2), `CashTests` (reversed flag).
+
+**Seen and left alone (low):** a browser that closes the connection while a static file is being sent prints a traceback to the console log (`BrokenPipeError`); harmless, and the Windows build has no console.
+
+## 2026-10-09 — independent review: a return gives back only money that came in
+**Why:** the same review as the entry below. Reading `take_return`, the reviewer asked what happens to a sale that was never paid.
+
+**Found (money, confirmed by running):** a sale put on the customer's account (nothing paid) was returned with "refund in cash". The drawer paid out the full price, the goods went back on the shelf, **and the customer's account still showed the full debt**. The shop lost the price twice. The same held for the instalment part of a sale (down payment in cash, the rest on a plan), and a fee added to a plan was never taken back. Only a shop that turned on "on account" or "instalments" (both hidden until the owner ticks them) could meet it, but then any cashier with the return right could do it by choosing cash.
+
+**Fixed (server, `sales.take_return`):** money goes back only for money that came in.
+- What the customer **still owes for this sale** (the part put on the account or on a plan, less earlier returns, less what they already collected, never more than the plan or the account holds) is wiped from their account **first**.
+- Only the rest is paid back, in the way the cashier chose (cash needs an open shift and enough cash in the drawer for that part only; card/wallet/InstaPay/finance as before).
+- The financing fee of a plan goes back in proportion to the goods returned, so a customer who gives everything back owes nothing and keeps nothing of the fee.
+- Choosing "account" is still available: all of it goes on the account as store credit, nothing leaves the drawer.
+- The answer carries `on_account`, `paid_back` and `method`; the return row says `account` when no money moved; the audit row has both amounts.
+
+**Screen:** the return dialog tells the cashier (both languages) that what is owed is taken off the account first, and the message after saving says how much came off the account and how much was paid back.
+
+**Evidence:** `test_domain.RefundFollowsTheMoneyTests` (9 tests; the first fails on the old code: the drawer lost 1,000,000 for goods nobody paid); `test_e2e_browser.ReturnOnCredit` returns a practice-shop instalment sale in a real browser.
+
+**Not changed (decision, not a bug):** the sale's own fee is not refunded when the customer chooses store credit for an unpaid plan beyond what they owe (the account just goes negative = the shop owes them). The owner can see it on the customer's page.
+
+## 2026-10-09 — independent review: three read leaks closed (return, warranty look-up, export)
+**Why:** the owner asked a reviewer who did not build 1.5.0 to open every page, button and permission in a real browser and to doubt "all tests green". The role matrix (every read route × owner, manager, cashier, storekeeper, and a person with no ticks at all) found what the existing tests never asked.
+
+**Found (all confirmed by running, none in the browser, all on the server — IAM-03/IAM-11):**
+1. `GET /api/return?id=` asked for **no permission at all**: a person with zero ticks could read any return (amounts, reason, lines, who took it). `/api/sale` already followed the Sales-page rule; this sibling did not.
+2. `GET /api/warranty?serial=` also asked for none: a person with zero ticks got the sale number, the price and the **customer's name and phone** for any serial.
+3. `GET /api/export` (ticked by `settings.edit`) wrote every purchase cost and every national ID number into the zip, for a person who may not see costs (`cost.view`) or national IDs (`customers.private`) on any screen.
+4. The counter's category buttons called `/api/products`, which needs the Products page, so a person with only `pos.sell` got a "not allowed" card when pressing a category. The counter has its own search for this.
+
+**Fixed:**
+- `/api/return`: needs one of the Sales-page permissions (`auth.PAGES['sales']`), and shows a return only to the person who took it, the person who made the sale, or someone with `sales.view_all` / `sales.return`.
+- `/api/warranty`: same page rule; the customer's name and phone come only with `customers.view` (otherwise `customer_hidden`, shown as «—», never as "walk-in customer").
+- `backup.export_zip(cost, private)`: what the person may not see is left **empty** in the file (the columns stay, so the file keeps its shape); the audit row says what was left out.
+- `/api/pos/search` takes `category_id` and `limit` (1–60), and the counter always uses it.
+
+**Evidence:** `tests/test_permissions_matrix.py` (7 tests; 6 fail and 1 errors on the old code):
+- a person with no ticks gets 403 on all 27 read routes and an empty home page;
+- a static guard fails the build when any read route in `app.py` neither asks for a permission nor is on the short list of "own" routes;
+- return and warranty by role; the export for a person with only `settings.edit`; the counter with only `pos.sell`.
+
+**Not changed (decisions, not bugs):** `/api/lookups` (the people list and settings the counter needs) and `/api/licence` stay open to any signed-in person.
+
+## 2026-10-09 — Today page: leaving before its numbers arrive no longer raises an error
+**Found by:** CI of the review branches (a browser test failed on the GitHub runner, passed on the reviewer's machine: a timing race).
+**Cause:** `views/home.js` waits for `/api/home`, then looks for its own box `#home-body` inside the page. If the person had already gone to another page (slow PC, slow disk, a quick click on the menu), the box was gone, the lookup gave nothing, and `root.className = …` raised «Cannot set properties of null». The other pages were probed the same way (a slow answer, then a click elsewhere): none of them overwrote the new page, so this was the only one.
+**Fix:** after the answer arrives, the Today page checks its box is still on the screen and stops quietly if not (also in the error branch).
+**Evidence:** `test_e2e_browser.LeavingWhileLoading` holds `/api/home` for 1.2 s, goes to Sales, and expects no console error. It fails on the old code with the message above and passes now.
+
 ## 2026-10-09 — 1.5.0: three activation kinds and the release proofs
 **Why:** the owner asked for a full push to the first paid shop. The release gate needed three things:
 - the three ways a shop pays: a 14-day trial, a monthly subscription and a permanent activation;

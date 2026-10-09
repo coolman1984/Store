@@ -404,6 +404,35 @@ class PracticeTests(unittest.TestCase):
             S.stop()
 
 
+class CookieIsolationTests(unittest.TestCase):
+    def test_the_practice_shop_has_its_own_cookie_name(self):
+        """Cookies belong to a host, not to a port: two shops on one PC must not share a cookie name, or signing in to the practice shop
+        signs the real shop out (found by the independent review of 2026-10-09). (One server at a time: the program keeps one shop per process.)"""
+        import http.client
+
+        def login_cookie(practice, user, password):
+            S = Server(practice=practice)
+            try:
+                c = http.client.HTTPConnection('127.0.0.1', S.port, timeout=10)
+                c.request('POST', '/api/login', json.dumps({'username': user, 'password': password}),
+                          {'Host': f'127.0.0.1:{S.port}', 'Origin': f'http://127.0.0.1:{S.port}', 'Content-Type': 'application/json'})
+                r = c.getresponse()
+                r.read()
+                header = r.getheader('Set-Cookie')
+                c.close()
+                other = 'store_session' if practice else 'store_practice_session'
+                foreign = S.client().get('/api/me', headers={'Cookie': f'{other}=anything'})[0]
+                return header, foreign
+            finally:
+                S.stop()
+        header, foreign = login_cookie(False, *OWNER)
+        self.assertTrue(header.startswith('store_session='), header)
+        self.assertEqual(foreign, 401, 'the practice shop\'s cookie means nothing in the real shop')
+        header, foreign = login_cookie(True, 'owner', 'practice-1234')
+        self.assertTrue(header.startswith('store_practice_session='), header)
+        self.assertEqual(foreign, 401, 'the real shop\'s cookie means nothing in the practice shop')
+
+
 class SetupTests(unittest.TestCase):
     def test_first_run_creates_owner_once(self):
         S = Server(setup=False)

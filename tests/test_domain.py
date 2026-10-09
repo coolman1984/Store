@@ -331,6 +331,18 @@ class ReturnTests(Base):
 
 
 class CashTests(Base):
+    def test_the_drawer_list_marks_a_reversed_expense_so_the_screen_stops_offering_to_reverse_it(self):
+        shift = cash.open_shift_of(self.s.db, self.s.users['owner']['id'])
+        made = self.s.do(cash.expense, {'idem_key': 'e1', 'amount': 1000, 'category': 'other', 'note': 'tea and sugar'})
+        before = [m for m in cash.shift_summary(self.s.db, shift['id'])['moves'] if m['id'] == made['id']][0]
+        self.assertFalse(before['reversed'])
+        self.s.do(cash.reverse_cash, made['id'], 'typed twice')
+        after = {m['id']: m for m in cash.shift_summary(self.s.db, shift['id'])['moves']}
+        self.assertTrue(after[made['id']]['reversed'])
+        with self.assertRaises(Problem) as e:
+            self.s.do(cash.reverse_cash, made['id'], 'again')
+        self.assertEqual(e.exception.key, 'err.alreadyReversed')
+
     def test_close_shift_with_difference_needs_reason_and_goes_to_safe(self):
         shift = cash.open_shift_of(self.s.db, self.s.users['owner']['id'])
         with self.assertRaises(Problem):
@@ -375,6 +387,47 @@ class CashTests(Base):
             self.assertTrue(self.s.db.value(f'SELECT COUNT(*) FROM {sql.split()[1] if sql.startswith("UPDATE") else sql.split()[2]}'))
             with self.assertRaises(sqlite3.DatabaseError):
                 self.s.db.run(sql)
+
+
+class HeaderTests(Base):
+    """The headers that carry the totals of money and goods documents are append-only too (found by the independent review of 2026-10-09:
+    only their lines were protected, so a bug or a hand-typed SQL line could change what a sale was worth)."""
+
+    def test_sale_return_purchase_transfer_and_plan_cannot_be_edited_or_deleted(self):
+        s = self.s
+        cust = s.do(cash.save_customer, {'name': 'Customer', 'phone': '01000000000'})
+        pid = s.product('TV', 1000000, 800000, qty=3)
+        r = sale(s, [{'product_id': pid, 'qty': 1}], [{'method': 'cash', 'amount': 200000}, {'method': 'installment', 'amount': 800000}], customer_id=cust,
+                 instalment={'months': 2, 'first_due': day(30), 'guarantor': {'name': 'G'}})
+        line = sales.sale_view(s.db, r['id'])['lines'][0]
+        s.do(sales.take_return, {'idem_key': 'h1', 'sale_id': r['id'], 'reason': 'changed mind', 'refund_method': 'cash',
+                                 'lines': [{'sale_line_id': line['id'], 'qty': 1}]})
+        s.do(stock.transfer, {'idem_key': 't1', 'from_id': s.shop, 'to_id': s.store, 'lines': [{'product_id': pid, 'qty': 1}]})
+        for sql in ('UPDATE sales SET total = 1', 'DELETE FROM sales', 'UPDATE returns SET total = 1', 'DELETE FROM returns',
+                    'UPDATE purchases SET total = 1', 'DELETE FROM purchases', 'UPDATE transfers SET note = \'x\'', 'DELETE FROM transfers',
+                    'UPDATE plans SET financed = 1', 'DELETE FROM plans'):
+            table = sql.split()[1] if sql.startswith('UPDATE') else sql.split()[2]
+            self.assertTrue(s.db.value(f'SELECT COUNT(*) FROM {table}'), table)
+            with self.assertRaises(sqlite3.DatabaseError, msg=sql):
+                s.db.run(sql)
+
+    def test_an_old_database_gets_the_new_guards_when_it_opens(self):
+        """The guards are made every time the database opens, so a shop that upgrades has them without any migration."""
+        import os
+        from db import Database
+        path = os.path.join(self.s.dir, 'data', 'store.db')
+        sale(self.s, [{'product_id': self.s.product(), 'qty': 1}])
+        for trigger in ('sales_no_update', 'sales_no_delete'):
+            self.s.db.run(f'DROP TRIGGER {trigger}')  # what a 1.5.0 database looks like
+        self.s.db.run('UPDATE sales SET note = \'edited by hand\'')  # nothing stops it there
+        reopened = Database(path)
+        try:
+            with self.assertRaises(sqlite3.DatabaseError):
+                reopened.run('UPDATE sales SET total = 1')
+            with self.assertRaises(sqlite3.DatabaseError):
+                reopened.run('DELETE FROM sales')
+        finally:
+            reopened.close()
 
 
 class StockTests(Base):
@@ -526,3 +579,124 @@ class ReportTests(Base):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class RefundFollowsTheMoneyTests(Base):
+    """A return gives back only money that came in. The independent review of 2026-10-09 found that a sale put on the customer's account
+    (nothing paid) could be refunded from the drawer in cash, while the customer still owed the full price."""
+
+    def setUp(self):
+        super().setUp()
+        self.s.do(lambda ctx: core.set_setting(ctx.db, 'instalment_markup_pct', 2))
+        self.cust = self.s.do(cash.save_customer, {'name': 'Customer', 'phone': '01000000000'})
+        self.tv = self.s.product('TV', 1000000, 800000, qty=5)
+        self.shift = cash.open_shift_of(self.s.db, self.s.users['owner']['id'])
+
+    def drawer(self):
+        return cash.drawer_expected(self.s.db, self.shift['id'])
+
+    def owed(self):
+        return cash.customer_balance(self.s.db, self.cust)
+
+    def give_back(self, r, qty=1, method='cash', user=None):
+        line = sales.sale_view(self.s.db, r['id'])['lines'][0]
+        return self.s.do(sales.take_return, {'idem_key': ids.uuid7(), 'sale_id': r['id'], 'reason': 'changed mind', 'refund_method': method,
+                                             'lines': [{'sale_line_id': line['id'], 'qty': qty}]}, user=user)
+
+    def test_a_sale_nobody_paid_is_not_refunded_in_cash(self):
+        sale(self.s, [{'product_id': self.tv, 'qty': 2}])  # the drawer holds 2,000,000 from other customers: it could pay, so it must not
+        r = sale(self.s, [{'product_id': self.tv, 'qty': 1}], [{'method': 'account', 'amount': 1000000}], customer_id=self.cust)
+        before = self.drawer()
+        out = self.give_back(r)  # the cashier picked cash: the server must not pay it
+        self.assertEqual(self.drawer(), before, 'not one piaster left the drawer')
+        self.assertEqual(self.owed(), 0, 'the customer no longer owes for goods that came back')
+        self.assertEqual((out['on_account'], out['paid_back'], out['method']), (1000000, 0, 'account'))
+        self.assertEqual(stock.on_hand(self.s.db, self.tv), 3, '5 − 2 cash − 1 on account + 1 back')
+        row = self.s.db.one('SELECT * FROM returns WHERE id = ?', out['id'])
+        self.assertEqual((row['refund_method'], row['total']), ('account', 1000000))
+        self.assertEqual(self.s.db.value("SELECT COUNT(*) FROM tenders WHERE ref_type = 'return' AND ref_id = ?", out['id']), 0)
+
+    def test_part_cash_part_account_pays_back_only_the_cash_part(self):
+        r = sale(self.s, [{'product_id': self.tv, 'qty': 1}], [{'method': 'cash', 'amount': 400000}, {'method': 'account', 'amount': 600000}], customer_id=self.cust)
+        before = self.drawer()
+        out = self.give_back(r)
+        self.assertEqual((out['on_account'], out['paid_back'], out['method']), (600000, 400000, 'cash'))
+        self.assertEqual(self.drawer(), before - 400000)
+        self.assertEqual(self.owed(), 0)
+        self.assertEqual(self.s.db.value("SELECT SUM(amount) FROM tenders WHERE ref_type = 'return' AND ref_id = ?", out['id']), -400000)
+
+    def test_what_is_owed_is_wiped_first_when_goods_come_back_in_two_steps(self):
+        r = sale(self.s, [{'product_id': self.tv, 'qty': 2}], [{'method': 'cash', 'amount': 800000}, {'method': 'account', 'amount': 1200000}], customer_id=self.cust)
+        first = self.give_back(r, qty=1)
+        self.assertEqual((first['on_account'], first['paid_back']), (1000000, 0))
+        before = self.drawer()
+        second = self.give_back(r, qty=1)
+        self.assertEqual((second['on_account'], second['paid_back']), (200000, 800000))
+        self.assertEqual(self.drawer(), before - 800000)
+        self.assertEqual(self.owed(), 0)
+        self.assertEqual(first['total'] + second['total'], 2000000, 'never more than the sale')
+
+    def test_what_the_customer_already_paid_off_comes_back_in_cash(self):
+        r = sale(self.s, [{'product_id': self.tv, 'qty': 1}], [{'method': 'account', 'amount': 1000000}], customer_id=self.cust)
+        self.s.do(cash.collect, {'idem_key': 'c1', 'customer_id': self.cust, 'amount': 400000})
+        before = self.drawer()
+        out = self.give_back(r)
+        self.assertEqual((out['on_account'], out['paid_back']), (600000, 400000), 'the 400,000 they paid goes back; the 600,000 they owed is wiped')
+        self.assertEqual(self.drawer(), before - 400000)
+        self.assertEqual(self.owed(), 0)
+
+    def test_instalment_sale_with_a_fee_goes_back_whole(self):
+        lines = [{'product_id': self.tv, 'qty': 1}]
+        r = sale(self.s, lines, [{'method': 'cash', 'amount': 200000}, {'method': 'installment', 'amount': 960000}], customer_id=self.cust,
+                 instalment={'months': 10, 'first_due': day(30), 'guarantor': {'name': 'G'}})
+        plan = self.s.db.one('SELECT * FROM plans WHERE id = ?', r['plan_id'])
+        self.s.do(cash.collect, {'idem_key': 'k1', 'customer_id': self.cust, 'amount': 96000, 'plan_id': plan['id']})
+        before = self.drawer()
+        out = self.give_back(r)
+        # they paid 200,000 down and 96,000 once; they owed 864,000 more, fee included; they give everything back
+        self.assertEqual((out['total'], out['on_account'], out['paid_back']), (1000000, 864000, 296000))
+        self.assertEqual(self.drawer(), before - 296000, 'exactly what they had paid in')
+        self.assertEqual(self.owed(), 0)
+        self.assertEqual(cash.plan_schedule(self.s.db, plan)['remaining'], 0)
+
+    def test_instalment_sale_returned_at_once_gives_back_only_the_down_payment(self):
+        r = sale(self.s, [{'product_id': self.tv, 'qty': 1}], [{'method': 'cash', 'amount': 200000}, {'method': 'installment', 'amount': 960000}],
+                 customer_id=self.cust, instalment={'months': 10, 'first_due': day(30), 'guarantor': {'name': 'G'}})
+        before = self.drawer()
+        out = self.give_back(r)
+        self.assertEqual((out['on_account'], out['paid_back']), (960000, 200000))
+        self.assertEqual(self.drawer(), before - 200000)
+        self.assertEqual(self.owed(), 0, 'the financing fee goes with the goods')
+
+    def test_store_credit_is_a_choice_and_pays_nothing_from_the_drawer(self):
+        r = sale(self.s, [{'product_id': self.tv, 'qty': 1}], customer_id=self.cust)  # a cash sale
+        before = self.drawer()
+        out = self.give_back(r, method='account')
+        self.assertEqual((out['on_account'], out['paid_back'], out['method']), (1000000, 0, 'account'))
+        self.assertEqual(self.drawer(), before)
+        self.assertEqual(self.owed(), -1000000, 'the shop owes the customer: store credit')
+
+    def test_only_the_cash_part_needs_cash_in_the_drawer(self):
+        poor = self.s.user('cashier', 'poor')
+        self.s.user('manager', 'bossy')
+        self.s.do(cash.open_shift, 0, user=poor)
+        r = sale(self.s, [{'product_id': self.tv, 'qty': 1}], [{'method': 'account', 'amount': 1000000}], customer_id=self.cust)
+        body = lambda key, sid: {'idem_key': key, 'sale_id': sid, 'reason': 'changed mind', 'refund_method': 'cash', 'approval': {'username': 'bossy', 'password': PW},
+                                 'lines': [{'sale_line_id': sales.sale_view(self.s.db, sid)['lines'][0]['id'], 'qty': 1}]}
+        out = self.s.do(sales.take_return, body('p1', r['id']), user=poor)  # an empty drawer is fine: no cash is paid
+        self.assertEqual(out['paid_back'], 0)
+        paid = sale(self.s, [{'product_id': self.tv, 'qty': 1}], customer_id=self.cust)
+        with self.assertRaises(Problem) as e:
+            self.s.do(sales.take_return, body('p2', paid['id']), user=poor)  # a real cash refund from an empty drawer is refused
+        self.assertEqual(e.exception.key, 'err.drawerShort')
+
+    def test_a_retry_returns_the_same_answer_and_pays_once(self):
+        r = sale(self.s, [{'product_id': self.tv, 'qty': 1}], [{'method': 'cash', 'amount': 400000}, {'method': 'account', 'amount': 600000}], customer_id=self.cust)
+        line = sales.sale_view(self.s.db, r['id'])['lines'][0]
+        body = {'idem_key': 'same', 'sale_id': r['id'], 'reason': 'changed mind', 'refund_method': 'cash', 'lines': [{'sale_line_id': line['id'], 'qty': 1}]}
+        before = self.drawer()
+        a = self.s.do(sales.take_return, body)
+        b = self.s.do(sales.take_return, body)
+        self.assertEqual(a['id'], b['id'])
+        self.assertTrue(b['repeat'])
+        self.assertEqual(self.drawer(), before - 400000)
