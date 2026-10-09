@@ -1,7 +1,7 @@
 """Is this copy allowed to sell today? The licence code pasted by the shop, checked on this PC.
 
 - The vendor's Licence Studio (Apps-Factory apps/licence-studio) signs a code for this PC's device code.
-  A trial is 14 days. A new code is needed after that.
+  A trial is 14 days; a paid monthly code lasts 30 days; a lifetime code never expires.
 - Only the vendor's public keys are inside the program (licence_keys.txt). They cannot make codes.
 - Without a working code the shop can still open everything, read, print, export and back up (constitution 8):
   only actions that change data are refused, with a clear message and the device code to send to the vendor.
@@ -116,7 +116,7 @@ def status(db):
 
 
 def _check(code, dev, today):
-    base = {'device': dev, 'full': False, 'edition': None, 'first_day': None, 'last_day': None, 'days_left': None,
+    base = {'device': dev, 'full': False, 'edition': None, 'permanent': False, 'first_day': None, 'last_day': None, 'days_left': None,
             'serial': None, 'reason': ''}
     keys = trusted_keys()
     if not keys:
@@ -125,7 +125,7 @@ def _check(code, dev, today):
         return {**base, 'state': 'none', 'reason': 'no_code'}
     r = afcodes.read_code(code, keys, PRODUCT_ID, dev, today)
     out = {**base, 'state': r.state, 'full': r.full_access, 'reason': r.reason}
-    out.update({k: r.terms.get(k) for k in ('edition', 'first_day', 'last_day', 'days_left', 'serial') if k in r.terms})
+    out.update({k: r.terms.get(k) for k in ('edition', 'permanent', 'first_day', 'last_day', 'days_left', 'serial') if k in r.terms})
     if r.state == 'active' and r.terms.get('edition') == 'trial':
         out['state'] = 'trial'
     return out
