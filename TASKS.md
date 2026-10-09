@@ -21,15 +21,21 @@
 
 - [x] 1.4.0 owner recovery code (IAM-01): paper code at setup, «نسيت كلمة السر؟», new code from Settings → People
 
-## Next (in order) — full list and reasons in docs/03-ready-to-sell.md
-- [ ] Engineering gaps for the gate: newer-data refusal test (DATA-06), kill-process drill (OPS-06), practice passwords refused in a real shop (IAM-06), secrets scan in CI (SEC-02), export formula test (SEC-07), drop `nuitka-4.2.2.tar.gz` from the repository
-- [ ] Release-commit proofs: ui-lab rerun (PERF-01, A11Y-01 + a manual keyboard journey), Windows workflow run id and SHA in the release notes (OPS-01, OPS-07), upgrade 1.3.0 → 1.4.0 on a realistic copy (REL-03)
-- [ ] Trademark/domain check for "Mizan / ميزان" in EG, SA, AE (owner) — **gate before renaming the installer and data folder**
-- [ ] One-hour usability session with a real cashier on the new counter (owner)
-- [ ] Field visit: 5 Beni Suef shops answer the 5 questions in docs/01-research.md §7 (owner) — **gate before selling**
-- [x] Windows installer (Nuitka + Inno Setup): built, silently installed, started and uninstalled by the `windows installer` workflow on a real Windows runner (run 3 green). **Still to do by a person:** clean-PC install + restore drill
-- [ ] Generate the vendor licence key in Licence Studio, put the public key in `licence_keys.txt`, build the pilot copy
-- [ ] Receipt printer field test (80 mm and 58 mm, Arabic shaping on the actual printer driver)
-- [x] Support heartbeat to the Vendor Control Center (opt-in, exact fields; Settings → Support). Still to do: a support grant/repair flow in the UI (factory SUP-02/03)
+- [x] 1.5.0 three activation kinds (trial 14 days, monthly, permanent); release proofs: DATA-06, REL-03, OPS-06 (Linux + Windows), IAM-06, SEC-02, SEC-07, OPS-01/OPS-07 (real shop journey + update on Windows, RELEASE-PROOF.txt), PERF-01 rerun
+
+- [x] Windows installer (Nuitka + Inno Setup): built, silently installed, started and uninstalled by the `windows installer` workflow on a real Windows runner
+- [x] Support heartbeat to the Vendor Control Center (opt-in, exact fields; Settings → Support)
 - [x] Barcode on the receipt + sticker labels (per copy or per serial) — Code 128, decoded by a real scanner library in the check
+
+## Next (in order) — full list and reasons in docs/03-ready-to-sell.md
+- [ ] Vendor licence key from Licence Studio → public key in `licence_keys.txt`, build the pilot copy (owner)
+- [ ] Prices for the monthly and permanent codes, and who pays for support → DECISIONS.md (owner)
+- [ ] Vendor WhatsApp number for the licence page, set at install time in config, not in this public repository (owner)
+- [ ] Trademark/domain check for "Mizan / ميزان" in EG, SA, AE (owner) — gate before renaming the installer and data folder
+- [ ] Clean-PC install + restore on a second clean PC (DATA-05, clean_device_restore) (field)
+- [ ] One-hour session with a real cashier, including a keyboard-only journey (A11Y-01) (field)
+- [ ] Receipt printer field test, 80 mm and 58 mm, Arabic shaping on the real driver (field)
+- [ ] Two weeks at the first shop, cash only; owner's signed acceptance (core_user_acceptance) (field)
+- [ ] Field visit: 5 Beni Suef shops answer docs/01-research.md §7 (owner) — gate before selling
+- [ ] Support grant/repair flow in the UI (factory SUP-02/03, reference control)
 - [ ] Supplier returns, cheque register (after pilot feedback)
