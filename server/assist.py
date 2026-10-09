@@ -426,6 +426,8 @@ class Assist:
         with self.lock:
             result, _, _, _ = self._report_preview(data, snapshot)
             result['digest'] = self._report_digest(result['event'])
+            # shown in the plain-language review; every stored event already carries the program version
+            result['version'] = VERSION
             return result
 
     def feedback(self, user, data):

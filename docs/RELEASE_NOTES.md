@@ -1,5 +1,8 @@
 # Release notes
 
+## 1.2.1
+- Problem reports: before you send, you now see a plain summary in your language. It shows what will be sent (your description with passwords and phone numbers removed, the program version, the problem type, and the page) and what will not be sent. The technical details are still available on request. Cancel closes the report without saving anything.
+
 ## 1.2.0 — release candidate
 - New: Arabic and English in-app courses for owners, managers, cashiers and storekeepers, with per-person progress and a step-by-step coach. Custom profiles follow their permissions. Press F1 or the ? button for help.
 - New: each server error has an explanation and a next action. Arabic guidance uses «العربية الميسّرة»; the sale lesson is «إنشاء فاتورة بيع».
