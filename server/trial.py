@@ -35,6 +35,9 @@ BACKOFF = (60, 300, 900, 3600)  # seconds between tries while the relay cannot b
 POLL = ((600, 20), (3600, 120), (10 ** 9, 600))  # (age of the request in seconds, seconds between looks): quick at first, calmer later
 SENT_FIELDS = ('product', 'kind', 'device', 'machine', 'nonce', 'shop', 'ref', 'version')  # exactly this goes out: shown on the screen first
 ACTIVE = ('sending', 'waiting', 'failed')
+MANUAL_KEY = 'licence_manual_at'  # when a person last pasted a working code by hand: a late answer to an older request never replaces it
+# Lock order, everywhere: this module's lock first, then the database. `step` holds the lock across the network call, so nothing may take
+# the lock while it holds the database (a request typed during a slow relay answer once froze the whole shop that way: review of PR #17).
 _lock = threading.Lock()
 
 
@@ -91,7 +94,10 @@ def public(app):
     if not st:
         return {**base, 'status': 'none'}
     keep = ('status', 'kind', 'reason', 'created_at', 'tries', 'next_try', 'error', 'serial')
-    return {**base, **{k: st.get(k) for k in keep}}
+    out = {**base, **{k: st.get(k) for k in keep}}
+    if out['status'] in ACTIVE + ('issued',) and _superseded(app.db, st):
+        out.update(status='closed', reason='manual', error='')  # what the next look will record; the screen need not wait for it
+    return out
 
 
 def preview(app, kind, ref=''):
@@ -130,14 +136,25 @@ def _failed(state, error):
     _soon(state, BACKOFF[min(state['tries'] - 1, len(BACKOFF) - 1)])
 
 
+def note_manual(db):
+    """Called inside the transaction that saved a code pasted by hand. Takes no lock of this module (see the lock order above)."""
+    db.run('INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', MANUAL_KEY, ids.iso())
+
+
+def _superseded(db, st):
+    """A code was pasted by hand after this request was made: that code is the one the person chose."""
+    manual = db.value('SELECT value FROM meta WHERE key = ?', MANUAL_KEY)
+    return bool(manual and st.get('created_at') and manual >= st['created_at'])
+
+
 def begin(app, ctx, kind, ref=''):
-    """The button, first half: record the request (inside the caller's transaction, no network). Idempotent: a request that is still
-    running is returned, not repeated. The caller then calls `step` OUTSIDE the transaction: the shop's database is never locked by the internet."""
+    """The button, first half: record the request in its own short transaction (no network). Idempotent: a request that is still
+    running is returned, not repeated. The caller then calls `step`: the shop's database is never locked by the internet."""
     if kind not in KINDS:
         raise Problem('err.badRequest', 'The request is not understood.', 400)
     if not relay_url(app):
         raise Problem('err.trialOff', 'This copy cannot ask the company by itself. Send the device code to the company and paste the code.', 409)
-    with _lock:
+    with _lock, app.db.tx():
         st = _meta(app.db)
         if st and st.get('status') in ACTIVE + ('issued',):
             return public(app)
@@ -152,7 +169,7 @@ def begin(app, ctx, kind, ref=''):
 
 def clear(app, ctx):
     """Forget a refused, failed or finished request so a new one can be made."""
-    with _lock:
+    with _lock, app.db.tx():
         st = _meta(app.db)
         if st and st.get('status') in ('refused', 'failed', 'activated', 'closed'):
             _meta(app.db, clear=True)
@@ -165,6 +182,10 @@ def step(app, now=None, force=False):
     with _lock:
         st = _meta(app.db)
         if not st or st.get('status') not in ACTIVE + ('issued',):
+            return public(app)
+        if _superseded(app.db, st):
+            st.update(status='closed', reason='manual', error='', poll_token=None)
+            _meta(app.db, st)
             return public(app)
         now = now or ids.utcnow()
         due = ids.parse(st.get('next_try'))
@@ -216,14 +237,23 @@ def step(app, now=None, force=False):
         return public(app)
 
 
+class _Manual(Exception):
+    pass
+
+
 def _activate(app, st, url, code):
     """The answer arrived: check it exactly like a pasted code. Only a code that works is saved, and only then does the relay forget it."""
     try:
         with app.db.tx():
+            if _superseded(app.db, st):  # checked inside the transaction: a code pasted a moment ago always wins
+                raise _Manual()
             lic = licence.activate(app.db, code)
             app.db.insert('audit', {'id': ids.uuid7(), 'at': ids.iso(), 'user_id': st.get('by') or '', 'user_name': 'licence', 'ip': '',
                                     'action': 'licence.auto', 'entity': 'licence', 'entity_id': lic.get('serial') or '',
                                     'detail': json.dumps({'state': lic['state'], 'last_day': lic.get('last_day'), 'kind': st['kind']})})
+    except _Manual:
+        st.update(status='closed', reason='manual', error='', poll_token=None)
+        return
     except ValueError as e:
         st.update(status='failed', error='code:' + str(e), reason=str(e))  # shown with the manual way; the relay keeps the code
         _soon(st, 900)
