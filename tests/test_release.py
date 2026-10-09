@@ -118,8 +118,7 @@ class DataSafety(unittest.TestCase):
             money = (app.db.value('SELECT SUM(total) FROM sales'), app.db.value('SELECT SUM(amount) FROM cash_moves'),
                      app.db.value('SELECT SUM(qty) FROM stock_moves'))
             self.assertGreater(count['sales'], 50)
-            app.db.conn.execute('DROP TABLE guide_progress')  # what schema 3 added; schema 2 is the previous release's data
-            app.db.conn.execute('DROP TABLE consent_log')
+            app.db.conn.execute('ALTER TABLE returns DROP COLUMN fee')  # what schema 4 added; schema 3 is the previous release's data
             app.db.conn.execute("UPDATE meta SET value = ? WHERE key = 'schema'", (str(version.SCHEMA - 1),))
             app.db.close()
             app = app_mod.build(home, practice=True)

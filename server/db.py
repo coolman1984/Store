@@ -164,7 +164,10 @@ CREATE TABLE profiles (
   id TEXT PRIMARY KEY, org_id TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', perms TEXT NOT NULL DEFAULT '[]',
   max_discount_pct INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, changed_at TEXT NOT NULL) STRICT;
 ALTER TABLE users ADD COLUMN perms TEXT;
-""", 3: afguide.SQL.rstrip() + ";\n" + afconsent.SQL + "\n"}
+""", 3: afguide.SQL.rstrip() + ";\n" + afconsent.SQL + "\n", 4: """
+-- the part of an instalment fee a return gave back: reports subtract it with the goods (returns made before this kept the whole fee)
+ALTER TABLE returns ADD COLUMN fee INTEGER NOT NULL DEFAULT 0;
+"""}
 
 
 def _guards(conn):

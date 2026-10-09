@@ -14,7 +14,12 @@
 
 **Screen:** the return dialog tells the cashier (both languages) that what is owed is taken off the account first, and the message after saving says how much came off the account and how much was paid back.
 
-**Evidence:** `test_domain.RefundFollowsTheMoneyTests` (9 tests; the first fails on the old code: the drawer lost 1,000,000 for goods nobody paid); `test_e2e_browser.ReturnOnCredit` returns a practice-shop instalment sale in a real browser.
+**Found in the independent review of this PR (Codex, two P1) and fixed in it:**
+- The ledgers gave the instalment fee back, but `returns.total` held only the goods, and the reports (`summary`, `daily_series`, `year_turnover`) subtract `returns.total`: a fully returned 1,160,000 sale with a 160,000 fee still showed 160,000 of sales and profit. Each return now keeps the fee it gave back (`returns.fee`, schema 4, `ALTER TABLE … ADD COLUMN`, a checked copy is made before the upgrade as always); the reports subtract `total + fee`. Returns made before keep `fee = 0`, which is what they gave back.
+- A sale could be put partly on the open account and partly on instalments (the account part even counted as the plan's "down payment"). A return then cleared only the plan and paid the account part from the drawer. Such a sale is now refused (`err.creditMix`: one way of credit per sale, in both languages and in the guide), and an older one that has both clears each part from its own ledger (`sales._owed_parts`).
+- Tests: `test_a_returned_instalment_fee_leaves_the_reports_too`, `test_a_sale_is_on_the_account_or_on_instalments_never_both`, `test_an_older_sale_on_both_credits_clears_both_when_it_comes_back`; the N-1 upgrade test now starts from a schema-3 shop.
+
+**Evidence:** `test_domain.RefundFollowsTheMoneyTests` (12 tests; the first fails on the old code: the drawer lost 1,000,000 for goods nobody paid); `test_e2e_browser.ReturnOnCredit` returns a practice-shop instalment sale in a real browser.
 
 **Not changed (decision, not a bug):** the sale's own fee is not refunded when the customer chooses store credit for an unpaid plan beyond what they owe (the account just goes negative = the shop owes them). The owner can see it on the customer's page.
 
