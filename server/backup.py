@@ -48,7 +48,7 @@ def make(db, folder, tag='', extra_dirs=()):
     if not check(part):
         os.remove(part)
         raise IOError('The backup copy failed its check.')
-    with open(part, 'rb') as f:
+    with open(part, 'r+b') as f:  # Windows refuses fsync on a read-only handle
         os.fsync(f.fileno())
     os.replace(part, path)
     for extra in extra_dirs or ():

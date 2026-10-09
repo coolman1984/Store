@@ -99,6 +99,11 @@ class ApiTests(unittest.TestCase):
         st, d, _ = self.owner.post('/api/settings/save', {'settings': {'pay_methods': ['cash']}})
         self.assertEqual(d['pay_methods'], ['cash'])
 
+    def test_a_too_large_body_gets_a_calm_answer(self):
+        for path in ('/api/login', '/api/recover'):
+            st, d, _ = self.S.client().post(path, {'code': 'x' * 100000, 'password': 'y'})
+            self.assertEqual((st, d['key']), (413, 'err.tooLarge'), path)
+
     def test_dns_rebinding_and_cross_site_writes_refused(self):
         st, _, _ = self.owner.get('/api/home', headers={'Host': 'evil.example.com'})
         self.assertEqual(st, 421)

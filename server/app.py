@@ -60,6 +60,7 @@ OPEN_WRITES = {'/api/setup', '/api/login', '/api/logout', '/api/password', '/api
                '/api/shift/close', '/api/watch/review', '/api/support/save', '/api/support/ping',
                '/api/guide/progress', '/api/consent/decide', '/api/telemetry/events',
                '/api/telemetry/feedback', '/api/telemetry/feedback/preview'}
+DRAIN_LIMIT = 8 * 1048576  # a too-large body up to this size is read and dropped before the answer
 log = logging.getLogger('store')
 
 
@@ -281,6 +282,13 @@ class Handler(BaseHTTPRequestHandler):
         raw = self.headers.get('Content-Length') or '0'
         if not raw.isdigit() or int(raw) > limit:
             self.close_connection = True
+            if raw.isdigit() and int(raw) <= DRAIN_LIMIT:  # read what was sent, so the sender gets the calm answer, not a reset
+                left = int(raw)
+                while left > 0:
+                    chunk = self.rfile.read(min(left, 65536))
+                    if not chunk:
+                        break
+                    left -= len(chunk)
             raise Problem('err.tooLarge', 'The request is too large.', 413)
         n = int(raw)
         data = self.rfile.read(n) if n else b''
