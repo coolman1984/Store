@@ -128,6 +128,11 @@ def prune(folder, keep=60):
 COST_COLUMNS = {'costs': None, 'stock_moves': ('unit_cost',), 'sale_lines': ('unit_cost',), 'purchase_lines': ('unit_cost',),
                 'sales': ('cost_total',), 'purchases': ('total',)}  # None = every column (the whole cost history)
 PRIVATE_COLUMNS = {'customers': ('national_id',), 'plans': ('guarantor_national_id',)}
+# The same purchase cost is also written elsewhere, one row at a time: the supplier's ledger (a purchase owes its total), the cash
+# paid on receiving, and the audit line of the receiving. Those rows lose the amount too (review of PR #14).
+COST_ROWS = {'ap_entries': (lambda r: r.get('kind') == 'purchase', ('amount',)),
+             'cash_moves': (lambda r: r.get('kind') == 'purchase', ('amount',)),
+             'audit': (lambda r: r.get('action') == 'purchase.receive', ('detail',))}
 
 
 def export_zip(db, cost=True, private=True):
@@ -147,8 +152,10 @@ def export_zip(db, cost=True, private=True):
             if not private and table in PRIVATE_COLUMNS:
                 hidden |= set(PRIVATE_COLUMNS[table])
             w.writerow(cols)
+            rule = COST_ROWS.get(table) if not cost else None
             for r in rows:
-                w.writerow(['' if c in hidden else safe_cell(r[c]) for c in cols])
+                blank = hidden | set(rule[1]) if rule and rule[0](r) else hidden
+                w.writerow(['' if c in blank else safe_cell(r[c]) for c in cols])
             z.writestr(f'{table}.csv', out.getvalue())
     return buf.getvalue()
 
