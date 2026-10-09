@@ -1,13 +1,22 @@
 name: tests
-on: [push, pull_request]
+on:
+  # every branch push and every PR (no paths filter), so the required `test` check is never left pending on main
+  push:
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  # a newer push to the same PR cancels the older run; pushes to main and tags always finish
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Test-only tools (the program itself needs none)

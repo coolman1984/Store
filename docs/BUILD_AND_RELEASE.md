@@ -4,7 +4,7 @@
 
 1. Change `server/version.py` (VERSION) and describe the version in `docs/RELEASE_NOTES.md` (the build refuses otherwise).
 2. Put the vendor's **public** key line(s) in `licence_keys.txt` (from Licence Studio → Keys). Never a private key.
-3. Push a tag `vX.Y.Z`, or run the workflow `windows installer` by hand. It: checks the files → compiles with Nuitka (no readable source
+3. Merge to `main` (every push to main builds a tested installer artifact), push a tag `vX.Y.Z` for a release, or run the workflow `windows installer` by hand. It: checks the files → compiles with Nuitka (no readable source
    in the program folder) → builds `Al-Store-Setup-<version>.exe` with Inno Setup → starts the program folder and the installed copy and
    checks they serve pages → uninstalls and checks the shop's data survived.
 4. Download the installer from the workflow's artifacts. Test on a clean PC: install, open, activate a trial code, sell, back up, restore.

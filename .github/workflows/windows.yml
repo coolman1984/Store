@@ -1,21 +1,25 @@
 # Builds the Windows installer Al-Store-Setup-<version>.exe, installs it silently, starts the installed program and checks
-# that it serves its pages. Runs on version tags, by hand, and on pushes to the working branches (so a change to the build
-# is proven before it matters). See docs/BUILD_AND_RELEASE.md.
+# that it serves its pages. Runs on pushes to main (so every merge yields a tested installer artifact), on version tags
+# (releases), by hand, and on pushes to the working branches (so a change to the build is proven before it matters).
+# See docs/BUILD_AND_RELEASE.md.
 name: windows installer
 on:
   push:
-    branches: ['ccr-**', 'claude/**']
+    branches: [main, 'ccr-**', 'claude/**']
     tags: ['v*']
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read  # builds and uploads an artifact only; nothing is published from here
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   installer:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Check the shipped files
@@ -44,7 +48,7 @@ jobs:
           Start-Process -FilePath $unins -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -Wait
           if (Test-Path (Join-Path ${env:ProgramFiles} 'Al-Store\Al-Store.exe')) { throw 'the program was not removed' }
           if (-not (Test-Path (Join-Path ${env:ProgramData} 'Al-Store'))) { throw 'the shop data folder must survive an uninstall' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Al-Store-Setup
           path: dist/Al-Store-Setup-*.exe
