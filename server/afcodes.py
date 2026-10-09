@@ -1,4 +1,4 @@
-# Vendored from Apps-Factory packages/af-license 0.2.0 af_license/codes.py - do not edit here.
+# Vendored from Apps-Factory packages/af-license 0.3.0 af_license/codes.py - do not edit here.
 # Update with: python scripts/vendor_licence.py <product repo> (from the Apps-Factory checkout)
 """Licence *codes*: a signed licence short enough to send on WhatsApp and paste into the program.
 
@@ -34,7 +34,8 @@ except ImportError:  # a vendored copy next to ed25519.py in a stdlib-only produ
 VERSION = 1
 EPOCH = date(2024, 1, 1)
 ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'  # Crockford base32
-EDITIONS = {1: 'trial', 2: 'standard', 3: 'pro'}
+EDITIONS = {1: 'trial', 2: 'standard', 3: 'pro', 4: 'monthly', 5: 'lifetime'}
+LIFETIME_END = 65535  # reserved signed date value: never expires, not a calendar date
 EDITION_IDS = {v: k for k, v in EDITIONS.items()}
 DOMAIN = b'AF-LICENCE-CODE/1'  # domain separation: a code signature can never be reused as another document's
 _LAYOUT = '>B4sBHHHB6s4sB2s'  # 26 bytes
@@ -128,20 +129,26 @@ def issue_code(private_pem: bytes, product_id: str, edition: str, first_day: dat
         raise ValueError('unknown_edition')
     if not 1 <= int(days) <= 3660:
         raise ValueError('days_out_of_range')
+    if edition == 'monthly' and int(days) != 30:
+        raise ValueError('monthly_is_30_days')
+    if edition == 'lifetime' and not device:
+        raise ValueError('lifetime_requires_device')
     if not 0 <= int(grace_days) <= 60 or not 1 <= int(seats) <= 255:
         raise ValueError('grace_or_seats_out_of_range')
     private = serialization.load_pem_private_key(private_pem, password=None)
     if not isinstance(private, Ed25519PrivateKey):
         raise ValueError('signing key must be Ed25519')
     public_raw = private.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
-    last_day = first_day + timedelta(days=int(days) - 1)
+    last_day = first_day + timedelta(days=int(days) - 1) if edition != 'lifetime' else None
+    signed_last = LIFETIME_END if edition == 'lifetime' else _num(last_day)
     serial = serial or os.urandom(4)
     payload = struct.pack(_LAYOUT, VERSION, product_tag(product_id), EDITION_IDS[edition], _num(issued or date.today()),
-                          _num(first_day), _num(last_day), int(grace_days), _device_tag(device), serial, int(seats),
+                          _num(first_day), signed_last, int(grace_days), _device_tag(device), serial, int(seats),
                           hashlib.sha256(public_raw).digest()[:2])
     signature = private.sign(DOMAIN + payload)
     return {'code': group(_b32(payload + signature)), 'serial': serial.hex().upper(), 'edition': edition,
-            'first_day': first_day.isoformat(), 'last_day': last_day.isoformat(), 'grace_days': int(grace_days),
+            'first_day': first_day.isoformat(), 'last_day': last_day.isoformat() if last_day else None,
+            'permanent': edition == 'lifetime', 'grace_days': int(grace_days),
             'device': device and group(normalize(device), 5), 'seats': int(seats), 'product': product_id}
 
 
@@ -187,8 +194,12 @@ def read_code(text: str, trusted_public_keys: list[str], product_id: str, device
         return bad('wrong_product')
     if edition not in EDITIONS:
         return bad('unknown_edition')
+    permanent = EDITIONS[edition] == 'lifetime'
+    if (last == LIFETIME_END) != permanent:
+        return bad('invalid_expiry')
     terms = {'edition': EDITIONS[edition], 'issued': _day(issued).isoformat(), 'first_day': _day(first).isoformat(),
-             'last_day': _day(last).isoformat(), 'grace_days': grace, 'seats': seats, 'serial': serial.hex().upper(),
+             'last_day': None if permanent else _day(last).isoformat(), 'permanent': permanent,
+             'grace_days': grace, 'seats': seats, 'serial': serial.hex().upper(),
              'device_bound': dtag != b'\0' * 6}
     if terms['device_bound']:
         try:
@@ -197,11 +208,11 @@ def read_code(text: str, trusted_public_keys: list[str], product_id: str, device
         except ValueError:
             return CodeResult(False, 'invalid', 'other_device', terms)
     today = today or date.today()
-    last_day = _day(last)
-    terms['days_left'] = (last_day - today).days + 1
+    last_day = None if permanent else _day(last)
+    terms['days_left'] = None if permanent else (last_day - today).days + 1
     if today < _day(first):
         return CodeResult(True, 'not_yet_valid', 'starts_later', terms)
-    if today <= last_day:
+    if permanent or today <= last_day:
         return CodeResult(True, 'active', '', terms)
     if today <= last_day + timedelta(days=grace):
         return CodeResult(True, 'grace', 'renew_soon', terms)
