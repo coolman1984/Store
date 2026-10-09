@@ -8,14 +8,15 @@ import { mark } from './brand.js';
 
 export const S = { boot: null, me: null, lookups: null, route: 'home', params: {}, counts: {} };
 
-// route -> view module loader + nav metadata (lazy: a page's code loads the first time it is opened)
+// route -> view module loader + nav metadata (lazy: a page's code loads the first time it is opened).
+// `perm`: any one of them opens the page - the same table as the server's auth.PAGES (a test keeps them equal).
 export const ROUTES = {
   pos: { icon: 'cart', perm: ['pos.sell'], load: () => import('./views/pos.js'), hot: true },
   home: { icon: 'home', load: () => import('./views/home.js') },
   sales: { icon: 'receipt', perm: ['pos.sell', 'sales.view_all', 'sales.return'], load: () => import('./views/sales.js') },
-  customers: { icon: 'users', perm: ['customers.edit', 'installments.collect'], load: () => import('./views/customers.js') },
-  products: { icon: 'tag', load: () => import('./views/products.js') },
-  stock: { icon: 'warehouse', load: () => import('./views/stock.js') },
+  customers: { icon: 'users', perm: ['customers.view'], load: () => import('./views/customers.js') },
+  products: { icon: 'tag', perm: ['products.view'], load: () => import('./views/products.js') },
+  stock: { icon: 'warehouse', perm: ['stock.view'], load: () => import('./views/stock.js') },
   receive: { icon: 'truck', perm: ['stock.receive'], load: () => import('./views/receive.js') },
   cash: { icon: 'safe', perm: ['pos.sell', 'cash.safe', 'shifts.manage', 'cash.expense'], load: () => import('./views/cash.js') },
   watch: { icon: 'eye', perm: ['watch.view'], load: () => import('./views/watch.js') },
@@ -334,8 +335,8 @@ function palette() {
     if (q.length < 2) return;
     const found = [];
     const [p, c] = await Promise.all([
-      api.get('/api/products', { q, limit: 6 }).catch(() => ({ items: [] })),
-      can('customers.edit', 'installments.collect') ? api.get('/api/customers', { q }).catch(() => []) : [],
+      can('products.view', 'stock.view') ? api.get('/api/products', { q, limit: 6 }).catch(() => ({ items: [] })) : { items: [] },
+      can('customers.view') ? api.get('/api/customers', { q }).catch(() => []) : [],
     ]);
     p.items.forEach((x) => found.push({ group: t('cmdk.products'), label: x.name, meta: money(x.prices.retail), icon: 'box', go: () => go('products', { id: x.id }) }));
     c.slice(0, 5).forEach((x) => found.push({ group: t('cmdk.customers'), label: x.name, meta: x.phone, icon: 'user', go: () => go('customers', { id: x.id }) }));

@@ -27,11 +27,21 @@ export default {
       'Open "Cash & shifts".', 'Press "Close shift" and type the count of each note, or the whole amount.',
       'The program shows over or short. If there is a difference, write what happened.',
       'The counted cash goes to the main safe; the owner sees any difference in "Owner\'s eye".'] },
+    { id: 'people', icon: 'users', title: 'Add a person and choose what they see', steps: [
+      'Open Settings → People & permissions and press "Add a person".',
+      'Type the name, a user name and a password, and choose their profile (Cashier, Storekeeper, Manager…): the boxes are ticked for you.',
+      'To fine-tune, open "Permissions in detail" and tick or untick. A page that is not ticked does not appear for them at all, and the main PC refuses it if they try to open it.',
+      'Several people with the same job? Make a "New profile" once; when you change it later you can update everybody who has it in one step.',
+      'Press "Who can do what" to see every permission against every profile in one table, and print it.'] },
     { id: 'count', icon: 'clipboard', title: 'Count the stock', steps: [
       'Open "Stock & shelves" → "Count".', 'Choose the place and press "Start count": products are listed shelf by shelf.',
       'Type what you really counted; the difference shows at once.', 'Press "Close count" with the reason: stock is adjusted and the owner sees the value.'] },
   ],
   problems: [
+    { q: 'A person cannot find a page or a button', a: [
+      'Pages and buttons appear according to each person\'s permissions.',
+      'Open Settings → People & permissions, press their name, open "Permissions in detail" and tick the page or action they need.',
+      'The change works at once, without signing out and in again.'] },
     { q: 'The cashier sees "A manager must approve"', a: ['The discount is above the cashier\'s limit, the price is under the minimum, or the customer is over their credit limit.',
       'A manager types their own user name and password on the same screen; the approval is saved on the invoice.', 'To change someone\'s discount limit: Settings → People & permissions.'] },
     { q: 'Saving is refused and a red licence bar shows', a: ['The trial code ended or belongs to another PC.', 'All data is safe: you can open, print, export and back up.',

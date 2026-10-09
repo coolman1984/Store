@@ -158,6 +158,11 @@ CREATE TABLE audit (
   id TEXT PRIMARY KEY, at TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT NOT NULL, ip TEXT NOT NULL, action TEXT NOT NULL,
   entity TEXT NOT NULL DEFAULT '', entity_id TEXT NOT NULL DEFAULT '', detail TEXT NOT NULL DEFAULT '') STRICT;
 CREATE INDEX audit_at ON audit(at);
+""", 2: """
+CREATE TABLE profiles (
+  id TEXT PRIMARY KEY, org_id TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', perms TEXT NOT NULL DEFAULT '[]',
+  max_discount_pct INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, changed_at TEXT NOT NULL) STRICT;
+ALTER TABLE users ADD COLUMN perms TEXT;
 """}
 
 
