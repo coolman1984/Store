@@ -56,7 +56,7 @@ export default {
   'lic.err.expired': 'الكود ده مدته خلصت. اطلب كود جديد.', 'lic.err.bad_signature': 'في حرف غلط في الكود. انسخه تاني زي ما هو بالظبط.',
   'lic.err.wrong_length': 'الكود ناقص أو زيادة. انسخه كامل.', 'lic.err.bad_character': 'فيه رموز غريبة في الكود. انسخه تاني.',
   'lic.err.unknown_key': 'الكود ده مش من الشركة.', 'lic.err.wrong_product': 'الكود ده لبرنامج تاني.', 'lic.err.no_keys': 'البرنامج مش متظبط بمفتاح الشركة. كلّم الدعم.',
-  'lic.err.unknown_version': 'الكود ده لنسخة أحدث من البرنامج.', 'lic.err.invalid': 'الكود ده مش شغال.',
+  'lic.err.unbound_perpetual': 'كود التفعيل الدائم ده مش مربوط بجهاز، فمش هيشتغل. اطلب كود برقم الجهاز ده.', 'lic.err.unknown_version': 'الكود ده لنسخة أحدث من البرنامج.', 'lic.err.invalid': 'الكود ده مش شغال.',
 
   'home.morning': 'صباح الخير يا {name}', 'home.afternoon': 'نهارك سعيد يا {name}', 'home.evening': 'مساء الخير يا {name}', 'home.newSale': 'بيعة جديدة',
   'home.todaySales': 'صافي مبيعات النهارده', 'home.vsYesterday': 'عن امبارح', 'home.invoices': 'فواتير', 'home.avg': 'متوسط الفاتورة', 'home.profit': 'مكسب',

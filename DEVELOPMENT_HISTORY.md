@@ -20,6 +20,8 @@
   - The Windows workflow now runs the power-cut drill, that journey, and an update over the installed program, then writes `RELEASE-PROOF.txt`.
   - `nuitka-4.2.2.tar.gz` (4.6 MB, unused: the build installs Nuitka from pip) is removed from the repository, and a test keeps archives out.
 
+**Found in review (Codex, P1) and fixed in the same version:** `afcodes.issue_code(edition='perpetual')` without a device signed an unbound code that would unlock any PC forever. The Studio already required a device, but the module did not. af-license now refuses to issue it (`device_required`), and a reader refuses an unbound permanent code signed by any other tool (`unbound_perpetual`, explained in both languages and in the guide).
+
 **Found by CI and fixed in the same version:**
 - On the Windows runner the new backup code failed: `os.fsync` on a file opened read-only is refused on Windows (`EBADF`). It now opens the file `r+b`. The power-cut drill that runs on Windows caught it before any Windows shop could.
 - 1.4.0's merge was red on main: the junk-input test hit `/api/recover` with a 90 KB body. The server answered 413 before reading the body, and the sender saw a broken connection instead. A too-large body (up to 8 MB) is now read and dropped before the calm 413. `test_a_too_large_body_gets_a_calm_answer` covers sign-in and recovery. Lesson for us: 1.4.0 was merged before its CI finished; this release waits for green.

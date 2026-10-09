@@ -56,7 +56,7 @@ export default {
   'lic.err.expired': 'This code has ended. Ask for a new one.', 'lic.err.bad_signature': 'A character in the code is wrong. Copy it again exactly.',
   'lic.err.wrong_length': 'The code is incomplete or too long. Copy all of it.', 'lic.err.bad_character': 'The code has unexpected symbols. Copy it again.',
   'lic.err.unknown_key': 'This code is not from the vendor.', 'lic.err.wrong_product': 'This code is for another program.', 'lic.err.no_keys': "The program is not set up with the vendor's key. Contact support.",
-  'lic.err.unknown_version': 'This code is for a newer version of the program.', 'lic.err.invalid': 'This code does not work.',
+  'lic.err.unbound_perpetual': 'This permanent code is not tied to a PC, so it does not work. Ask for a code with this PC\'s device code.', 'lic.err.unknown_version': 'This code is for a newer version of the program.', 'lic.err.invalid': 'This code does not work.',
 
   'home.morning': 'Good morning, {name}', 'home.afternoon': 'Good afternoon, {name}', 'home.evening': 'Good evening, {name}', 'home.newSale': 'New sale',
   'home.todaySales': "Today's net sales", 'home.vsYesterday': 'vs yesterday', 'home.invoices': 'Invoices', 'home.avg': 'Average sale', 'home.profit': 'Profit',

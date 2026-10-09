@@ -360,6 +360,8 @@ class LicenceGateTests(unittest.TestCase):
         device = self.c.get('/api/licence')[1]['device']
         st, d, _ = self.c.post('/api/licence/activate', {'code': code_for('AAAAA-BBBBB', edition='perpetual')})
         self.assertEqual(d['key'], 'lic.err.other_device')
+        with self.assertRaises(ValueError):  # a permanent code is never made without a PC to tie it to
+            code_for(None, edition='perpetual')
         st, d, _ = self.c.post('/api/licence/activate', {'code': code_for(device, edition='perpetual')})
         self.assertEqual((st, d['state'], d['edition'], d['last_day'], d['days_left'], d['full']),
                          (200, 'active', 'perpetual', None, None, True))

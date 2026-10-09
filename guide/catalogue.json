@@ -1078,6 +1078,7 @@
         "lic.err.unknown_key",
         "lic.err.wrong_product",
         "lic.err.unknown_edition",
+        "lic.err.unbound_perpetual",
         "lic.err.no_keys",
         "lic.err.unknown_version",
         "lic.err.invalid"

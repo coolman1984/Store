@@ -1,4 +1,4 @@
-# Vendored from Apps-Factory packages/af-license 0.2.0 af_license/codes.py - do not edit here.
+# Vendored from Apps-Factory packages/af-license 0.3.0 af_license/codes.py - do not edit here.
 # Update with: python scripts/vendor_licence.py <product repo> (from the Apps-Factory checkout)
 """Licence *codes*: a signed licence short enough to send on WhatsApp and paste into the program.
 
@@ -14,6 +14,7 @@ Terms inside a code (format version 1):
 The device code is shown by the program on the customer's PC (10 characters). Binding a code to it means the code does
 not work on another PC, so a trial code cannot be passed around. Dates are whole days in the customer's local calendar.
 A `perpetual` code never expires: its last day is stored as the largest day (65535) and a reader reports no last day.
+It is always bound to one device: issuing one without a device fails, and a reader refuses an unbound one.
 Older readers do not know edition 4 and refuse it (`unknown_edition`), so they never grant it by mistake.
 
 Signing (vendor machine only) uses the vetted `cryptography` library, imported lazily so that products can vendor this
@@ -132,6 +133,8 @@ def issue_code(private_pem: bytes, product_id: str, edition: str, first_day: dat
         raise ValueError('unknown_edition')
     perpetual = edition == 'perpetual'
     if perpetual:
+        if not device:
+            raise ValueError('device_required')  # a code that never ends must never travel to another PC
         days, grace_days = 1, 0
     if not 1 <= int(days) <= 3660:
         raise ValueError('days_out_of_range')
@@ -206,6 +209,8 @@ def read_code(text: str, trusted_public_keys: list[str], product_id: str, device
     today = today or date.today()
     if terms['edition'] == 'perpetual':
         terms['last_day'] = terms['days_left'] = None
+        if not terms['device_bound']:  # never issued by this module; refused if another tool ever signs one
+            return CodeResult(False, 'invalid', 'unbound_perpetual', terms)
         if today < _day(first):
             return CodeResult(True, 'not_yet_valid', 'starts_later', terms)
         return CodeResult(True, 'active', '', terms)
