@@ -26,6 +26,9 @@ MAX_HOURS = 14
 MAX_FAILED = 5
 LOCK_MINUTES = 15
 MIN_PASSWORD = 8
+# Never accepted in a real shop (factory IAM-06): the practice shop's published password and the passwords people try first.
+REFUSED_PASSWORDS = frozenset({'practice-1234', '12345678', '123456789', '1234567890', '87654321', '11111111', '00000000',
+                               'password', 'password1', 'admin123', 'admin1234', 'qwerty123', 'abcd1234', 'a1234567'})
 RECOVERY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'  # no 0/O, 1/I/L: read off paper without mistakes
 
 # permission -> (group, English label). The Arabic labels live in the page dictionaries (perm.<id>, permg.<group>).
@@ -146,12 +149,12 @@ def _text(value):
     return value if isinstance(value, str) else ''
 
 
-def strong_enough(password, username=''):
+def strong_enough(password, username='', practice=False):
     if not isinstance(password, str) or len(password) < MIN_PASSWORD:
         raise AuthError('auth.err.short', f'Use at least {MIN_PASSWORD} characters.', n=MIN_PASSWORD)
     if username and password.lower() == username.lower():
         raise AuthError('auth.err.sameAsName', 'The password must not be the user name.')
-    if len(set(password)) < 4:
+    if len(set(password)) < 4 or (not practice and password.lower() in REFUSED_PASSWORDS):
         raise AuthError('auth.err.weak', 'This password is too easy to guess.')
 
 
@@ -209,8 +212,8 @@ def catalogue(profiles=None, labels=None):
 
 
 class Auth:
-    def __init__(self, db, org_id):
-        self.db, self.org_id = db, org_id
+    def __init__(self, db, org_id, practice=False):
+        self.db, self.org_id, self.practice = db, org_id, practice
         self._carry_over()
 
     def _carry_over(self):
@@ -353,7 +356,7 @@ class Auth:
             raise AuthError('auth.err.role', 'Unknown profile.')
         if not _text(full_name).strip():
             raise AuthError('auth.err.fullName', 'Write the person\'s name.')
-        strong_enough(password, username)
+        strong_enough(password, username, self.practice)
         if self.db.value('SELECT 1 FROM users WHERE username = ?', username):
             raise AuthError('auth.err.taken', 'This user name is already used.')
         now = ids.iso()
@@ -389,7 +392,7 @@ class Auth:
         if 'active' in changes:
             fields['active'] = 1 if changes['active'] else 0
         if 'password' in changes and changes['password']:
-            strong_enough(changes['password'], user['username'])
+            strong_enough(changes['password'], user['username'], self.practice)
             fields['pass_hash'] = hash_password(changes['password'])
             fields['failed'], fields['locked_until'] = 0, None
         after = {**user, **fields}

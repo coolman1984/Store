@@ -38,10 +38,10 @@ OWNER = ('owner1', 'Owner Pass 1')
 PW = 'Strong Pass 9'
 
 
-def code_for(device, days=14, first=None, edition='trial', product='al-store'):
+def code_for(device, days=14, first=None, edition='trial', product='al-store', grace=0):
     """A licence code signed with the test key (the vendored module has the same issue_code as Apps-Factory)."""
     first = first or date.fromisoformat(ids.local_day())
-    return afcodes.issue_code(PRIVATE_PEM, product, edition, first, days, device)['code']
+    return afcodes.issue_code(PRIVATE_PEM, product, edition, first, days, device, grace)['code']
 
 
 class Shop:

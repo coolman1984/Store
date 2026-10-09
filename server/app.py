@@ -96,7 +96,7 @@ class App:
         self.db = Database(os.path.join(self.data_dir, 'store.db'), self.backup_dir)
         self.org_id = self._meta_id('org_id')
         self.branch_id = self._meta_id('branch_id')
-        self.auth = auth_mod.Auth(self.db, self.org_id)
+        self.auth = auth_mod.Auth(self.db, self.org_id, self.practice)
         self.assist = assist.Assist(self)
         self._static = {}
         self.started = time.time()
@@ -176,7 +176,7 @@ class App:
                 # A failed swap must not leave the live server with a closed connection.
                 fresh = Database(target, self.backup_dir)
                 self.db.conn = fresh.conn
-                self.auth = auth_mod.Auth(self.db, self.org_id)
+                self.auth = auth_mod.Auth(self.db, self.org_id, self.practice)
                 if getattr(self, 'assist', None):
                     self.assist.rebind()
 

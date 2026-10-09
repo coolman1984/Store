@@ -1,5 +1,16 @@
 # Release notes
 
+## 1.5.0
+- Activation codes come in three kinds:
+  - a 14-day trial;
+  - a monthly subscription: 30 days, then 3 days of grace by default (the vendor can change the days);
+  - a permanent activation: it never ends, and it works on this PC only.
+- The licence page shows which kind is active. When a subscription ends, the shop can still open, print, export and back up.
+- Safer backups: a copy is written under a temporary name and only gets a backup name after it passes its check. A copy cut short by a power cut is never listed or offered for restore. Each copy is now one self-contained file, easy to put on a USB stick.
+- A real shop refuses the practice shop's password and the passwords people try first (12345678, password…).
+- Fixed: the home page showed «{hours}» in the backup reminder of a new shop.
+- The Windows build check now runs a real shop on the installed program before and after an update. It sets up the shop, activates it, receives stock, sells for cash and makes a backup, then checks that the sale, the stock and the backup survive the update. It also runs the power-cut drill on Windows and saves a release proof: the source commit, the installer checksum and the run link.
+
 ## 1.4.0
 - New: the owner's recovery code. When the shop is first set up, the program shows a code to print or write down. The owner cannot continue until they tick that it is kept. If the owner forgets the password, «نسيت كلمة السر؟» on the sign-in page takes the code and a new password. It also unlocks a locked account and signs out every old session. The code works once, then the program shows a new one. If the paper is lost, the owner can make a new code in Settings → People after typing their password; the old code stops working. There is no master password. Only the code's protected form is kept on the PC, and wrong codes are counted like wrong passwords. It works while the licence is locked.
 - Fixed: the guide button on the sign-in page read «الدليلnull» (factory af-guide 0.1.2).

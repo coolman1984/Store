@@ -70,3 +70,22 @@ class Manifest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+@unittest.skipUnless(harness.HAVE_CRYPTO, 'cryptography needed to sign the run-only licence code')
+class Journey(unittest.TestCase):
+    """tools/journey_exe.py is what the Windows workflow runs on the installed program before and after the update;
+    here it runs on the source so a broken journey is caught on every push, not only on Windows."""
+
+    def test_real_shop_journey_survives_a_restart_of_the_program(self):
+        import subprocess
+        home = tempfile.mkdtemp(prefix='store-journey-')
+        try:
+            tool = os.path.join(ROOT, 'tools', 'journey_exe.py')
+            app = [sys.executable, os.path.join(ROOT, 'server', 'app.py')]
+            for phase in ('first', 'after'):
+                r = subprocess.run([sys.executable, tool, phase, home, *app], capture_output=True, text=True, timeout=180)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertIn('OK ' + phase, r.stdout)
+        finally:
+            shutil.rmtree(home, ignore_errors=True)

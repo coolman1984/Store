@@ -38,6 +38,7 @@ export default {
   'cmdk.placeholder': 'Find a product, customer, invoice or page…', 'cmdk.pages': 'Pages', 'cmdk.actions': 'Shortcuts', 'cmdk.products': 'Products', 'cmdk.customers': 'Customers',
   'cmdk.none': 'No results', 'cmdk.newSale': 'New sale', 'cmdk.receive': 'Receive goods', 'cmdk.newProduct': 'New product', 'cmdk.warranty': 'Warranty check by serial', 'cmdk.findSale': 'Find invoice "{q}"',
 
+  'lic.kind.trial': 'Kind: trial', 'lic.kind.standard': 'Kind: subscription', 'lic.kind.pro': 'Kind: subscription', 'lic.kind.perpetual': 'Kind: permanent', 'lic.forever': 'This activation is permanent on this PC. It does not end.',
   'lic.state.none': 'No code yet', 'lic.state.trial': 'Trial running', 'lic.state.active': 'Licence active', 'lic.state.grace': 'Licence ended; grace days running',
   'lic.state.expired': 'The code has ended', 'lic.state.not_yet_valid': 'The code has not started yet', 'lic.state.invalid': 'This code does not work on this PC',
   'lic.state.clock_back': "This PC's clock was moved back", 'lic.state.no_keys': "The program is not set up with the vendor's key", 'lic.state.practice': 'Practice shop: no code needed',
@@ -49,7 +50,7 @@ export default {
   'lic.bar.no_keys': "The program is not set up with the vendor's key. Contact support.", 'lic.bar.not_yet_valid': 'This code starts on its first day.', 'lic.bar.grace': 'The licence is in its grace days.',
   'lic.enter': 'Enter code', 'lic.soon': 'The activation code has {n} days left. Ask for the new one early.',
   'lic.howTitle': 'How to get your activation code', 'lic.how1': 'Copy the "Device code" shown here.', 'lic.how2': 'Send it to the vendor on WhatsApp.',
-  'lic.how3': 'You receive a long code. Copy it exactly.', 'lic.how4': 'Paste it in the box and press "Activate". The trial lasts two weeks.',
+  'lic.how3': 'You receive a long code. Copy it exactly.', 'lic.how4': 'Paste it in the box and press "Activate". The trial lasts two weeks. After it: a monthly subscription or a permanent activation.',
   'lic.safe': 'The code is tied to this PC and nobody can change its dates. When it ends, your data is never deleted or locked.',
   'lic.err.no_code': 'Type the code first.', 'lic.err.generic': 'This code does not work on this PC.', 'lic.err.other_device': 'This code was made for another PC. Send this "Device code" to the vendor.',
   'lic.err.expired': 'This code has ended. Ask for a new one.', 'lic.err.bad_signature': 'A character in the code is wrong. Copy it again exactly.',
@@ -69,7 +70,7 @@ export default {
   'adv.late_instalments': '{n} customers have late instalments ({amount})', 'adv.late_instalments.hint': 'Open the list and remind them one by one.',
   'adv.low_stock': '{n} products running low', 'adv.low_stock.hint': '{names}', 'adv.watch': '{n} things need your look', 'adv.watch.hint': 'Discounts, returns and drawer differences.',
   'adv.upcoming_prices': '{n} products change price soon', 'adv.upcoming_prices.hint': 'Check the new prices before they start.',
-  'adv.backup': 'Make a backup', 'adv.backup.hint': 'Last copy {hours} hours ago. Keep one on a USB stick outside the shop.',
+  'adv.backup': 'Make a backup', 'adv.backup.never.hint': 'No copy yet. Make one now, and keep one on a USB stick outside the shop.', 'adv.backup.hint': 'Last copy {hours} hours ago. Keep one on a USB stick outside the shop.',
   'adv.licence_soon': 'The activation code has {days} days left', 'adv.licence_soon.hint': 'Ask for the new code now.',
   'adv.slow_stock': 'Goods worth {amount} are not moving', 'adv.slow_stock.hint': 'Not sold for two months: make an offer.',
 

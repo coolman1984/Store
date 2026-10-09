@@ -1,5 +1,41 @@
 # Development history (newest first)
 
+## 2026-10-09 — 1.5.0: three activation kinds and the release proofs
+**Why:** the owner asked for a full push to the first paid shop. The release gate needed three things:
+- the three ways a shop pays: a 14-day trial, a monthly subscription and a permanent activation;
+- the factory proofs that need no customer PC (DATA-06, OPS-06, IAM-06, SEC-02, SEC-07, REL-03, OPS-01, PERF-01);
+- a customer-eye pass.
+
+**What:**
+- **Licence kinds:** factory af-license adds the edition `perpetual` (id 4). Its last day is stored as day 65535, and a reader reports no last day. Older readers refuse it (`unknown_edition`), so they never grant it by mistake. The code format and older codes are unchanged. The Licence Studio has three quick buttons:
+  - «تجربة 14 يوم»;
+  - «اشتراك شهري»: `standard`, 30 days, 3 grace days by default;
+  - «تفعيل دائم»: device-bound, no days.
+  Vendored here with `scripts/vendor_licence.py`. The licence page shows the kind, and «دائم، مش بيخلص» for a permanent code.
+- **Backups (bug found by the new drill):** `backup.make` wrote straight to the final name. A copy killed half way kept a real backup name. It was listed, offered for restore, and counted as "a recent backup", so the next one waited 4 hours. Now the copy is made as `….db.part`, switched to `journal_mode=DELETE` (one file, no -wal/-shm beside it), checked, synced and renamed. Leftover parts older than an hour are pruned. The drill killed a backup half way in 2 of 5 runs before the fix.
+- **IAM-06:** a real shop refuses `practice-1234` and common first passwords (`auth.REFUSED_PASSWORDS`). The practice shop still uses its published password.
+- **Customer-eye fix:** the home reminder of a new shop read «آخر نسخة من {hours} ساعة». The hint now gets its value, and a shop with no copy yet reads «لسه ماعملتش ولا نسخة».
+- **Release tooling:**
+  - `tools/journey_exe.py` runs a real shop on a built program before and after an update.
+  - The Windows workflow now runs the power-cut drill, that journey, and an update over the installed program, then writes `RELEASE-PROOF.txt`.
+  - `nuitka-4.2.2.tar.gz` (4.6 MB, unused: the build installs Nuitka from pip) is removed from the repository, and a test keeps archives out.
+
+**Evidence:**
+- `tests/test_release.py`, 12 tests:
+  - newer data refused byte-for-byte untouched;
+  - a failed migration rolls back and keeps a checked copy;
+  - the practice shop's three weeks at schema N-1 upgrade with every count and money total equal;
+  - killed while selling: whole sales only, money = goods = tenders;
+  - killed while backing up: no broken copy listed, and leftover parts are pruned;
+  - a half-failed copy is never listed;
+  - demo and common passwords refused;
+  - export cells cannot start a formula;
+  - no committed secret or archive, and public keys only in `licence_keys.txt`.
+- `LicenceGateTests`: monthly → grace → read-only, and a permanent code on its PC only.
+- `test_build.Journey` runs the journey tool on the source.
+- UI Lab on this commit: 22 page×screen measurements, all within budget, 0 accessibility findings (`docs/ui-lab/REPORT.md`).
+- Full suite with Chromium: **186 passed, 0 failures, 0 skips**.
+
 ## 2026-10-09 — 1.4.0: the owner's recovery code (factory IAM-01)
 **Why:** the owner account had no safe way back in. A shop owner who forgets the password would be locked out of their own people, profits and settings. The data would be safe, but only a visit could fix it. The owner approved a paper code that only the shop owner holds, with no master password for the vendor.
 

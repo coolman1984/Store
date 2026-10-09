@@ -1,13 +1,91 @@
 {
   "base": "http://127.0.0.1:8197",
   "budgets": "../Apps-Factory/factory/ui-budgets.json",
-  "init_storage": { "store.prefs": "{\"lang\":\"ar\",\"sound\":false}" },
-  "login": { "steps": [["wait", "#auth-form"], ["fill", "#username", "manager"], ["fill", "#password", "practice-1234"], ["click", "button[type=submit]"]], "ready": ".shell" },
+  "init_storage": {
+    "store.prefs": "{\"lang\":\"ar\",\"sound\":false}"
+  },
+  "login": {
+    "steps": [
+      [
+        "wait",
+        "#auth-form"
+      ],
+      [
+        "fill",
+        "#username",
+        "manager"
+      ],
+      [
+        "fill",
+        "#password",
+        "practice-1234"
+      ],
+      [
+        "click",
+        "button[type=submit]"
+      ]
+    ],
+    "ready": ".shell"
+  },
   "route_prefix": "/#/",
-  "routes": ["home", "pos", "sales", "customers", "products", "stock", "cash", "watch", "reports", "help"],
-  "viewports": [[1366, 768], [390, 844]],
+  "routes": [
+    "home",
+    "pos",
+    "sales",
+    "customers",
+    "products",
+    "stock",
+    "cash",
+    "watch",
+    "reports",
+    "settings",
+    "help"
+  ],
+  "viewports": [
+    [
+      1366,
+      768
+    ],
+    [
+      390,
+      844
+    ]
+  ],
   "interact": {
-    "pos": [["wait", "#pos-q"], ["fill", "#pos-q", "خلاط"], ["sleep", "400"], ["press", "#pos-q", "Enter"], ["sleep", "400"]],
-    "products": [["fill", "#p-q", "ثلاجة"], ["sleep", "500"]]
+    "pos": [
+      [
+        "wait",
+        "#pos-q"
+      ],
+      [
+        "fill",
+        "#pos-q",
+        "خلاط"
+      ],
+      [
+        "sleep",
+        "400"
+      ],
+      [
+        "press",
+        "#pos-q",
+        "Enter"
+      ],
+      [
+        "sleep",
+        "400"
+      ]
+    ],
+    "products": [
+      [
+        "fill",
+        "#p-q",
+        "ثلاجة"
+      ],
+      [
+        "sleep",
+        "500"
+      ]
+    ]
   }
 }

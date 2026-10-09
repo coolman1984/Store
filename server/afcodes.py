@@ -7,12 +7,14 @@ A code is 26 bytes of terms + a 64-byte Ed25519 signature, written in Crockford 
 in groups of six: 144 characters. The signature covers every term, so changing one letter makes the code invalid.
 
 Terms inside a code (format version 1):
-  product tag (4 bytes of SHA-256 of the product id) · edition (trial / standard / pro) · issued day · first day ·
+  product tag (4 bytes of SHA-256 of the product id) · edition (trial / standard / pro / perpetual) · issued day · first day ·
   last day (inclusive) · grace days · device tag (6 bytes of the customer's device code, or zeros = any device) ·
   serial (random, the licence id) · seats · key tag (2 bytes of the signing key id)
 
 The device code is shown by the program on the customer's PC (10 characters). Binding a code to it means the code does
 not work on another PC, so a trial code cannot be passed around. Dates are whole days in the customer's local calendar.
+A `perpetual` code never expires: its last day is stored as the largest day (65535) and a reader reports no last day.
+Older readers do not know edition 4 and refuse it (`unknown_edition`), so they never grant it by mistake.
 
 Signing (vendor machine only) uses the vetted `cryptography` library, imported lazily so that products can vendor this
 file and *verify* with the standard library only (`ed25519_verify.py`). The private key never ships.
@@ -34,7 +36,8 @@ except ImportError:  # a vendored copy next to ed25519.py in a stdlib-only produ
 VERSION = 1
 EPOCH = date(2024, 1, 1)
 ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'  # Crockford base32
-EDITIONS = {1: 'trial', 2: 'standard', 3: 'pro'}
+EDITIONS = {1: 'trial', 2: 'standard', 3: 'pro', 4: 'perpetual'}
+FOREVER = 65535  # the last day of a perpetual code (2203-06-07): never reached
 EDITION_IDS = {v: k for k, v in EDITIONS.items()}
 DOMAIN = b'AF-LICENCE-CODE/1'  # domain separation: a code signature can never be reused as another document's
 _LAYOUT = '>B4sBHHHB6s4sB2s'  # 26 bytes
@@ -120,12 +123,16 @@ def _num(d: date) -> int:
 # ------------------------------------------------------------------ vendor side
 def issue_code(private_pem: bytes, product_id: str, edition: str, first_day: date, days: int, device: str | None = None,
                grace_days: int = 0, seats: int = 1, issued: date | None = None, serial: bytes | None = None) -> dict:
-    """Sign a code. Returns {'code': grouped text, 'serial': hex, 'first_day', 'last_day', ...}. Vendor machine only."""
+    """Sign a code. Returns {'code': grouped text, 'serial': hex, 'first_day', 'last_day', ...}. Vendor machine only.
+    For a perpetual code `days` and `grace_days` are ignored and `last_day` is None."""
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
     if edition not in EDITION_IDS:
         raise ValueError('unknown_edition')
+    perpetual = edition == 'perpetual'
+    if perpetual:
+        days, grace_days = 1, 0
     if not 1 <= int(days) <= 3660:
         raise ValueError('days_out_of_range')
     if not 0 <= int(grace_days) <= 60 or not 1 <= int(seats) <= 255:
@@ -134,14 +141,14 @@ def issue_code(private_pem: bytes, product_id: str, edition: str, first_day: dat
     if not isinstance(private, Ed25519PrivateKey):
         raise ValueError('signing key must be Ed25519')
     public_raw = private.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
-    last_day = first_day + timedelta(days=int(days) - 1)
+    last_day = _day(FOREVER) if perpetual else first_day + timedelta(days=int(days) - 1)
     serial = serial or os.urandom(4)
     payload = struct.pack(_LAYOUT, VERSION, product_tag(product_id), EDITION_IDS[edition], _num(issued or date.today()),
                           _num(first_day), _num(last_day), int(grace_days), _device_tag(device), serial, int(seats),
                           hashlib.sha256(public_raw).digest()[:2])
     signature = private.sign(DOMAIN + payload)
     return {'code': group(_b32(payload + signature)), 'serial': serial.hex().upper(), 'edition': edition,
-            'first_day': first_day.isoformat(), 'last_day': last_day.isoformat(), 'grace_days': int(grace_days),
+            'first_day': first_day.isoformat(), 'last_day': None if perpetual else last_day.isoformat(), 'grace_days': int(grace_days),
             'device': device and group(normalize(device), 5), 'seats': int(seats), 'product': product_id}
 
 
@@ -197,6 +204,11 @@ def read_code(text: str, trusted_public_keys: list[str], product_id: str, device
         except ValueError:
             return CodeResult(False, 'invalid', 'other_device', terms)
     today = today or date.today()
+    if terms['edition'] == 'perpetual':
+        terms['last_day'] = terms['days_left'] = None
+        if today < _day(first):
+            return CodeResult(True, 'not_yet_valid', 'starts_later', terms)
+        return CodeResult(True, 'active', '', terms)
     last_day = _day(last)
     terms['days_left'] = (last_day - today).days + 1
     if today < _day(first):
