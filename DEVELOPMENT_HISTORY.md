@@ -43,6 +43,8 @@
 - a static guard fails the build when any read route in `app.py` neither asks for a permission nor is on the short list of "own" routes;
 - return and warranty by role; the export for a person with only `settings.edit`; the counter with only `pos.sell`.
 
+**Found in the independent review of this PR (Codex, P1) and fixed in it:** blanking `purchases.total` and the unit costs was not enough: the same purchase total was still in the supplier's ledger (`ap_entries`, kind `purchase`), in the cash paid on receiving without a supplier (`cash_moves`, kind `purchase`) and in the audit line `purchase.receive`. Those rows now lose the amount too (`backup.COST_ROWS`); every other row stays whole. `ExportUnit.test_a_purchase_cost_does_not_leave_through_the_supplier_ledger_cash_or_audit` fails on the first version. A supplier *payment* keeps its amount: payments are what the cash and supplier pages show, not a cost.
+
 **Not changed (decisions, not bugs):** `/api/lookups` (the people list and settings the counter needs) and `/api/licence` stay open to any signed-in person.
 
 ## 2026-10-09 — Today page: leaving before its numbers arrive no longer raises an error
