@@ -109,10 +109,13 @@ export async function customerFile(id, onChange) {
 
 function collect(customerId, planId, suggested, onDone) {
   const idem = key();
+  const on = S.lookups?.pay_methods || ['cash'];
+  const ways = [['cash', t('pay.cash'), 'cash'], ['instapay', t('pay.instapay'), 'qr'], ['wallet', t('pay.wallet'), 'phone'], ['card', t('pay.card'), 'card']]
+    .filter(([m]) => on.includes(m));
   open({
     title: t('cust.collect'),
     body: html`<div class="field"><label for="amt">${t('f.amount')}</label><input id="amt" class="input big money-in" data-guide="collect.amount" inputmode="decimal" value="${(suggested || 0) / 100}" autofocus></div>
-      <div class="field"><span class="label">${t('pos.method')}</span>${seg('cm', [['cash', t('pay.cash'), 'cash'], ['instapay', t('pay.instapay'), 'qr'], ['wallet', t('pay.wallet'), 'phone'], ['card', t('pay.card'), 'card']], 'cash')}</div>
+      ${ways.length > 1 ? html`<div class="field"><span class="label">${t('pos.method')}</span>${seg('cm', ways, 'cash')}</div>` : ''}
       <div class="field"><label for="note">${t('f.note')}</label><input id="note" class="input"></div><p class="err small" id="cerr"></p>`,
     foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn accent" data-ok data-guide="collect.save">${icon('check')}${t('cust.collect')}</button>`,
     mount(box, close) {

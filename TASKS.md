@@ -17,7 +17,11 @@
 - [x] 1.2.0 implemented: role courses and coach, per-person progress, every server error explained, two-scope consent, IDs/counts-only usage/error telemetry and redacted free-text reports with explicit preview/send. Nothing leaves the PC without receiver URL and token; withdrawals work while licence-locked.
 - [x] 1.2.0 automated release verification (2026-10-09 second pass): requested full browser-enabled command is green — **155 passed, 0 failures, 0 errors, 0 skips**, including all **16 browser tests**. No discovery changes or extra skips. Cause/fix report: `/workspace/grok-log/codex-report2.md`. Field checks below remain open.
 
-## Next (in order)
+- [x] 1.3.0 cash only everywhere (other ways hidden until the owner turns them on); ready-to-sell plan in `docs/03-ready-to-sell.md`
+
+## Next (in order) — full list and reasons in docs/03-ready-to-sell.md
+- [ ] Engineering gaps for the gate: owner password recovery (IAM-01), newer-data refusal test (DATA-06), kill-process drill (OPS-06), practice passwords refused in a real shop (IAM-06), secrets scan in CI (SEC-02), export formula test (SEC-07), drop `nuitka-4.2.2.tar.gz` from the repository
+- [ ] Release-commit proofs: ui-lab rerun (PERF-01, A11Y-01 + a manual keyboard journey), Windows workflow run id and SHA in the release notes (OPS-01, OPS-07), upgrade 1.2.2 → 1.3.0 on a realistic copy (REL-03)
 - [ ] Trademark/domain check for "Mizan / ميزان" in EG, SA, AE (owner) — **gate before renaming the installer and data folder**
 - [ ] One-hour usability session with a real cashier on the new counter (owner)
 - [ ] Field visit: 5 Beni Suef shops answer the 5 questions in docs/01-research.md §7 (owner) — **gate before selling**

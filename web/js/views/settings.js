@@ -22,28 +22,37 @@ export default async function view(page, params) {
   ({ shop, licence, users, places, backup, support, privacy, device })[tab](body, again);
 }
 
+// Cash is always on; these stay hidden everywhere until the owner ticks them.
+const OPTIONAL_PAY = ['card', 'wallet', 'instapay', 'finance', 'account', 'installment'];
+
 async function shop(body) {
   const d = await api.get('/api/settings').catch((e) => { put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); });
   if (!d) return;
   const s = d.settings;
+  const on = (...ms) => ms.some((m) => (s.pay_methods || []).includes(m));
   const f = (k, label, hint, type = 'text') => html`<div class="field"><label for="s-${k}">${label}</label><input id="s-${k}" class="input ${type === 'money' ? 'money-in' : ''}" data-k="${k}" data-type="${type}" data-guide="${k === 'shop_name' ? 'settings.shop.name' : ''}"
     value="${type === 'money' ? s[k] / 100 : s[k]}" ${type !== 'text' ? raw('inputmode="decimal"') : ''}>${hint ? html`<span class="hint">${hint}</span>` : ''}</div>`;
   put(body, html`<div class="stack"><div class="card form"><div class="card-head"><h2>${t('settings.shopInfo')}</h2></div>
       <div class="cols">${f('shop_name', t('setup.shop'))}${f('shop_phone', t('f.phone'))}${f('shop_address', t('f.address'))}${f('tax_number', t('settings.taxNo'), t('settings.taxNoHint'))}</div></div>
     <div class="card form"><div class="card-head"><h2>${t('settings.receipt')}</h2></div>
       <div class="field"><span class="label">${t('settings.paper')}</span>${seg('rw', [['80', '80 mm'], ['58', '58 mm']], s.receipt_width)}</div>
-      <div class="cols">${f('receipt_footer', t('settings.footer'))}${f('wallet_number', t('settings.wallet'), t('settings.walletHint'))}</div>
+      <div class="cols">${f('receipt_footer', t('settings.footer'))}${on('wallet', 'instapay') ? f('wallet_number', t('settings.wallet'), t('settings.walletHint')) : ''}</div>
       <div class="cols">${f('return_days', t('settings.returnDays'), t('settings.returnDaysHint'), 'num')}${f('defect_days', t('settings.defectDays'), t('settings.defectDaysHint'), 'num')}</div></div>
-    <div class="card form"><div class="card-head"><h2>${t('settings.instalments')}</h2></div>
-      <div class="cols">${f('min_down_payment_pct', t('settings.minDown'), '', 'num')}${f('instalment_markup_pct', t('settings.markup'), t('settings.markupHint'), 'num')}
-      ${f('max_instalment_months', t('settings.maxMonths'), '', 'num')}</div>
-      <div class="field"><label for="s-prov">${t('settings.providers')}</label><input id="s-prov" class="input" value="${(s.finance_providers || []).join('، ')}"><span class="hint">${t('settings.providersHint')}</span></div></div>
+    <div class="card form"><div class="card-head"><h2>${t('settings.pay')}</h2></div>
+      <p class="small muted">${t('settings.payHint')}</p>
+      <div class="row wrap"><label class="check"><input type="checkbox" checked disabled>${t('pay.cash')}</label>
+      ${OPTIONAL_PAY.map((m) => html`<label class="check"><input type="checkbox" data-pay="${m}" ${on(m) ? 'checked' : ''}>${t('pay.' + m)}</label>`)}</div></div>
+    ${on('installment', 'finance') ? html`<div class="card form"><div class="card-head"><h2>${t('settings.instalments')}</h2></div>
+      <div class="cols">${on('installment') ? html`${f('min_down_payment_pct', t('settings.minDown'), '', 'num')}${f('instalment_markup_pct', t('settings.markup'), t('settings.markupHint'), 'num')}
+      ${f('max_instalment_months', t('settings.maxMonths'), '', 'num')}` : ''}</div>
+      ${on('finance') ? html`<div class="field"><label for="s-prov">${t('settings.providers')}</label><input id="s-prov" class="input" value="${(s.finance_providers || []).join('، ')}"><span class="hint">${t('settings.providersHint')}</span></div>` : ''}</div>` : ''}
     <div class="card form"><div class="card-head"><h2>${t('settings.watch')}</h2></div>
       <div class="cols">${f('large_expense', t('settings.largeExpense'), '', 'money')}${f('opening_hour', t('settings.open'), '', 'num')}${f('closing_hour', t('settings.close'), '', 'num')}</div></div>
     <div class="row"><button class="btn accent lg" data-save data-guide="settings.save">${icon('check')}${t('act.save')}</button></div></div>`);
   $('[data-save]', body).addEventListener('click', async (e) => {
     const out = { receipt_width: $('[data-seg="rw"] [aria-pressed="true"]', body).dataset.v,
-      finance_providers: $('#s-prov', body).value.split(/[,،]\s*/).map((x) => x.trim()).filter(Boolean) };
+      pay_methods: ['cash', ...$$('[data-pay]', body).filter((x) => x.checked).map((x) => x.dataset.pay)] };
+    if ($('#s-prov', body)) out.finance_providers = $('#s-prov', body).value.split(/[,،]\s*/).map((x) => x.trim()).filter(Boolean);
     for (const inp of $$('[data-k]', body)) {
       const ty = inp.dataset.type;
       if (ty === 'money') { const v = parseMoney(inp.value); if (v === null) { shake(inp); return; } out[inp.dataset.k] = v; }
@@ -51,7 +60,10 @@ async function shop(body) {
       else out[inp.dataset.k] = inp.value;
     }
     const r = await run(api.post('/api/settings/save', { settings: out }), t('saved'), e.currentTarget);
-    if (r) { signal('settings.saved'); S.lookups = await api.get('/api/lookups').catch(() => S.lookups); }
+    if (r) {
+      signal('settings.saved'); S.lookups = await api.get('/api/lookups').catch(() => S.lookups);
+      if (out.pay_methods.join() !== (s.pay_methods || []).join()) shop(body);  // show or hide the instalment and wallet fields
+    }
   });
 }
 

@@ -25,7 +25,9 @@ DEFAULT_SETTINGS = {
     'opening_hour': 9,
     'closing_hour': 23,
     'onboarded': False,
+    'pay_methods': ['cash'],          # cash only until the owner turns another way on (Settings → Shop → How customers pay)
 }
+PAY_METHODS = ('cash', 'card', 'wallet', 'instapay', 'finance', 'account', 'installment')
 NUMBER_PREFIX = {'sale': 'S', 'purchase': 'P', 'return': 'R', 'transfer': 'T', 'count': 'C', 'shift': 'SH', 'plan': 'I',
                  'collection': 'K', 'expense': 'E'}
 
@@ -101,10 +103,19 @@ def set_setting(db, key, value):
           if isinstance(kind, (int, float)) else
           isinstance(value, str) and len(value) <= 300 if isinstance(kind, str) else
           isinstance(value, list) and len(value) <= 50 and all(isinstance(x, str) and len(x) <= 60 for x in value))
+    if ok and key == 'pay_methods':
+        ok = set(value) <= set(PAY_METHODS)
+        value = [m for m in PAY_METHODS if m == 'cash' or m in value]  # cash always stays on
     if not ok:
         raise Problem('err.settingType', 'This setting has a wrong value.', setting=key)
     db.run('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
            key, json.dumps(value, ensure_ascii=False))
+
+
+def pay_methods(db):
+    """The ways of paying the shop has turned on. Cash is always on."""
+    on = settings(db)['pay_methods']
+    return [m for m in PAY_METHODS if m == 'cash' or m in on]
 
 
 def money(value, field='amount', allow_negative=False):

@@ -296,14 +296,14 @@ async function route() {
   $$('[data-route]').forEach((a) => { if (a.dataset.route === name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const page = $('#page');
   document.body.dataset.route = name;
+  const token = Symbol(name);
+  current = token;  // set before the permission check, so a page still loading cannot paint over the "not allowed" card
   if (!allowed(name)) {
     put(page, html`<div class="card">${emptyDenied()}</div>`);
     onRoute(name);
     return;
   }
   closeAll();
-  const token = Symbol(name);
-  current = token;
   let mod;
   try { mod = await ROUTES[name].load(); } catch (e) { fail(e); return; }
   if (current !== token) return;

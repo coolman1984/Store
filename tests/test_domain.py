@@ -10,6 +10,7 @@ import reports
 import sales
 import stock
 from auth import Forbidden
+import core
 from core import Problem
 
 
@@ -25,6 +26,7 @@ def sale(shop, lines, payments=None, user=None, **extra):
 class Base(unittest.TestCase):
     def setUp(self):
         self.s = Shop()
+        self.s.all_pay()
         self.s.do(cash.open_shift, 10000)
 
     def tearDown(self):
@@ -133,6 +135,69 @@ class SellingTests(Base):
                 sale(self.s, [{'product_id': pid, 'qty': 1, 'unit_price': 50000}], [{'method': 'cash', 'amount': 50000}], user=cashier,
                      approval={'username': 'man3', 'password': 'wrong'})
         self.assertEqual(self.s.db.value("SELECT failed FROM users WHERE username = 'man3'"), 2)
+
+
+class PayMethodTests(unittest.TestCase):
+    """A new shop takes cash only; other ways stay hidden and refused until the owner turns them on."""
+
+    def setUp(self):
+        self.s = Shop()
+        self.s.do(cash.open_shift, 100000)  # 1,000 EGP float: enough to refund a kettle in cash
+        self.p = self.s.product('Kettle', retail=50000, cost=40000, qty=5)
+
+    def tearDown(self):
+        self.s.cleanup()
+
+    def test_new_shop_takes_cash_only(self):
+        self.assertEqual(core.pay_methods(self.s.db), ['cash'])
+        sale(self.s, [{'product_id': self.p, 'qty': 1}])
+        for method in ('card', 'wallet', 'instapay', 'account', 'installment'):
+            with self.assertRaises(Problem) as e:
+                sale(self.s, [{'product_id': self.p, 'qty': 1}], [{'method': method, 'amount': 50000}])
+            self.assertEqual(e.exception.key, 'err.methodOff', method)
+        with self.assertRaises(Problem) as e:
+            sale(self.s, [{'product_id': self.p, 'qty': 1}], [{'method': 'finance', 'provider': 'valU', 'amount': 50000}])
+        self.assertEqual(e.exception.key, 'err.methodOff')
+        cust = self.s.do(cash.save_customer, {'name': 'Buyer', 'phone': '01000000000'})
+        with self.assertRaises(Problem) as e:
+            self.s.do(cash.collect, {'idem_key': 'c1', 'customer_id': cust, 'amount': 100, 'method': 'instapay'})
+        self.assertEqual(e.exception.key, 'err.methodOff')
+
+    def test_setting_keeps_cash_and_refuses_unknown_ways(self):
+        with self.s.db.tx():
+            core.set_setting(self.s.db, 'pay_methods', ['card'])
+        self.assertEqual(core.pay_methods(self.s.db), ['cash', 'card'])
+        with self.assertRaises(Problem) as e, self.s.db.tx():
+            core.set_setting(self.s.db, 'pay_methods', ['cash', 'bitcoin'])
+        self.assertEqual(e.exception.key, 'err.settingType')
+        sale(self.s, [{'product_id': self.p, 'qty': 1}], [{'method': 'card', 'amount': 50000}])
+
+    def test_an_upgraded_shop_is_cash_only_too(self):
+        with self.s.db.tx():
+            core.set_setting(self.s.db, 'pay_methods', ['cash', 'card'])
+        sale(self.s, [{'product_id': self.p, 'qty': 1}], [{'method': 'card', 'amount': 50000}])
+        with self.s.db.tx():
+            self.s.db.run("DELETE FROM settings WHERE key = 'pay_methods'")  # as a 1.2 shop: the setting was never saved
+        self.assertEqual(core.pay_methods(self.s.db), ['cash'])
+
+    def test_turning_a_way_off_keeps_old_sales_and_refunds_them_in_cash(self):
+        with self.s.db.tx():
+            core.set_setting(self.s.db, 'pay_methods', ['cash', 'card'])
+        r = sale(self.s, [{'product_id': self.p, 'qty': 1}], [{'method': 'card', 'amount': 50000}])
+        with self.s.db.tx():
+            core.set_setting(self.s.db, 'pay_methods', ['cash'])
+        view = sales.sale_view(self.s.db, r['id'])
+        self.assertEqual(view['refund_methods'], ['cash'])
+        line = view['lines'][0]['id']
+        body = {'sale_id': r['id'], 'reason': 'changed mind', 'lines': [{'sale_line_id': line, 'qty': 1, 'condition': 'good'}]}
+        with self.assertRaises(Problem) as e:
+            self.s.do(sales.take_return, {**body, 'idem_key': 'w1', 'refund_method': 'wallet'})
+        self.assertEqual(e.exception.key, 'err.methodOff')
+        with self.assertRaises(Problem) as e:
+            self.s.do(sales.take_return, {**body, 'idem_key': 'w3', 'refund_method': 'card'})
+        self.assertEqual(e.exception.key, 'err.methodOff')
+        done = self.s.do(sales.take_return, {**body, 'idem_key': 'w2', 'refund_method': 'cash'})
+        self.assertTrue(done['number'])
 
 
 class CreditTests(Base):

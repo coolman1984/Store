@@ -2,7 +2,7 @@
 PRODUCT = 'Al-Store'
 PRODUCT_AR = 'الستور'
 PRODUCT_ID = 'al-store'  # the id inside licence codes; never change it after the first code is issued
-VERSION = '1.2.2'
+VERSION = '1.3.0'
 SCHEMA = 3
 DEVELOPER = 'Apps Factory'
 

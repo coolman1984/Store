@@ -1,5 +1,16 @@
 # Development history (newest first)
 
+## 2026-10-09 — 1.3.0: cash only, and the ready-to-sell plan
+**Why:** the owner decided that cash is the basic way shops pay. Seven ways at the counter confuse a new cashier and make the first sale slower. The other ways stay in the program for shops that ask for them.
+
+**What:** new shop setting `pay_methods` (default `['cash']`; cash is always added back). The server refuses a way that is off (`err.methodOff`) for sales, for refunds and for collections. Refunds follow the same list, so an old card sale is refunded in cash. An upgraded 1.2 shop is cash only too (the owner said «خلى كله كاش بس»: everything cash only). `/api/lookups` sends the ways that are on. The counter shows no choice when only cash is on, and «أكتر من طريقة» only when two or more ways are on. The return and collection dialogs hide the choice too. Settings → Shop has a new «طرق الدفع» card (cash ticked and locked). The instalment card and the wallet number only show when those ways are on. The practice shop builds its history with every way and then goes back to cash, so old instalments and finance sales are still there to learn from.
+
+**Bug found on the way:** `PeopleAndProfiles.test_owner_controls_what_each_person_sees` still failed on main (3 of 3 runs here). This was not a slow test. The router only took its "latest page" token *after* the permission check, so the home page that was still loading painted over the "not allowed" card. The token is now taken first. The test passes 3 of 3 times.
+
+**Evidence:** `test_domain.PayMethodTests` (4 tests: new shop refuses each non-cash way including at collection; the setting keeps cash and refuses unknown ways; an upgraded shop with old card sales is cash only; an old card sale stays in the data and is refunded in cash, card and wallet are refused), `test_api.test_only_the_owner_turns_on_other_ways_of_paying` (cashier gets 403, owner's change is audited and reaches lookups), browser `CoreJourney` checks there is no method choice at the counter and in the return dialog. Full suite with Chromium: **165 passed, 0 failures, 0 skips**.
+
+**Plan:** `docs/03-ready-to-sell.md` maps the 32 factory core controls to proof (20 verified by tests, 12 still need a device drill or a small missing test) and lists the steps to the first paying shop. The factory manifest now carries the same statuses.
+
 ## 2026-10-09 — 1.2.2: the Windows build ships the guide and the server's data files
 **Why:** after 1.2.0 the `windows installer` workflow on main failed at "Smoke-test the program folder" with `FileNotFoundError: ...\build\app.dist\guide\catalogue.json`. The build copied only `web/` and `licence_keys.txt`. `guide/` was missing, and so were the vendored `server/afguide_ar_lexicon.json` and `server/aftelemetry_events.json`. Compiled modules look for those files in the program folder; without the taxonomy, telemetry would silently refuse every event.
 
