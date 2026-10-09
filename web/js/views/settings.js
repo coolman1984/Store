@@ -285,7 +285,9 @@ async function privacy(body, again) {
       <div class="row wrap"><button class="btn accent" data-save>${t('privacy.save')}</button>
         ${cfg.has_token ? html`<button class="btn" data-clear>${t('privacy.clearToken')}</button>` : ''}</div></div>` : ''}</div>`);
   const decide = async (decision, scope) => {
-    await api.post('/api/consent/decide', { decision, text_id: prompt.text_id, lang: prompt.lang, scope });
+    if (!await run(api.post('/api/consent/decide', { decision, text_id: prompt.text_id, lang: prompt.lang, scope }))) return;
+    const { refreshConsent } = await import('../guide.js');
+    await refreshConsent();
     again();
   };
   if (window.AFConsent) {
@@ -299,6 +301,7 @@ async function privacy(body, again) {
           : html`<p class="muted">${t('privacy.sentEmpty')}</p>` });
       },
     });
+    $('#privacy-box', body).lastElementChild.textContent = t('privacy.reportConsent');
   }
   $('[data-install]', body)?.addEventListener('click', () => decide(agreed ? 'withdraw' : 'agree', 'install'));
   $('[data-save]', body)?.addEventListener('click', async (e) => {

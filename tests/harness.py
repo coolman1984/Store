@@ -93,6 +93,7 @@ class Shop:
 
     def cleanup(self):
         try:
+            self.app.assist.close()
             self.db.close()
         finally:
             shutil.rmtree(self.dir, ignore_errors=True)
@@ -131,6 +132,7 @@ class Server:
     def stop(self):
         self.httpd.shutdown()
         self.httpd.server_close()
+        self.app.assist.close()
         self.app.db.close()
         shutil.rmtree(self.dir, ignore_errors=True)
 

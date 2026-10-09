@@ -2,6 +2,7 @@
 // The factory files in vendor/ are not edited. This module must not import app.js (app.js imports this).
 import { api } from './api.js';
 import { lang, t } from './i18n.js';
+import { $, html, open, run } from './ui.js';
 
 const BUILTINS = ['owner', 'manager', 'cashier', 'storekeeper'];
 
@@ -19,24 +20,45 @@ export function guideRole(role, perms) {
 let files = null;
 function loadFiles() {
   if (!files) {
-    files = Promise.all([
-      fetch('/guide/catalogue.json').then((r) => r.json()),
-      fetch('/guide/ar.json').then((r) => r.json()),
-      fetch('/guide/en.json').then((r) => r.json()),
-    ]).then(([catalogue, ar, en]) => ({ catalogue, ar, en }));
+    files = Promise.all(['catalogue', 'ar', 'en'].map((name) => fetch('/guide/' + name + '.json').then((r) => {
+        if (!r.ok) throw new Error('Guide unavailable');
+        return r.json();
+      }))).then(([catalogue, ar, en]) => ({ catalogue, ar, en })).catch((e) => { files = null; throw e; });
   }
   return files;
 }
 
 let tel = null;
+let telemetryAllowed = false;
+let sessionPerson = null;
+let generation = 0;
+let disposeGuide = () => {};
+
+export async function refreshConsent() {
+  const current = generation;
+  telemetryAllowed = false;
+  // Discard pre-consent events and anything left by the previous signed-in person.
+  if (tel) await tel.flush();
+  if (!guideLive) return;
+  try {
+    const status = await api.get('/api/consent/status');
+    if (current === generation) telemetryAllowed = !!status.tracking;
+  } catch { /* tracking stays off */ }
+}
 /** One telemetry client for the whole tab. A second init would stack error listeners. */
 export function startTelemetry() {
   if (tel || !window.AFTelemetry) return tel;
-  tel = window.AFTelemetry.init({
+  const client = window.AFTelemetry.init({
     lang: lang(),
     page: () => document.body.dataset.route || 'signin',
-    request: (method, url, body) => (method === 'GET' ? api.get(url) : api.post(url, body)),
+    request: (method, url, body) => {
+      if (!telemetryAllowed || !guideLive || !sessionPerson) return Promise.resolve({ queued: 0 });
+      return method === 'GET' ? api.get(url) : api.post(url, body);
+    },
   });
+  tel = { flush: client.flush, track: (type, data) => {
+    if (telemetryAllowed && guideLive) client.track(type, data);
+  }, report: reportProblem };
   window.__aftel = tel;
   return tel;
 }
@@ -56,10 +78,23 @@ export function attachHelp() {
  * A later mount drops the previous chrome; F1 is handled inside AFGuide.init.
  */
 export async function mountGuide({ live, role, person, can, go }) {
+  const current = ++generation;
+  disposeGuide();
+  document.querySelectorAll('[data-afc="card"], [data-aft="dialog"]').forEach((n) => n.remove());
+  guideLive = !!live;
+  sessionPerson = live ? person : null;
+  telemetryAllowed = false;
+  window.__afguide = null;
+  window.__afguideLive = guideLive;
   startTelemetry();
-  const pack = await loadFiles();
+  if (tel) await tel.flush();
+  let pack;
+  try { pack = await loadFiles(); } catch { return null; }
+  if (current !== generation || !window.AFGuide) return null;
   document.querySelectorAll('[data-afg]').forEach((n) => n.remove());
-  const ctl = window.AFGuide.init({
+  let active = true;
+  let pending = Promise.resolve();
+  const options = {
     catalogue: pack.catalogue,
     texts: { ar: pack.ar, en: pack.en },
     role,
@@ -71,14 +106,43 @@ export async function mountGuide({ live, role, person, can, go }) {
     can: (perm) => (can ? !!can(perm) : false),
     track: (type, data) => { if (tel) tel.track(type, data); },
     onReport: (ctx) => { if (tel) tel.report(ctx); },
-    request: (method, url, body) => (method === 'GET' ? api.get(url) : api.post(url, body)),
+    request: (method, url, body) => {
+      if (!active) return Promise.resolve(null);
+      if (method === 'GET') return api.get(url);
+      pending = pending.catch(() => null).then(() => active ? api.post(url, body) : null);
+      return pending;
+    },
     api: live ? '/api/guide' : null,
-  });
-  guideLive = !!live;
+  };
+  // The factory exposes stop(), but no destroy(). Record its two global listeners during
+  // synchronous init so remounting cannot leave an old person's F1 handler or coach alive.
+  const listeners = [];
+  const targets = [document, window];
+  const originals = targets.map((target) => target.addEventListener);
+  let ctl;
+  try {
+    targets.forEach((target, i) => {
+      target.addEventListener = function (type, listener, opts) {
+        listeners.push([target, type, listener, opts]);
+        originals[i].call(target, type, listener, opts);
+      };
+    });
+    ctl = window.AFGuide.init(options);
+  } finally {
+    targets.forEach((target, i) => { target.addEventListener = originals[i]; });
+  }
+  disposeGuide = () => {
+    active = false;
+    ctl.stop();
+    listeners.forEach(([target, type, listener, opts]) => target.removeEventListener(type, listener, opts));
+    document.querySelectorAll('[data-afg]').forEach((n) => n.remove());
+  };
   window.__afguide = ctl;
   window.__afguideLive = guideLive;
   attachHelp();
-  return ctl.ready;
+  await ctl.ready;
+  if (current === generation) await refreshConsent();
+  return ctl;
 }
 
 export function onRoute(name) {
@@ -101,9 +165,62 @@ export async function signal(name) {
 export async function maybeConsent() {
   if (!guideLive || !window.AFConsent) return null;
   let p;
+  const current = generation;
   try { p = await api.get('/api/consent/prompt', { lang: lang() }); } catch { return null; }
-  if (!p || !p.ask) return null;
-  return window.AFConsent.ask(p, (decision) => api.post('/api/consent/decide', {
-    decision, text_id: p.text_id, lang: p.lang, scope: p.scope,
-  }));
+  if (current !== generation || !p || !p.ask || document.querySelector('[data-afc="card"]')) return null;
+  const answer = window.AFConsent.ask(p, async (decision) => {
+    const card = document.querySelector('[data-afc="card"]');
+    const buttons = card ? [...card.querySelectorAll('button')] : [];
+    buttons.forEach((b) => { b.disabled = true; });
+    try {
+      if (current !== generation) return;
+      await api.post('/api/consent/decide', { decision, text_id: p.text_id, lang: p.lang, scope: p.scope });
+      if (current === generation) await refreshConsent();
+    } catch {
+      buttons.forEach((b) => { b.disabled = false; });
+      let status = card.querySelector('[role="status"]');
+      if (!status) { status = document.createElement('p'); status.setAttribute('role', 'status'); card.querySelector('section').append(status); }
+      status.textContent = t('privacy.retry');
+      // The factory removes its card only when the callback resolves.
+      return new Promise(() => {});
+    }
+  });
+  // This product displays a non-modal corner card; reflect that in the accessibility tree.
+  document.querySelector('[data-afc="card"] section')?.setAttribute('aria-modal', 'false');
+  return answer;
+}
+
+async function reportProblem(ctx = {}) {
+  if (!guideLive) return;
+  await refreshConsent();
+  open({ title: t('privacy.reportTitle'), body: html`<p>${t('privacy.reportNote')}</p>
+    ${!telemetryAllowed ? html`<p>${t('privacy.reportConsent')}</p>` : html`
+      <label class="check"><input type="checkbox" data-report-diag>${t('privacy.reportDiagnostics')}</label>
+      <pre class="report-preview" data-report-preview hidden></pre>
+      <div class="row wrap"><button class="btn" data-report-check>${t('privacy.reportPreview')}</button>
+      <button class="btn accent" data-report-send disabled>${t('privacy.reportSend')}</button></div>`}`,
+  mount(box, close) {
+    if (!telemetryAllowed) return;
+    const current = generation;
+    let preview = null;
+    let body = null;
+    $('[data-report-diag]', box).addEventListener('change', () => {
+      preview = null; $('[data-report-send]', box).disabled = true; $('[data-report-preview]', box).hidden = true;
+    });
+    $('[data-report-check]', box).addEventListener('click', async (e) => {
+      body = { kind: 'problem', page: ctx.page || document.body.dataset.route,
+        guide: ctx.guide || null, problem: ctx.problem || null, diagnostics: $('[data-report-diag]', box).checked };
+      preview = await run(api.post('/api/telemetry/feedback/preview', body), null, e.currentTarget);
+      if (!preview || current !== generation) return;
+      const node = $('[data-report-preview]', box);
+      node.textContent = JSON.stringify(preview.event, null, 2); node.hidden = false;
+      $('[data-report-send]', box).disabled = false;
+    });
+    $('[data-report-send]', box).addEventListener('click', async (e) => {
+      if (!preview || current !== generation) return;
+      const result = await run(api.post('/api/telemetry/feedback', { ...body,
+        diagnostics: preview.event.data.diagnostics || false, confirm: preview.digest }), t('privacy.reportQueued'), e.currentTarget);
+      if (result) close();
+    });
+  } });
 }

@@ -300,4 +300,12 @@ export default {
   'auth.err.locked': 'محاولات غلط كتير. استنى شوية وجرّب تاني.', 'auth.err.pct': 'حد الخصم رقم من 0 لـ 100.', 'auth.err.noUser': 'المستخدم مش موجود.', 'auth.err.role': 'الدور مش معروف.',
   'auth.err.sameAsName': 'كلمة السر مينفعش تبقى زي اسم المستخدم.', 'auth.err.short': 'كلمة السر لازم تبقى {n} حروف على الأقل.', 'auth.err.taken': 'اسم المستخدم ده موجود فعلًا.',
   'auth.err.username': 'اسم المستخدم من 2 لـ 40 حرف من غير مسافات.', 'auth.err.weak': 'كلمة السر دي سهلة قوي.', 'auth.err.wrong': 'اسم المستخدم أو كلمة السر غلط.',
+  'privacy.retry': "لم يُحفظ اختيارك. حاول مرة أخرى.",
+  'privacy.reportTitle': "الإبلاغ عن مشكلة",
+  'privacy.reportNote': "يُرسل رقم الصفحة والدرس والمشكلة فقط. لا نرسل نصًا أو بيانات شخصية.",
+  'privacy.reportConsent': "الإبلاغ يحتاج موافقة المحل وموافقتك من صفحة الخصوصية والمساعدة.",
+  'privacy.reportDiagnostics': "إرفاق أعداد وإصدارات الجهاز",
+  'privacy.reportPreview': "معاينة التقرير",
+  'privacy.reportSend': "حفظ للإرسال",
+  'privacy.reportQueued': "التقرير محفوظ على هذا الجهاز. يُرسل عند إعداد عنوان الاستقبال والرمز.",
 };

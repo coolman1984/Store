@@ -32,7 +32,7 @@ export const can = (...perms) => !!S.me && perms.some((p) => S.me.perms.includes
 const allowed = (r) => !ROUTES[r].perm || can(...ROUTES[r].perm);
 /** put() on document.body would drop the coach. Detach it first, then put it back. */
 function replaceBody(content) {
-  const keep = [...document.querySelectorAll('[data-afg], [data-afc], [data-aft="dialog"]')];
+  const keep = [...document.querySelectorAll('[data-afg="fab"], [data-afg="panel"], [data-afg="coach"], [data-afc="card"], [data-aft="dialog"]')];
   keep.forEach((n) => n.remove());
   put(document.body, content);
   keep.forEach((n) => document.body.appendChild(n));
@@ -80,6 +80,7 @@ async function startShell() {
   await mountGuide({
     live: true, role: guideRole(S.me.role, S.me.perms), person: String(S.me.id), can: (p) => can(p), go,
   });
+  window.removeEventListener('hashchange', route);
   window.addEventListener('hashchange', route);
   route();
   maybeConsent().catch(() => {});

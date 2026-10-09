@@ -272,6 +272,10 @@ class GuideCoach(Browser):
     """The owner answers the first-sign-in consent card, opens help, and the open-shift coach
     shows step 1 of N, then moves on once that step is done."""
 
+    def setUp(self):
+        with self.S.app.db.tx():
+            self.S.app.db.run('DELETE FROM consent_log')
+
     def test_owner_answers_consent_and_the_open_shift_coach_advances(self):
         import re
         pg = self.open('owner')
@@ -296,6 +300,52 @@ class GuideCoach(Browser):
         again = re.search(r'2\D+(\d+)', advanced)
         self.assertIsNotNone(again, advanced)
         self.assertEqual(again.group(1), found.group(1), advanced)
+        self.assertEqual(self.errors, [])
+
+    def test_consent_card_is_nonmodal_and_a_shop_dialog_stays_clickable(self):
+        pg = self.open('owner', width=360, height=844)
+        pg.wait_for_selector('[data-afc="card"]')
+        self.assertEqual(pg.get_attribute('[data-afc="card"] section', 'aria-modal'), 'false')
+        pg.click('[data-cmdk]')
+        pg.wait_for_selector('#cmdk-q')
+        pg.fill('#cmdk-q', 'غلاية')
+        pg.keyboard.press('Escape')
+        self.assertLessEqual(pg.evaluate('document.documentElement.scrollWidth'), 360)
+        self.assertEqual(self.errors, [])
+
+    def test_relogin_has_one_guide_and_f1_uses_the_current_person(self):
+        pg = self.open('owner')
+        pg.wait_for_selector('[data-afc="card"]')
+        pg.click('[data-afc="decline"]')
+        pg.wait_for_selector('[data-afc="card"]', state='detached')
+        pg.click('[data-logout]')
+        pg.wait_for_selector('#auth-form')
+        self.assertEqual(pg.locator('[data-afc="card"]').count(), 0)
+        pg.fill('#username', 'storekeeper')
+        pg.fill('#password', 'practice-1234')
+        pg.click('button[type=submit]')
+        pg.wait_for_selector('.shell')
+        self.until(pg, "!!window.__afguide && window.__afguideLive")
+        pg.keyboard.press('F1')
+        pg.wait_for_selector('[data-afg="panel"]', state='visible')
+        self.assertEqual(pg.locator('[data-afg="fab"]').count(), 1)
+        self.assertEqual(pg.locator('[data-afg="panel"]').count(), 1)
+        self.assertEqual(pg.locator('[data-guide-id="make-sale"]').count(), 0)
+        self.assertGreater(pg.locator('[data-guide-id="read-stock"]').count(), 0)
+        self.assertEqual(self.errors, [])
+
+    def test_language_switch_keeps_guide_controls_inside_the_panel(self):
+        pg = self.open('owner')
+        pg.wait_for_selector('[data-afc="card"]')
+        pg.click('[data-afc="decline"]')
+        pg.wait_for_selector('[data-afc="card"]', state='detached')
+        pg.click('[data-afg="help"]')
+        pg.wait_for_selector('[data-afg="panel"]', state='visible')
+        pg.click('[data-lang]')
+        self.until(pg, "document.documentElement.lang === 'en'")
+        self.assertEqual(pg.locator('body > [data-afg="start"], body > [data-afg="help"]').count(), 0)
+        self.assertGreater(pg.locator('[data-afg="panel"] [data-afg="start"]').count(), 0)
+        self.assertEqual(pg.locator('[data-afg="help"]').count(), 1)
         self.assertEqual(self.errors, [])
 
 

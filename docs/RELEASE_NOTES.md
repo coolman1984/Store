@@ -1,10 +1,14 @@
 # Release notes
 
-## 1.2.0
-- New: an in-app guide. Each person sees a short course for their profile (owner, manager, cashier, storekeeper). The coach shows step i of n. Press ? or F1 on any page.
-- New: every error the program can show has a plain explanation: what you see, why, and what to do.
-- New: the first time someone signs in, a card asks about remote help. The two buttons are equal. Settings → Privacy and help can change or withdraw that choice.
-- Remote help is off unless the owner sets a receiver address and a token. Until then nothing leaves this PC. Passwords, names, phone numbers and amounts are never included.
+## 1.2.0 — release candidate
+- New: Arabic and English in-app courses for owners, managers, cashiers and storekeepers, with per-person progress and a step-by-step coach. Custom profiles follow their permissions. Press F1 or the ? button for help.
+- New: each server error has an explanation and a next action. Arabic guidance uses «العربية الميسّرة»; the sale lesson is «إنشاء فاتورة بيع».
+- New: first-sign-in consent and Settings → Privacy and help. Both the shop and person must agree; changing the shop's choice preserves the person's previous refusal. Withdrawing removes pending events and reports.
+- Reports include IDs and optional device counts/versions only, with a confirmed preview. No free text, passwords, typed input, screenshots, names, phones, amounts or business records are collected.
+- Nothing leaves this PC until a receiver address and token are configured. Sending runs in the background and does not block new event requests during the network timeout. HTTPS or exact local endpoints only; redirects are refused.
+- Fixed: consent covering shop controls, guide chrome covering dialog buttons, and the narrow phone top bar. Guide controls remain inside their panel when changing language; old controllers and telemetry cannot follow someone into another account.
+- Guide, progress and privacy withdrawal stay available while the licence is locked. Restore reconnects consent and removes pending events that no longer have permission to send.
+- Validation pending: the browser-enabled full suite could not start its HTTP servers in this sandbox (socket creation refused). Run it in a socket-enabled environment before releasing 1.2.0.
 
 ## 1.1.0
 - New: **profiles** — ready-made sets of permissions you can rename, change (for everybody who has them at once) or delete, and

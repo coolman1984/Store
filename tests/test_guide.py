@@ -55,6 +55,11 @@ def load_guide():
 
 
 class Catalogue(unittest.TestCase):
+    def test_sale_title_uses_simple_formal_arabic(self):
+        _, texts = load_guide()
+        self.assertEqual(texts['ar']['guide.make-sale.title'], 'إنشاء فاتورة بيع')
+        self.assertNotIn('عمل فاتورة', json.dumps(texts['ar'], ensure_ascii=False))
+
     def test_release_check_uses_the_real_shop(self):
         cat, texts = load_guide()
         codes = server_error_codes()

@@ -158,23 +158,26 @@ class App:
         self.backup_now('before-restore')
         target = self.db.path
         with self.db.lock:
-            self.db.conn.close()
-            for suffix in ('-wal', '-shm'):
-                try:
-                    os.remove(target + suffix)
-                except OSError:
-                    pass
             staged = target + '.restoring'  # copy beside the database, then swap in one step: a power cut never leaves half a file
             with open(path, 'rb') as src, open(staged, 'wb') as dst:
                 shutil.copyfileobj(src, dst)
                 dst.flush()
                 os.fsync(dst.fileno())
-            os.replace(staged, target)
-            fresh = Database(target, self.backup_dir)
-            self.db.conn = fresh.conn
-        self.auth = auth_mod.Auth(self.db, self.org_id)
-        if getattr(self, 'assist', None):
-            self.assist.rebind()
+            self.db.conn.close()
+            try:
+                for suffix in ('-wal', '-shm'):
+                    try:
+                        os.remove(target + suffix)
+                    except FileNotFoundError:
+                        pass
+                os.replace(staged, target)
+            finally:
+                # A failed swap must not leave the live server with a closed connection.
+                fresh = Database(target, self.backup_dir)
+                self.db.conn = fresh.conn
+                self.auth = auth_mod.Auth(self.db, self.org_id)
+                if getattr(self, 'assist', None):
+                    self.assist.rebind()
 
     def static(self, rel, gz):
         """Static file bytes (+ gzip copy) cached in memory, with an ETag from the content."""
@@ -540,7 +543,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/consent/prompt':
             d = APP.assist.prompt_for(u, qs.get('lang') or 'ar')
         elif path == '/api/telemetry/sent':
-            d = APP.assist.sent_public()
+            d = APP.assist.sent_public(u)
         elif path == '/api/telemetry/config':
             ctx.need('settings.edit')
             d = APP.assist.receiver_public()
@@ -609,9 +612,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.assist_post(path, u, data)
         if path == '/api/telemetry/config':
             ctx.need('settings.edit')
-            if not APP.licence()['full']:
+            # Withdrawing remote help remains available even when the licence is locked.
+            disabling = not data.get('url') or data.get('clear_token') is True
+            if not disabling and not APP.licence()['full']:
                 raise LicenceLocked()
-            return self.send(200, APP.assist.save_receiver(data))
+            return self.send(200, APP.assist.save_receiver(data, u))
         if path not in OPEN_WRITES and not APP.licence()['full']:
             raise LicenceLocked()
         if isinstance(data.get('approval'), dict):  # checked outside the transaction so a wrong password is counted

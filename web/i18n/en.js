@@ -300,4 +300,12 @@ export default {
   'auth.err.locked': 'Too many wrong tries. Wait a few minutes and try again.', 'auth.err.pct': 'The discount limit is a number from 0 to 100.', 'auth.err.noUser': 'User not found.', 'auth.err.role': 'Unknown role.',
   'auth.err.sameAsName': 'The password must not be the user name.', 'auth.err.short': 'Use at least {n} characters.', 'auth.err.taken': 'This user name is already used.',
   'auth.err.username': 'User name: 2 to 40 characters without spaces.', 'auth.err.weak': 'This password is too easy to guess.', 'auth.err.wrong': 'Wrong user name or password.',
+  'privacy.retry': "Your choice was not saved. Try again.",
+  'privacy.reportTitle': "Report a problem",
+  'privacy.reportNote': "Only page, lesson and problem IDs are sent. No free text or personal data is included.",
+  'privacy.reportConsent': "Reports need shop and person consent from Privacy and help.",
+  'privacy.reportDiagnostics': "Attach device counts and versions",
+  'privacy.reportPreview': "Preview report",
+  'privacy.reportSend': "Queue report",
+  'privacy.reportQueued': "The report is saved on this PC. It sends when a receiver address and token are configured.",
 };

@@ -1,9 +1,14 @@
 """Consent gates telemetry. Decline and withdraw delete that person's queued events. Nothing is sent by default."""
 import json
+import gzip
+import threading
+import os
 import unittest
+from unittest import mock
 
+from harness import PW, Server, Shop
 import aftelemetry
-from harness import PW, Server
+import app as app_mod
 
 
 def _pending(tel):
@@ -145,6 +150,321 @@ class Privacy(unittest.TestCase):
         self.assertEqual(st, 403)
         st, d, _ = self.cash.get('/api/telemetry/config')
         self.assertEqual(st, 403, d)
+
+
+class GluePrivacy(unittest.TestCase):
+    """Real SQLite and factory APIs, including concurrent sends, without a network server."""
+
+    def setUp(self):
+        self.shop = Shop()
+        self.app = self.shop.app
+        self.assist = self.app.assist
+        self.owner = self.shop.users['owner']
+        self.cash = self.shop.user('cashier', 'cash')
+
+    def tearDown(self):
+        self.assist.close()
+        self.shop.cleanup()
+
+    def decide(self, decision='agree', scope='install', user=None):
+        return self.assist.decide(user or self.owner, {'decision': decision, 'scope': scope,
+            'text_id': 'consent.help.remote.ar.v1', 'lang': 'ar'})
+
+    def configured(self):
+        self.assist.save_receiver({'url': 'https://example.invalid/events', 'token': 'test-token'})
+
+    def test_invalid_consent_is_rejected_before_any_write_or_purge(self):
+        self.decide()
+        self.assist.note_action(self.owner, 'sale.pay', 'pos')
+        count = self.app.db.value('SELECT COUNT(*) FROM consent_log')
+        queued = self.assist.tel.pending()
+        for key in ('decision', 'scope', 'text_id', 'lang'):
+            for value in ([], {}, None, 'invalid'):
+                with self.subTest(key=key, value=value):
+                    data = {'decision': 'agree', 'scope': 'install',
+                            'text_id': 'consent.help.remote.ar.v1', 'lang': 'ar'}
+                    data[key] = value
+                    with self.assertRaises(ValueError):
+                        self.assist.decide(self.owner, data)
+                    self.assertEqual(self.app.db.value('SELECT COUNT(*) FROM consent_log'), count)
+                    self.assertEqual(self.assist.tel.pending(), queued)
+
+    def test_shop_agreement_never_overrides_a_persons_decline_or_withdrawal(self):
+        self.decide()
+        for decision in ('decline', 'withdraw'):
+            self.decide(decision, 'person')
+            self.decide('withdraw')
+            status = self.decide()
+            self.assertFalse(status['tracking'])
+            self.assertEqual(status['person']['decision'], decision)
+            self.assertFalse(self.assist.prompt_for(self.owner, 'ar')['ask'])
+        self.assertTrue(self.assist.prompt_for(self.cash, 'en')['ask'])
+
+    def test_prompt_and_permission_follow_both_consent_levels(self):
+        from auth import Forbidden
+        self.assertFalse(self.assist.prompt_for(self.cash, 'en')['ask'])
+        self.assertEqual(self.assist.prompt_for(self.owner, 'ar')['scope'], 'install')
+        with self.assertRaises(Forbidden):
+            self.decide(user=self.cash)
+        self.decide()
+        self.assertTrue(self.assist.prompt_for(self.cash, 'en')['ask'])
+        self.decide('decline', 'person', self.cash)
+        self.assertFalse(self.assist.prompt_for(self.cash, 'en')['ask'])
+
+    def test_browser_junk_is_rejected_without_a_server_error(self):
+        self.decide()
+        events = [{'type': [], 'data': {}}, {'type': 'use.page', 'data': []}, None,
+                  {'type': 'use.page', 'data': {'page': 'home'}, 'page': 'home'}]
+        result = self.assist.browser_events(self.owner, events)
+        self.assertEqual(result, {'queued': 1, 'dropped': 0, 'rejected': 3})
+
+    def test_names_cannot_be_disguised_as_context_ids(self):
+        self.decide()
+        result = self.assist.browser_events(self.owner, [
+            {'type': 'use.page', 'data': {'page': 'Alice'}, 'page': 'home'},
+            {'type': 'guide.start', 'data': {'guide': 'Alice'}},
+            {'type': 'err.client', 'data': {'code': 'Error', 'fingerprint': 'abcdefgh', 'where': 'Alice:7'}},
+        ])
+        self.assertEqual(result['rejected'], 3)
+        self.assertEqual(self.assist.tel.pending(), [])
+        with self.assertRaises(aftelemetry.PrivacyError):
+            self.assist.preview({'kind': 'problem', 'page': 'Alice'})
+
+    def test_rolled_back_consent_cannot_be_seen_by_a_browser_event_thread(self):
+        attempted, finished = threading.Event(), threading.Event()
+        errors = []
+        def emit():
+            attempted.set()
+            try:
+                self.assist.note_action(self.owner, 'sale.pay', 'pos')
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                finished.set()
+        with self.assertRaises(RuntimeError):
+            with self.app.db.tx():
+                self.assist.consent.record('install', '', 'agree', 'consent.help.remote.ar.v1', 'ar', self.owner['id'])
+                self.assist.consent.record('person', self.owner['id'], 'agree', 'consent.help.remote.ar.v1', 'ar', self.owner['id'])
+                worker = threading.Thread(target=emit)
+                worker.start()
+                self.assertTrue(attempted.wait(1))
+                self.assertFalse(finished.wait(.05), 'event thread read an uncommitted decision')
+                raise RuntimeError('roll back')
+        worker.join(2)
+        self.assertTrue(finished.is_set())
+        self.assertEqual(errors, [])
+        self.assertEqual(self.assist.tel.pending(), [])
+
+    def test_redirects_do_not_forward_receiver_tokens(self):
+        self.decide()
+        self.configured()
+        self.assist.note_action(self.owner, 'sale.pay', 'pos')
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.status = 302
+        response.read.return_value = b'{}'
+        response.headers.get.return_value = None
+        opener = mock.Mock()
+        opener.open.return_value = response
+        with mock.patch('assist.urllib.request.build_opener', return_value=opener) as build:
+            self.assertEqual(self.assist.flush_remote(), ('failed', 302))
+        redirect = build.call_args.args[0]
+        self.assertIsNone(redirect.redirect_request(None, None, 302, 'redirect', {}, 'http://evil.invalid'))
+        self.assertEqual(opener.open.call_count, 1)
+
+    def test_old_reports_and_events_without_current_consent_are_purged_before_send(self):
+        # Legacy factory reports had a consent bypass and could carry text.
+        self.assist.tel.db.execute("INSERT INTO outbox (id, created, type, prio, subject, body, size) VALUES (?,?,?,?,?,?,?)",
+            ('legacy', 1, 'fb.problem', 0, None, json.dumps({'type': 'fb.problem', 'data': {'text': 'private'}}), 1))
+        self.configured()
+        with mock.patch.object(self.assist, '_post_remote') as send:
+            self.assertEqual(self.assist.flush_remote(), ('idle', 0))
+        send.assert_not_called()
+        self.assertEqual(self.assist.tel.pending(), [])
+
+    def test_receiver_hostname_and_type_checks_and_no_partial_config_write(self):
+        from core import Problem
+        for url in ('http://localhost.evil.invalid/in', 'http://127.0.0.1.evil.invalid/in',
+                    'http://localhost@evil.invalid/in', 'https://', 'https://example.invalid:bad/in',
+                    'https://example.invalid/#fragment', 'https://example.invalid/\n'):
+            with self.subTest(url=url), self.assertRaises(Problem):
+                self.assist.save_receiver({'url': url})
+        for data in ({'url': []}, {'token': {}}, {'clear_token': 'false'}):
+            with self.assertRaises(Problem):
+                self.assist.save_receiver(data)
+        old = dict(self.app.cfg)
+        with mock.patch.object(self.assist, '_write_cfg', side_effect=OSError('disk full')):
+            with self.assertRaises(OSError):
+                self.configured()
+        self.assertEqual(self.app.cfg, old)
+        self.app.cfg['telemetry_url'] = 42
+        self.app.cfg['telemetry_token'] = []
+        self.assertFalse(self.assist.receiver_public()['sending'])
+
+    def test_network_send_releases_queue_lock_and_preserves_new_merged_counts(self):
+        self.decide()
+        self.configured()
+        self.assist.note_action(self.owner, 'sale.pay', 'pos')
+        entered, release, emitted = threading.Event(), threading.Event(), threading.Event()
+        sent = []
+        errors = []
+        def post(url, body, headers):
+            sent.extend(json.loads(gzip.decompress(body)))
+            entered.set()
+            if not release.wait(3):
+                raise AssertionError('test transport did not finish')
+            return 200
+        def flush():
+            try:
+                self.assist.flush_remote()
+            except Exception as exc:
+                errors.append(exc)
+        def emit():
+            try:
+                self.assist.note_action(self.owner, 'sale.pay', 'pos')
+                emitted.set()
+            except Exception as exc:
+                errors.append(exc)
+        with mock.patch.object(self.assist, '_post_remote', side_effect=post):
+            sender = threading.Thread(target=flush)
+            sender.start()
+            try:
+                self.assertTrue(entered.wait(2))
+                worker = threading.Thread(target=emit)
+                worker.start()
+                self.assertTrue(emitted.wait(1), 'browser event blocked on the network timeout')
+                self.assertIsNone(self.assist.flush_remote(), 'two simultaneous sends')
+            finally:
+                release.set()
+                sender.join(3)
+                if 'worker' in locals():
+                    worker.join(3)
+        self.assertFalse(sender.is_alive())
+        self.assertEqual(errors, [])
+        self.assertEqual(sent[0]['data']['count'], 1)
+        pending = self.assist.tel.pending()
+        self.assertEqual(len(pending), 1)
+        self.assertNotEqual(sent[0]['id'], pending[0]['id'])
+        self.assertEqual(pending[0]['data']['count'], 1)
+
+    def test_failed_send_keeps_batch_and_new_events_for_retry(self):
+        self.decide()
+        self.configured()
+        self.assist.note_action(self.owner, 'sale.pay', 'pos')
+        def post(*args):
+            self.assist.note_action(self.owner, 'sale.pay', 'pos')
+            raise OSError('offline')
+        with mock.patch.object(self.assist, '_post_remote', side_effect=post):
+            self.assertEqual(self.assist.flush_remote(), ('failed', 0))
+        self.assertEqual(sum(e['data']['count'] for e in self.assist.tel.pending()), 2)
+
+    def test_reports_need_consent_confirmation_and_never_queue_free_text(self):
+        data = {'kind': 'problem', 'page': 'pos', 'text': 'Alice paid 999 EGP password=unsafe',
+                'diagnostics': {'version': 'Alice'}}
+        preview = self.assist.preview(data)
+        self.assertNotIn('Alice', json.dumps(preview))
+        self.assertEqual(preview['event']['data']['text'], 'user.report')
+        with self.assertRaises(aftelemetry.PrivacyError):
+            self.assist.feedback(self.owner, dict(data, confirm=preview['digest']))
+        self.decide()
+        with self.assertRaises(aftelemetry.PrivacyError):
+            self.assist.feedback(self.owner, data)
+        safe = {'kind': 'problem', 'page': 'pos', 'confirm': preview['digest']}
+        self.assertTrue(self.assist.feedback(self.owner, safe)['id'])
+        blob = json.dumps(self.assist.tel.pending())
+        self.assertNotIn('Alice', blob)
+        self.assertNotIn('unsafe', blob)
+        self.assertEqual(self.assist.tel.pending()[0]['data']['text'], 'user.report')
+        self.decide('withdraw', 'person')
+        self.assertEqual(self.assist.tel.pending(), [])
+
+    def test_diagnostic_snapshot_is_exact_and_cannot_be_forged(self):
+        self.decide()
+        data = {'kind': 'problem', 'page': 'pos', 'diagnostics': True}
+        preview = self.assist.preview(data)
+        snapshot = preview['event']['data']['diagnostics']
+        with mock.patch.object(self.assist, 'diagnostics', side_effect=AssertionError('must use preview')):
+            out = self.assist.feedback(self.owner, dict(data, diagnostics=snapshot, confirm=preview['digest']))
+        self.assertTrue(out['id'])
+        self.assertEqual(self.assist.tel.pending()[0]['data']['diagnostics'], snapshot)
+        with self.assertRaises(aftelemetry.PrivacyError):
+            self.assist.feedback(self.owner, dict(data, diagnostics={'version': 'Alice'}, confirm=preview['digest']))
+
+    def test_restore_rebinds_consent_and_purges_outbox_that_no_longer_has_consent(self):
+        saved = self.app.backup_now('manual')
+        self.decide()
+        self.assist.note_action(self.owner, 'sale.pay', 'pos')
+        self.assertTrue(self.assist.tel.pending())
+        old_connection = self.app.db.conn
+        self.app.restore(saved['name'])
+        self.assertIsNot(self.app.db.conn, old_connection)
+        self.assertIs(self.assist.consent.db, self.app.db.conn)
+        self.assertFalse(self.assist.consent_status(self.owner)['tracking'])
+        self.assertEqual(self.assist.tel.pending(), [])
+        self.assertTrue(self.assist.guide_state(self.owner)['course'])
+
+    def test_restore_copy_or_swap_failure_keeps_the_shop_usable(self):
+        saved = self.app.backup_now('manual')
+        self.decide()
+        with mock.patch('app.shutil.copyfileobj', side_effect=OSError('disk full')):
+            with self.assertRaises(OSError):
+                self.app.restore(saved['name'])
+        self.assertTrue(self.assist.consent_status(self.owner)['tracking'])
+        replace = os.replace
+        def fail_swap(source, target):
+            if source.endswith('.restoring'):
+                raise OSError('swap failed')
+            return replace(source, target)
+        with mock.patch('app.os.replace', side_effect=fail_swap):
+            with self.assertRaises(OSError):
+                self.app.restore(saved['name'])
+        self.assertTrue(self.assist.consent_status(self.owner)['tracking'])
+
+    def test_person_cannot_see_other_peoples_sent_events(self):
+        self.decide()
+        self.decide('agree', 'person', self.cash)
+        self.assist.note_action(self.owner, 'sale.pay', 'pos')
+        self.assist.note_action(self.cash, 'shift.open', 'cash')
+        self.assist.tel.mark_sent([e['id'] for e in self.assist.tel.pending()])
+        rows = self.assist.sent_public(self.cash)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['page'], 'cash')
+
+    def test_unknown_request_paths_do_not_leak_customer_identifiers(self):
+        self.decide()
+        self.assist.capture(RuntimeError('sensitive'), '/api/Alice/01099887766')
+        event = self.assist.tel.pending()[0]
+        self.assertEqual(event['data']['where'], 'server')
+
+    def test_no_remote_send_inside_a_shop_write(self):
+        self.decide()
+        self.configured()
+        self.assist.note_action(self.owner, 'sale.pay', 'pos')
+        with mock.patch.object(self.assist, '_post_remote') as send, self.app.db.tx():
+            self.assertIsNone(self.assist.flush_remote())
+        send.assert_not_called()
+
+    def test_new_routes_remain_available_when_licence_is_locked(self):
+        self.app.db.run("DELETE FROM meta WHERE key = 'licence_code'")
+        self.assertFalse(self.app.licence()['full'])
+        handler = object.__new__(app_mod.Handler)
+        handler.user = lambda: self.owner
+        handler.ctx = lambda user: self.shop.ctx(user)
+        handler.send = mock.Mock()
+        with mock.patch.object(app_mod, 'APP', self.app):
+            for path, body in (
+                ('/api/guide/progress', {'update': {'op': 'done', 'guide': 'home-today'}}),
+                ('/api/consent/decide', {'decision': 'decline', 'scope': 'install',
+                    'text_id': 'consent.help.remote.ar.v1', 'lang': 'ar'}),
+                ('/api/telemetry/events', {'events': []}),
+                ('/api/telemetry/config', {'url': '', 'clear_token': True}),
+            ):
+                handler.body = lambda maximum, body=body: body
+                handler.api_post(path)
+                self.assertEqual(handler.send.call_args.args[0], 200)
+            handler.body = lambda maximum: {'url': 'https://example.invalid/events', 'token': 'test-token'}
+            with self.assertRaises(app_mod.LicenceLocked):
+                handler.api_post('/api/telemetry/config')
 
 
 if __name__ == '__main__':
