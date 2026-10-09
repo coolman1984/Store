@@ -11,6 +11,8 @@ import os
 import sqlite3
 import threading
 
+import afconsent
+import afguide
 from version import SCHEMA
 
 LEDGER = ('stock_moves', 'cash_moves', 'tenders', 'ar_entries', 'ap_entries', 'prices', 'costs', 'sale_lines',
@@ -162,7 +164,7 @@ CREATE TABLE profiles (
   id TEXT PRIMARY KEY, org_id TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', perms TEXT NOT NULL DEFAULT '[]',
   max_discount_pct INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, changed_at TEXT NOT NULL) STRICT;
 ALTER TABLE users ADD COLUMN perms TEXT;
-"""}
+""", 3: afguide.SQL.rstrip() + ";\n" + afconsent.SQL + "\n"}
 
 
 def _guards(conn):

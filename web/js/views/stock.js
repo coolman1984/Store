@@ -23,7 +23,7 @@ export default async function view(page, params) {
   const locs = S.lookups?.locations || [];
   let only = params.only || 'all', q = '';
   put(body, html`<div class="toolbar">${seg('only', [['all', t('stock.all')], ['low', t('stock.low')], ['out', t('stock.out')]], only)}
-    <input class="input" id="st-q" placeholder="${t('products.search')}" autocomplete="off"></div><div id="st-list">${skeleton(6)}</div>`);
+    <input class="input" id="st-q" data-guide="stock.search" placeholder="${t('products.search')}" autocomplete="off"></div><div id="st-list">${skeleton(6)}</div>`);
   const load = async () => {
     const box = $('#st-list', body);
     try {

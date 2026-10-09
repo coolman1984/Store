@@ -1,5 +1,6 @@
 // Receiving goods: from a supplier (paid now or owed) or opening stock; serial numbers scanned per piece; supplier accounts.
 import { api, key } from '../api.js';
+import { signal } from '../guide.js';
 import { S, can, settle } from '../app.js';
 import { t } from '../i18n.js';
 import { shake } from '../motion.js';
@@ -26,7 +27,7 @@ async function newReceipt(body, again) {
   const idem = key();
   put(body, html`<div class="two"><div class="card"><div class="card-head"><h2>${t('receive.lines')}</h2></div><div id="rlines"></div></div>
     <div class="stack"><div class="card form">
-      <div class="field"><label for="rs">${t('receive.supplier')}</label><div class="row"><select id="rs" class="input grow"><option value="">${t('receive.noSupplier')}</option>
+      <div class="field"><label for="rs">${t('receive.supplier')}</label><div class="row"><select id="rs" class="input grow" data-guide="receive.supplier"><option value="">${t('receive.noSupplier')}</option>
         ${sups.map((s) => html`<option value="${s.id}">${s.name}</option>`)}</select><button class="icon-btn" data-addsup aria-label="${t('receive.newSupplier')}">${icon('plus')}</button></div>
         <span class="hint">${t('receive.noSupplierHint')}</span></div>
       <div class="cols"><div class="field"><label for="rl">${t('receive.to')}</label><select id="rl" class="input">${locs.filter((l) => l.kind !== 'damaged').map((l) => html`<option value="${l.id}" ${l.id === store?.id ? 'selected' : ''}>${l.name}</option>`)}</select></div>
@@ -37,7 +38,7 @@ async function newReceipt(body, again) {
         <div class="field"><span class="label">${t('receive.payFrom')}</span>${seg('from', [['safe', t('cash.safe')], ['drawer', t('cash.drawer')]], 'safe')}</div></div>` : ''}
       <div class="field"><label for="rnote">${t('f.note')}</label><input id="rnote" class="input"></div>
       <p class="err small" id="rerr" role="alert"></p>
-      <button class="btn accent lg" data-save>${icon('check')}${t('receive.save')}</button></div>
+      <button class="btn accent lg" data-save data-guide="receive.save">${icon('check')}${t('receive.save')}</button></div>
       <div class="tip">${icon('info')}<div>${t('receive.tip')}</div></div></div></div>`);
   let from = 'safe';
   bindSeg(body, 'from', (v) => { from = v; });
@@ -56,7 +57,7 @@ async function newReceipt(body, again) {
     const r = await run(api.post('/api/purchase', { idem_key: idem, supplier_id: supplier, location_id: $('#rl', body).value, supplier_ref: $('#rref', body).value,
       shelf: $('#rshelf', body).value, note: $('#rnote', body).value, paid_now: supplier ? paid : (paid ? total : 0), pay_from: from,
       lines: lines.map((l) => ({ product_id: l.product_id, qty: l.qty, unit_cost: l.unit_cost || 0, serials: l.serials })) }), null, e.currentTarget);
-    if (r) { toast(t('receive.done', { n: r.number })); again(); }
+    if (r) { signal('receive.done'); toast(t('receive.done', { n: r.number })); again(); }
   });
 }
 

@@ -1,6 +1,7 @@
 // Customers and shop instalments: who owes what, who is late today, collect a payment, remind on WhatsApp (one by one).
 import { api, key } from '../api.js';
 import { S, can, settle } from '../app.js';
+import { signal } from '../guide.js';
 import { t } from '../i18n.js';
 import { shake } from '../motion.js';
 import { schedule, saleFile } from './sales.js';
@@ -55,7 +56,7 @@ async function dueTab(body) {
       <span class="badge ${x.late_days > 30 ? 'bad' : 'warn'}">${x.late_days ? t('cust.lateDays', { n: x.late_days }) : t('cust.dueToday')}</span>
       <b class="money num">${money(x.due_now)}</b>
       ${x.phone ? html`<a class="icon-btn" target="_blank" rel="noopener" aria-label="WhatsApp" href="${whatsapp(x.phone, t('cust.remind', { name: x.customer, amount: money(x.due_now), shop }))}">${icon('message')}</a>` : ''}
-      <button class="btn sm primary" data-collect="${x.customer_id}" data-plan="${x.plan_id}" data-amount="${x.due_now}">${t('cust.collect')}</button></div>`)}</div>`
+      <button class="btn sm primary" data-collect="${x.customer_id}" data-plan="${x.plan_id}" data-amount="${x.due_now}" data-guide="cust.collect">${t('cust.collect')}</button></div>`)}</div>`
       : empty('check-circle', t('cust.noLate'), t('cust.noLateHint'))}</div>
     ${d.upcoming.length ? html`<div class="card"><div class="card-head"><h2>${t('cust.upcoming')}</h2></div><div class="list">${d.upcoming.map((x) => html`<div class="li">
       <span class="grow"><b>${x.customer}</b> <span class="small muted num">${date(x.due)}</span></span><b class="money num">${money(x.amount)}</b>
@@ -78,7 +79,7 @@ export async function customerFile(id, onChange) {
         ${c.address ? html`<span class="chip">${icon('pin')}${c.address}</span>` : ''}${c.national_id ? html`<span class="chip">${icon('lock')}${c.national_id}</span>` : ''}</div>
       <div class="card ${c.balance > 0 ? 'ink-card' : 'flat'}"><div class="kpi"><span class="label">${t('cust.balance')}</span>
         <span class="value num">${money(c.balance)}</span>${c.credit_limit ? html`<span class="small muted">${t('pos.creditLimit', { l: money(c.credit_limit) })}</span>` : ''}</div>
-        ${c.balance > 0 && can('installments.collect') ? html`<div class="row wrap"><button class="btn accent" data-collect>${icon('cash')}${t('cust.collect')}</button>
+        ${c.balance > 0 && can('installments.collect') ? html`<div class="row wrap"><button class="btn accent" data-collect data-guide="cust.collect">${icon('cash')}${t('cust.collect')}</button>
           ${c.phone ? html`<a class="btn" target="_blank" rel="noopener" href="${whatsapp(c.phone, t('cust.remind', { name: c.name, amount: money(c.balance), shop }))}">${icon('message')}${t('cust.remindBtn')}</a>` : ''}</div>` : ''}</div>
       ${c.plans.map((p) => html`<div class="card flat"><div class="card-head"><h2>${t('cust.plan')} <span class="num">${p.number}</span></h2>
         <span class="badge ${p.due_now ? 'bad' : p.remaining ? 'ok' : ''}">${p.remaining ? (p.due_now ? t('cust.dueNow', { m: money(p.due_now) }) : t('cust.onTrack')) : t('cust.planDone')}</span></div>
@@ -110,10 +111,10 @@ function collect(customerId, planId, suggested, onDone) {
   const idem = key();
   open({
     title: t('cust.collect'),
-    body: html`<div class="field"><label for="amt">${t('f.amount')}</label><input id="amt" class="input big money-in" inputmode="decimal" value="${(suggested || 0) / 100}" autofocus></div>
+    body: html`<div class="field"><label for="amt">${t('f.amount')}</label><input id="amt" class="input big money-in" data-guide="collect.amount" inputmode="decimal" value="${(suggested || 0) / 100}" autofocus></div>
       <div class="field"><span class="label">${t('pos.method')}</span>${seg('cm', [['cash', t('pay.cash'), 'cash'], ['instapay', t('pay.instapay'), 'qr'], ['wallet', t('pay.wallet'), 'phone'], ['card', t('pay.card'), 'card']], 'cash')}</div>
       <div class="field"><label for="note">${t('f.note')}</label><input id="note" class="input"></div><p class="err small" id="cerr"></p>`,
-    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn accent" data-ok>${icon('check')}${t('cust.collect')}</button>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn accent" data-ok data-guide="collect.save">${icon('check')}${t('cust.collect')}</button>`,
     mount(box, close) {
       let method = 'cash';
       bindSeg(box, 'cm', (v) => { method = v; });
@@ -122,7 +123,7 @@ function collect(customerId, planId, suggested, onDone) {
         if (!amount) { shake($('#amt', box)); return; }
         const r = await run(api.post('/api/collect', { idem_key: idem, customer_id: customerId, plan_id: planId || undefined, amount, method, note: $('#note', box).value }),
           null, e.currentTarget);
-        if (r) { close(); toast(t('cust.collected', { m: money(amount), b: money(r.balance) })); onDone && onDone(); }
+        if (r) { signal('instalment.paid'); close(); toast(t('cust.collected', { m: money(amount), b: money(r.balance) })); onDone && onDone(); }
       });
     },
   });

@@ -43,6 +43,8 @@ Licence Studio, verified here with the vendored stdlib checker (`server/afcodes.
 
 ## Data map (privacy by design)
 Customer name, mobile, address (needed for instalments and delivery); national ID **optional**, only visible with
-`customers.private`; guarantor name/mobile. No data leaves the PC: no cloud, no analytics, no telemetry.
+`customers.private`; guarantor name/mobile. Nothing leaves the PC unless the owner turns on optional remote help in Settings.
+That help sends counts and ids only, and only after the shop and the person both agree. Passwords, typed text, screenshots,
+names, phone numbers and amounts are never sent. Sending stays off until the owner sets a receiver address and a token.
 Sessions, failed logins and every write are in the audit table. Backups contain personal data: keep them on the shop's own
 disks (the program refuses nothing here; the guide says so).

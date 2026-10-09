@@ -2,8 +2,8 @@
 PRODUCT = 'Al-Store'
 PRODUCT_AR = 'الستور'
 PRODUCT_ID = 'al-store'  # the id inside licence codes; never change it after the first code is issued
-VERSION = '1.1.0'
-SCHEMA = 2
+VERSION = '1.2.0'
+SCHEMA = 3
 DEVELOPER = 'Apps Factory'
 
 import os

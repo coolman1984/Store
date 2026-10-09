@@ -1,0 +1,14 @@
+/* Vendored from Apps-Factory packages/af-telemetry 0.2.0 - do not edit here. */
+/* Update with: python scripts/vendor_telemetry.py <product repo> (from the Apps-Factory checkout) */
+/* af-telemetry 0.1.0: problem-report dialog */
+.aft-scrim { position: fixed; inset: 0; z-index: 9600; display: grid; place-items: center; background: var(--overlay-scrim, rgba(10,15,25,.45)); }
+.aft-card { inline-size: min(520px, calc(100vw - 32px)); max-block-size: calc(100vh - 32px); overflow: auto; display: grid; gap: 10px; padding: 20px; border-radius: var(--r-lg, 14px); background: var(--surface, #fff); color: var(--ink, #1c2430); font-family: var(--font-ui, system-ui, "Segoe UI", Tahoma, sans-serif); box-shadow: var(--shadow-3, 0 10px 30px rgba(0,0,0,.25)); }
+.aft-card h2 { margin: 0; font-size: var(--fs-lg, 18px); }
+.aft-card textarea, .aft-card select { font: inherit; padding: 8px; border: 1px solid var(--line-2, #c8cfdb); border-radius: var(--r-sm, 8px); }
+.aft-preview { margin: 0; padding: 10px; max-block-size: 220px; overflow: auto; background: var(--surface-2, #f6f7fa); border-radius: var(--r-sm, 8px); font-size: 12px; direction: ltr; text-align: start; white-space: pre-wrap; }
+.aft-note, .aft-msg { margin: 0; color: var(--ink-2, #5b6574); font-size: var(--fs-sm, 13px); }
+.aft-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.aft-btn { min-block-size: 44px; padding: 0 16px; border: 0; border-radius: var(--r-md, 10px); background: var(--brand, #1f5eff); color: var(--ink-inverse, #fff); font: inherit; font-weight: 700; cursor: pointer; }
+.aft-btn[disabled] { opacity: .5; cursor: not-allowed; }
+.aft-quiet { background: transparent; color: var(--brand, #1f5eff); box-shadow: inset 0 0 0 1px var(--line-2, #c8cfdb); }
+.aft-btn:focus-visible { outline: 3px solid var(--focus, #ffbf47); outline-offset: 2px; }

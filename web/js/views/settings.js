@@ -6,25 +6,27 @@ import { shake } from '../motion.js';
 import { printHTML } from '../print.js';
 import { prefs } from '../prefs.js';
 import { CUR, raw, $, $$, html, put, icon, date, open, empty, skeleton, errorText, toast, run, confirm, seg, bindSeg, initials, download, parseMoney } from '../ui.js';
+import { signal } from '../guide.js';
 
+const TAB_GUIDE = { shop: 'settings.shop.tab', users: 'settings.users.tab', backup: 'settings.backup.tab' };
 const TABS = [['shop', 'store', 'settings.edit'], ['licence', 'key', 'settings.edit'], ['users', 'users', 'users.manage'], ['places', 'warehouse', 'settings.edit'],
-  ['backup', 'download', 'settings.edit'], ['support', 'help', 'settings.edit'], ['device', 'sun', null]];
+  ['backup', 'download', 'settings.edit'], ['support', 'help', 'settings.edit'], ['privacy', 'shield', null], ['device', 'sun', null]];
 
 export default async function view(page, params) {
   const tabs = TABS.filter(([, , p]) => !p || can(p));
   const tab = tabs.find(([k]) => k === params.tab)?.[0] || tabs[0][0];
   put(page, html`<div class="page-head"><div class="titles"><h1>${t('nav.settings')}</h1><p>${t('settings.sub')}</p></div></div>
-    <nav class="tabs" data-lab-scroll aria-label="${t('nav.sections')}">${tabs.map(([k, ic]) => html`<a href="#/settings?tab=${k}" ${tab === k ? CUR : ''}>${icon(ic)}${t('settings.tab.' + k)}</a>`)}</nav><div id="set-body">${skeleton(5)}</div>`);
+    <nav class="tabs" data-lab-scroll aria-label="${t('nav.sections')}">${tabs.map(([k, ic]) => html`<a href="#/settings?tab=${k}" data-guide="${TAB_GUIDE[k] || ''}" ${tab === k ? CUR : ''}>${icon(ic)}${t('settings.tab.' + k)}</a>`)}</nav><div id="set-body">${skeleton(5)}</div>`);
   const body = $('#set-body', page);
   const again = () => view(page, params);
-  ({ shop, licence, users, places, backup, support, device })[tab](body, again);
+  ({ shop, licence, users, places, backup, support, privacy, device })[tab](body, again);
 }
 
 async function shop(body) {
   const d = await api.get('/api/settings').catch((e) => { put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); });
   if (!d) return;
   const s = d.settings;
-  const f = (k, label, hint, type = 'text') => html`<div class="field"><label for="s-${k}">${label}</label><input id="s-${k}" class="input ${type === 'money' ? 'money-in' : ''}" data-k="${k}" data-type="${type}"
+  const f = (k, label, hint, type = 'text') => html`<div class="field"><label for="s-${k}">${label}</label><input id="s-${k}" class="input ${type === 'money' ? 'money-in' : ''}" data-k="${k}" data-type="${type}" data-guide="${k === 'shop_name' ? 'settings.shop.name' : ''}"
     value="${type === 'money' ? s[k] / 100 : s[k]}" ${type !== 'text' ? raw('inputmode="decimal"') : ''}>${hint ? html`<span class="hint">${hint}</span>` : ''}</div>`;
   put(body, html`<div class="stack"><div class="card form"><div class="card-head"><h2>${t('settings.shopInfo')}</h2></div>
       <div class="cols">${f('shop_name', t('setup.shop'))}${f('shop_phone', t('f.phone'))}${f('shop_address', t('f.address'))}${f('tax_number', t('settings.taxNo'), t('settings.taxNoHint'))}</div></div>
@@ -38,7 +40,7 @@ async function shop(body) {
       <div class="field"><label for="s-prov">${t('settings.providers')}</label><input id="s-prov" class="input" value="${(s.finance_providers || []).join('، ')}"><span class="hint">${t('settings.providersHint')}</span></div></div>
     <div class="card form"><div class="card-head"><h2>${t('settings.watch')}</h2></div>
       <div class="cols">${f('large_expense', t('settings.largeExpense'), '', 'money')}${f('opening_hour', t('settings.open'), '', 'num')}${f('closing_hour', t('settings.close'), '', 'num')}</div></div>
-    <div class="row"><button class="btn accent lg" data-save>${icon('check')}${t('act.save')}</button></div></div>`);
+    <div class="row"><button class="btn accent lg" data-save data-guide="settings.save">${icon('check')}${t('act.save')}</button></div></div>`);
   $('[data-save]', body).addEventListener('click', async (e) => {
     const out = { receipt_width: $('[data-seg="rw"] [aria-pressed="true"]', body).dataset.v,
       finance_providers: $('#s-prov', body).value.split(/[,،]\s*/).map((x) => x.trim()).filter(Boolean) };
@@ -49,7 +51,7 @@ async function shop(body) {
       else out[inp.dataset.k] = inp.value;
     }
     const r = await run(api.post('/api/settings/save', { settings: out }), t('saved'), e.currentTarget);
-    if (r) { S.lookups = await api.get('/api/lookups').catch(() => S.lookups); }
+    if (r) { signal('settings.saved'); S.lookups = await api.get('/api/lookups').catch(() => S.lookups); }
   });
 }
 
@@ -73,7 +75,7 @@ async function users(body, again) {
   try { d = await api.get('/api/users'); } catch (e) { put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); return; }
   const profOf = (u) => d.profiles.find((p) => p.id === u.role);
   put(body, html`<div class="stack"><div class="row between wrap"><p class="muted">${t('users.sub')}</p>
-      <div class="row wrap"><button class="btn" data-matrix>${icon('layers')}${t('users.matrix')}</button><button class="btn primary" data-new>${icon('plus')}${t('users.add')}</button></div></div>
+      <div class="row wrap"><button class="btn" data-matrix>${icon('layers')}${t('users.matrix')}</button><button class="btn primary" data-new data-guide="users.add">${icon('plus')}${t('users.add')}</button></div></div>
     <div class="grid">${d.users.map((u) => html`<button class="card flat user-card" data-id="${u.id}"><div class="row"><span class="avatar">${initials(u.full_name)}</span>
       <span class="grow"><b>${u.full_name}</b><bdi class="small muted"> @${u.username}</bdi><div class="small">${pname(profOf(u))}${u.max_discount_pct ? ' · ' + t('users.discountN', { n: u.max_discount_pct }) : ''}</div></span>
       ${u.active ? '' : html`<span class="badge bad">${t('users.off')}</span>`}</div></button>`)}</div>
@@ -130,15 +132,15 @@ function editUser(u, d, again) {
     ${role === 'custom' ? html`<option value="custom" selected>${t('users.customProfile')}</option>` : ''}`;
   open({
     title: u ? u.full_name : t('users.add'), kind: 'panel',
-    body: html`<div class="form"><div class="cols"><div class="field"><label for="uf">${t('f.name')}</label><input id="uf" class="input" value="${u?.full_name || ''}" autofocus></div>
+    body: html`<div class="form"><div class="cols"><div class="field"><label for="uf">${t('f.name')}</label><input id="uf" class="input" data-guide="user.name" value="${u?.full_name || ''}" autofocus></div>
       <div class="field"><label for="uu">${t('f.username')}</label><input id="uu" class="input num" value="${u?.username || ''}" ${u ? 'disabled' : ''} autocomplete="off"></div></div>
-      <div class="field"><label for="ur">${t('users.profile')}</label><select id="ur" class="input">${options()}</select><span class="hint" id="ur-hint"></span></div>
+      <div class="field"><label for="ur">${t('users.profile')}</label><select id="ur" class="input" data-guide="user.profile">${options()}</select><span class="hint" id="ur-hint"></span></div>
       <div class="cols"><div class="field"><label for="ud">${t('users.maxDiscount')}</label><input id="ud" class="input num" inputmode="numeric" value="${u ? u.max_discount_pct : ''}" placeholder="${t('users.byRole')}"></div>
-      <div class="field"><label for="up">${u ? t('users.newPassword') : t('f.password')}</label><input id="up" type="password" class="input" autocomplete="new-password" placeholder="${u ? t('users.keepPassword') : ''}"></div></div>
+      <div class="field"><label for="up">${u ? t('users.newPassword') : t('f.password')}</label><input id="up" type="password" class="input" data-guide="user.password" autocomplete="new-password" placeholder="${u ? t('users.keepPassword') : ''}"></div></div>
       ${u ? html`<label class="check"><input type="checkbox" id="ua" ${u.active ? 'checked' : ''}>${t('users.active')}</label>` : ''}
       <details class="card flat" ${role === 'custom' ? 'open' : ''}><summary class="row"><b class="grow">${t('users.custom')}</b>${icon('chev-d')}</summary><p class="small muted">${t('users.customHint')}</p>
         <div id="perms" class="stack tight"></div></details></div>`,
-    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok>${t('act.save')}</button>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok data-guide="user.save">${t('act.save')}</button>`,
     mount(box, close) {
       const sel = $('#ur', box);
       const hint = () => put($('#ur-hint', box), role === 'custom' ? t('users.customNow') : t('profiles.nPerms', { n: state.size }));
@@ -163,7 +165,7 @@ function editUser(u, d, again) {
         if ($('#up', box).value) body.password = $('#up', box).value;
         else if (!u) { shake($('#up', box)); return; }
         if (u) body.active = $('#ua', box).checked;
-        if (await run(api.post('/api/user/save', body), t('saved'), e.currentTarget)) { close(); again(); }
+        if (await run(api.post('/api/user/save', body), t('saved'), e.currentTarget)) { signal('user.saved'); close(); again(); }
       });
       void redraw;
     },
@@ -260,13 +262,63 @@ async function support(body, again) {
   $('[data-ping]', body).addEventListener('click', async (e) => { if (await run(api.post('/api/support/ping'), t('support.pinged'), e.currentTarget)) again(); });
 }
 
+async function privacy(body, again) {
+  let status, prompt, cfg = { url: '', has_token: false, sending: false };
+  try {
+    [status, prompt] = await Promise.all([
+      api.get('/api/consent/status'),
+      api.get('/api/consent/prompt', { lang: lang() }),
+    ]);
+    if (can('settings.edit')) cfg = await api.get('/api/telemetry/config');
+  } catch (e) {
+    put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`);
+    return;
+  }
+  const agreed = status.install && status.install.decision === 'agree';
+  put(body, html`<div class="stack"><div class="card"><div class="card-head"><h2>${t('privacy.title')}</h2></div>
+      <p class="muted">${t('privacy.lead')}</p><div id="privacy-box"></div>
+      ${can('settings.edit') ? html`<div class="row wrap"><button class="btn" data-install>${agreed ? t('privacy.installWithdraw') : t('privacy.installAgree')}</button></div>` : ''}</div>
+    ${can('settings.edit') ? html`<div class="card form"><div class="card-head"><h2>${t('privacy.receiver')}</h2></div>
+      <p class="small muted">${cfg.sending ? t('privacy.configured') : t('privacy.off')}</p>
+      <div class="field"><label for="tel-url">${t('privacy.receiver')}</label><input id="tel-url" class="input" value="${cfg.url || ''}" placeholder="https://" autocomplete="off"></div>
+      <div class="field"><label for="tel-token">${t('privacy.token')}</label><input id="tel-token" class="input" type="password" autocomplete="off" placeholder="${cfg.has_token ? t('privacy.tokenKept') : ''}"></div>
+      <div class="row wrap"><button class="btn accent" data-save>${t('privacy.save')}</button>
+        ${cfg.has_token ? html`<button class="btn" data-clear>${t('privacy.clearToken')}</button>` : ''}</div></div>` : ''}</div>`);
+  const decide = async (decision, scope) => {
+    await api.post('/api/consent/decide', { decision, text_id: prompt.text_id, lang: prompt.lang, scope });
+    again();
+  };
+  if (window.AFConsent) {
+    window.AFConsent.settings($('#privacy-box', body), {
+      status, prompt, decide: (d) => decide(d, 'person'),
+      showSent: async () => {
+        const rows = await api.get('/api/telemetry/sent').catch(() => []);
+        const list = Array.isArray(rows) ? rows : [];
+        open({ title: t('privacy.sentTitle'), body: list.length
+          ? html`<div class="list">${list.map((r) => html`<div class="li"><b class="grow">${r.type || ''}</b><span class="small muted num">${r.page || ''} ${r.ts || ''}</span></div>`)}</div>`
+          : html`<p class="muted">${t('privacy.sentEmpty')}</p>` });
+      },
+    });
+  }
+  $('[data-install]', body)?.addEventListener('click', () => decide(agreed ? 'withdraw' : 'agree', 'install'));
+  $('[data-save]', body)?.addEventListener('click', async (e) => {
+    const token = $('#tel-token', body).value.trim();
+    const posted = { url: $('#tel-url', body).value.trim() };
+    if (token) posted.token = token;
+    if (await run(api.post('/api/telemetry/config', posted), t('saved'), e.currentTarget)) again();
+  });
+  $('[data-clear]', body)?.addEventListener('click', async (e) => {
+    if (await run(api.post('/api/telemetry/config', { url: $('#tel-url', body).value.trim(), clear_token: true }), t('saved'), e.currentTarget)) again();
+  });
+}
+
 async function backup(body, again) {
   const d = await api.get('/api/settings').catch(() => null);
   if (!d) return;
   const age = d.backup_age_hours;
   put(body, html`<div class="stack"><div class="two"><div class="card ${age !== null && age < 30 ? 'accent-card' : 'ink-card'}"><div class="kpi"><span class="label">${t('backup.last')}</span>
       <span class="value">${age === null ? t('backup.never') : t('backup.ago', { h: age })}</span><span class="small">${t('backup.auto')}</span></div>
-      <div class="row wrap"><button class="btn primary" data-now>${icon('download')}${t('backup.now')}</button><button class="btn" data-export>${icon('upload')}${t('backup.export')}</button></div></div>
+      <div class="row wrap"><button class="btn primary" data-now data-guide="backup.now">${icon('download')}${t('backup.now')}</button><button class="btn" data-export>${icon('upload')}${t('backup.export')}</button></div></div>
     <div class="card"><div class="card-head"><h2>${t('backup.where')}</h2></div><p class="small muted">${t('backup.whereHint')}</p>
       <div class="tip warn">${icon('alert')}<div>${t('backup.usb')}</div></div></div></div>
     <div class="card"><div class="card-head"><h2>${t('backup.list')}</h2></div>${d.backups.length ? html`<div class="list">${d.backups.map((b) => html`<div class="li">${icon('layers')}
@@ -274,7 +326,7 @@ async function backup(body, again) {
       : html`<p class="muted">${t('backup.none')}</p>`}</div>
     <div class="card"><div class="card-head"><h2>${t('settings.devices')}</h2></div><p class="small muted">${t('settings.devicesHint')}</p>
       <div class="row wrap">${d.addresses.map((a) => html`<code class="chip num">${a}</code>`)}</div></div></div>`);
-  $('[data-now]', body).addEventListener('click', async (e) => { if (await run(api.post('/api/backup/now'), t('backup.done'), e.currentTarget)) again(); });
+  $('[data-now]', body).addEventListener('click', async (e) => { if (await run(api.post('/api/backup/now'), t('backup.done'), e.currentTarget)) { signal('backup.done'); again(); } });
   $('[data-export]', body).addEventListener('click', async (e) => {
     const btn = e.currentTarget; btn.setAttribute('aria-busy', 'true');
     try { const res = await api.get('/api/export'); download(`al-store-${new Date().toISOString().slice(0, 10)}.zip`, await res.blob()); } catch (err) { toast(errorText(err), 'bad'); }

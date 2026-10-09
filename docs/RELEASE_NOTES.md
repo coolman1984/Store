@@ -1,5 +1,11 @@
 # Release notes
 
+## 1.2.0
+- New: an in-app guide. Each person sees a short course for their profile (owner, manager, cashier, storekeeper). The coach shows step i of n. Press ? or F1 on any page.
+- New: every error the program can show has a plain explanation: what you see, why, and what to do.
+- New: the first time someone signs in, a card asks about remote help. The two buttons are equal. Settings → Privacy and help can change or withdraw that choice.
+- Remote help is off unless the owner sets a receiver address and a token. Until then nothing leaves this PC. Passwords, names, phone numbers and amounts are never included.
+
 ## 1.1.0
 - New: **profiles** — ready-made sets of permissions you can rename, change (for everybody who has them at once) or delete, and
   your own new ones. The owner profile always has everything.

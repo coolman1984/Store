@@ -271,3 +271,8 @@ html[data-print="r80"] { --page: 80mm; } html[data-print="r58"] { --page: 58mm; 
 .t.matrix .center { text-align: center; }
 .t.matrix .group-row th { position: static; background: var(--surface); color: var(--ink); }
 .t.matrix .badge .i { inline-size: 14px; block-size: 14px; color: inherit; }
+
+/* The factory coach button is position:fixed. On a phone it must sit above the dock (vendor CSS is not edited). */
+@media (max-width: 860px) {
+  .afg-fab { inset-block-end: 76px; }
+}

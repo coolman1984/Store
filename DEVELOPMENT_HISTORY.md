@@ -1,5 +1,16 @@
 # Development history (newest first)
 
+## 2026-10-09 — 1.2.0: in-app guide, consent, and consented telemetry
+**Why:** a new cashier or owner should learn the shop inside the program, in simple Arabic, and every error should say what to do. Remote help is useful only if the shop agrees, and nothing may leave the PC unless the owner turns it on.
+
+**What:**
+1. **Guide** (`guide/catalogue.json`, `guide/ar.json`, `guide/en.json`). Four courses, one per profile: owner, manager, cashier, storekeeper. A custom profile follows the closest of those. Lessons cover first open and sign-in, shop setup (settings, people, backup) for the owner, the drawer (open with a float, the safe, close), selling (pay and change, returns, instalments, expenses, shift totals and reports), and stock (read stock, receive goods). Every server error code has a problem entry (what you see, why, what to do) linked to a page or a lesson. The coach shows step i of n. `?` and F1 open help on every screen. Stable `data-guide` attributes name the real controls.
+2. **Progress** is per person (`guide_progress`, schema 3). `GET /api/guide/state` and `POST /api/guide/progress` (a bad update is 400 with the checker’s reason). Live states (setup done, shift open, first sale, a second person, a backup) come from the shop data, so a lesson already done by the work itself is marked done.
+3. **Consent** (`consent_log`). The first sign-in shows two equal buttons. Settings → «الخصوصية والمساعدة» can change or withdraw it. Declining or withdrawing deletes that person’s queued telemetry.
+4. **Telemetry** queues only event types from the factory list, and only ids and counts. No passwords, typed text, screenshots, names, phones or amounts. The browser posts a batch; the server uses the signed-in person, not a name in the body. A problem report shows a preview before it sends. The outbox stays on this PC unless Settings has both a receiver address and a token. Sending runs on a background timer, never inside a database write or the request that saved the sale.
+
+**Upgrade (schema 3):** `guide_progress` and `consent_log`. A checked backup is still made before the migration. Money and stock rows stay append-only.
+
 ## 2026-10-09 — 1.1.0: people, profiles and pages, the BAMS way (factory access standard)
 **Why:** the owner asked that every product let the administrator decide, person by person, which pages they see and what
 they may do, learned from BAMS (Mr.Ayman-HR) and made a factory standard first (`Apps-Factory/docs/ACCESS_AND_ADMINISTRATION_STANDARD.md`,

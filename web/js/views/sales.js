@@ -1,10 +1,11 @@
 // Sales: today's invoices, any day, search by number / customer / serial; the sale file with returns; warranty look-up.
 import { api, key } from '../api.js';
 import { S, can, go, settle } from '../app.js';
+import { signal } from '../guide.js';
 import { t } from '../i18n.js';
 import { printReceipt } from '../print.js';
 import {
-  CUR, $, $$, html, put, icon, money, moneyH, num, date, time, open, empty, skeleton, errorText, withApproval, toast, today, addDays, parseQty, seg, bindSeg,
+  CUR, $, $$, html, put, icon, money, moneyH, num, date, time, open, empty, skeleton, errorText, showError, withApproval, toast, today, addDays, parseQty, seg, bindSeg,
 } from '../ui.js';
 import { shake } from '../motion.js';
 
@@ -75,7 +76,7 @@ export async function saleFile(id, onChange) {
       ${s.days_since <= (S.lookups?.settings?.return_days ?? 14) ? html`<div class="tip ok">${icon('info')}<div>${t('sales.inWindow', { d: s.days_since, r: S.lookups?.settings?.return_days ?? 14 })}</div></div>`
         : s.days_since <= (S.lookups?.settings?.defect_days ?? 30) ? html`<div class="tip warn">${icon('info')}<div>${t('sales.defectWindow', { d: s.days_since, r: S.lookups?.settings?.defect_days ?? 30 })}</div></div>` : ''}`,
     foot: html`<button class="btn" data-print>${icon('print')}${t('pos.print')}</button>
-      ${returnable && (can('sales.return') || can('pos.sell')) ? html`<button class="btn" data-return>${icon('return')}${t('sales.return')}</button>` : ''}`,
+      ${returnable && (can('sales.return') || can('pos.sell')) ? html`<button class="btn" data-return data-guide="sales.return">${icon('return')}${t('sales.return')}</button>` : ''}`,
     mount(box, close) {
       $('[data-print]', box).addEventListener('click', () => printReceipt(s));
       $('[data-return]', box)?.addEventListener('click', () => { close(); returnDialog(s, onChange); });
@@ -102,9 +103,9 @@ function returnDialog(s, onChange) {
         <td class="num">${num(l.qty - l.returned)}</td><td><input class="input q-in num" data-rq="${l.id}" data-max="${l.qty - l.returned}" value="0" inputmode="decimal"></td>
         <td><select class="input" data-rc="${l.id}"><option value="good">${t('sales.good')}</option><option value="damaged">${t('sales.damaged')}</option></select></td></tr>`)}</tbody></table></div>
       <div class="field"><span class="label">${t('sales.refundBy')}</span>${seg('refund', methods.map((m) => [m, t('pay.' + m)]), def)}</div>
-      <div class="field"><label for="r-why">${t('f.reason')}</label><textarea id="r-why" class="input" placeholder="${t('sales.reasonHint')}"></textarea></div>
+      <div class="field"><label for="r-why">${t('f.reason')}</label><textarea id="r-why" class="input" data-guide="return.reason" placeholder="${t('sales.reasonHint')}"></textarea></div>
       <p class="err small" id="r-err" role="alert"></p>`,
-    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok>${icon('return')}${t('sales.doReturn')}</button>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok data-guide="return.save">${icon('return')}${t('sales.doReturn')}</button>`,
     mount(box, close) {
       let refund = def;
       bindSeg(box, 'refund', (v) => { refund = v; });
@@ -123,9 +124,10 @@ function returnDialog(s, onChange) {
         try {
           const r = await withApproval((approval) => api.post('/api/return', { idem_key: idem, sale_id: s.id, lines, reason, refund_method: refund, approval }));
           close();
+          signal('return.done');
           toast(t('sales.returnDone', { n: r.number, m: money(r.total) }));
           onChange && onChange();
-        } catch (err) { if (!err.cancelled) $('#r-err', box).textContent = errorText(err); } finally { btn.removeAttribute('aria-busy'); }
+        } catch (err) { if (!err.cancelled) showError($('#r-err', box), err); } finally { btn.removeAttribute('aria-busy'); }
       });
     },
   });

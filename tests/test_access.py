@@ -219,7 +219,10 @@ class Upgrade(unittest.TestCase):
             with sqlite3.connect(path) as old:
                 self.assertEqual(old.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone()[0], '1')
                 self.assertTrue(old.execute("SELECT 1 FROM users WHERE username = 'late1'").fetchone())
-            self.assertEqual(app.db.version(), 2)
+            import version
+            self.assertEqual(app.db.version(), version.SCHEMA)
+            self.assertEqual(app.db.value("SELECT name FROM sqlite_master WHERE type='table' AND name='guide_progress'"), 'guide_progress')
+            self.assertEqual(app.db.value("SELECT name FROM sqlite_master WHERE type='table' AND name='consent_log'"), 'consent_log')
             S.db = app.db
         finally:
             S.cleanup()

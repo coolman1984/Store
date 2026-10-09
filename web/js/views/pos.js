@@ -2,12 +2,13 @@
 // F2 search · Enter add first result · + / − quantity of the last line · F4 pay · Esc clear search · F8 park the sale.
 import { api, key } from '../api.js';
 import { S, can, refreshShift, go } from '../app.js';
+import { signal } from '../guide.js';
 import { t } from '../i18n.js';
 import { pop, tick, shake } from '../motion.js';
 import { prefs } from '../prefs.js';
 import { printReceipt } from '../print.js';
 import {
-  $, $$, html, put, icon, money, moneyH, parseMoney, parseQty, num, open, toast, fail, withApproval, empty, whatsapp, today, errorText,
+  $, $$, html, put, icon, money, moneyH, parseMoney, parseQty, num, open, toast, fail, showError, withApproval, empty, whatsapp, today, errorText,
 } from '../ui.js';
 
 const CART_KEY = 'store.cart';
@@ -38,13 +39,13 @@ export default async function view(page) {
   if (!me.shift_id) {
     put(page, html`<div class="pos-noshift card accent-card">
       <div class="row">${icon('cash')}<h2>${t('pos.noShift.title')}</h2></div><p>${t('pos.noShift.text')}</p>
-      <div class="row wrap"><input id="float" class="input big money-in" inputmode="decimal" placeholder="0" aria-label="${t('cash.float')}">
-      <button class="btn primary lg" data-open>${t('cash.openShift')}</button></div></div>`);
+      <div class="row wrap"><input id="float" class="input big money-in" data-guide="shift.cash" inputmode="decimal" placeholder="0" aria-label="${t('cash.float')}">
+      <button class="btn primary lg" data-open data-guide="shift.open">${t('cash.openShift')}</button></div></div>`);
     $('[data-open]', page).addEventListener('click', async (e) => {
       const amount = parseMoney($('#float', page).value || '0');
       if (amount === null) { shake($('#float', page)); return; }
       e.currentTarget.setAttribute('aria-busy', 'true');
-      try { await api.post('/api/shift/open', { opening_float: amount }); await refreshShift(); view(page); } catch (err) { fail(err); e.currentTarget.removeAttribute('aria-busy'); }
+      try { await api.post('/api/shift/open', { opening_float: amount }); signal('shift.opened'); await refreshShift(); view(page); } catch (err) { fail(err); e.currentTarget.removeAttribute('aria-busy'); }
     });
     return;
   }
@@ -52,7 +53,7 @@ export default async function view(page) {
   put(page, html`<h1 class="sr">${t('nav.pos')}</h1><div class="pos">
     <section class="pos-catalog">
       <div class="pos-search card flat">
-        ${icon('barcode')}<input id="pos-q" class="input" autocomplete="off" placeholder="${t('pos.search')}" aria-label="${t('pos.search')}"
+        ${icon('barcode')}<input id="pos-q" class="input" data-guide="pos.search" autocomplete="off" placeholder="${t('pos.search')}" aria-label="${t('pos.search')}"
           aria-controls="pos-results" aria-autocomplete="list"><span class="kbd hide-phone">F2</span>
       </div>
       <div class="pos-cats" id="pos-cats" data-lab-scroll><button class="chip" aria-pressed="true" data-cat="">${t('pos.all')}</button>
@@ -300,7 +301,7 @@ function drawCart() {
     <div class="tot-big"><span>${t('pos.total')}</span><b class="num" id="grand">${money(total())}</b></div>
     <div class="row pay-row">
       ${cart.lines.length ? html`<button class="btn ghost" data-clear aria-label="${t('pos.clear')}">${icon('trash')}</button>` : ''}
-      <button class="btn accent lg grow" data-pay ${cart.lines.length ? '' : 'disabled'}>${t('pos.pay')}<span class="kbd">F4</span></button>
+      <button class="btn accent lg grow" data-pay data-guide="pos.pay" ${cart.lines.length ? '' : 'disabled'}>${t('pos.pay')}<span class="kbd">F4</span></button>
     </div>`);
   $('[data-pay]', root)?.addEventListener('click', pay);
   $('[data-disc]', root)?.addEventListener('click', discountDialog);
@@ -421,7 +422,7 @@ function pay() {
       <div id="pay-body"></div>
       <p class="err small" id="pay-err" role="alert"></p>
     </div>`,
-    foot: html`<button class="btn ghost" data-close>${t('act.back')}</button><button class="btn accent lg grow" data-confirm>${icon('check')}${t('pos.confirm')}</button>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.back')}</button><button class="btn accent lg grow" data-confirm data-guide="pos.confirm">${icon('check')}${t('pos.confirm')}</button>`,
     mount(box, close) {
       const body = $('#pay-body', box);
       const draw = async () => {
@@ -430,9 +431,9 @@ function pay() {
           const tot = total();
           const quick = [...new Set([tot, Math.ceil(tot / 5000) * 5000, Math.ceil(tot / 10000) * 10000, Math.ceil(tot / 20000) * 20000])].slice(0, 4);
           put(body, html`<div class="stack"><div class="field"><label for="recv">${t('pos.received')}</label>
-            <input id="recv" class="input big money-in" inputmode="decimal" placeholder="${(tot / 100).toString()}" autofocus></div>
+            <input id="recv" class="input big money-in" data-guide="pos.received" inputmode="decimal" placeholder="${(tot / 100).toString()}" autofocus></div>
             <div class="row wrap">${quick.map((v) => html`<button class="chip num" data-q="${v}">${money(v)}</button>`)}</div>
-            <div class="change"><span>${t('pos.change')}</span><b class="num" id="change">—</b></div></div>`);
+            <div class="change"><span>${t('pos.change')}</span><b class="num" id="change" data-guide="pos.change">—</b></div></div>`);
           const recv = $('#recv', body);
           const upd = () => {
             const v = parseMoney(recv.value);
@@ -551,9 +552,10 @@ function pay() {
           const idem = idemFor(base);
           const r = await withApproval((approval) => api.post('/api/pos/sell', { idem_key: idem, ...base, approval, ...extra }));
           close();
+          signal('sale.done');
           done(r, extra.cash_received);
         } catch (e) {
-          if (!e.cancelled) $('#pay-err', box).textContent = errorText(e);
+          if (!e.cancelled) showError($('#pay-err', box), e);
         } finally { btn.removeAttribute('aria-busy'); }
       };
       $('[data-confirm]', box).addEventListener('click', confirmPay);

@@ -11,7 +11,7 @@ export default async function view(page) {
   let range = 'month';
   put(page, html`<div class="page-head"><div class="titles"><h1>${t('nav.reports')}</h1><p>${t('reports.sub')}</p></div>
     <div class="actions"><button class="btn" data-print>${icon('print')}${t('reports.print')}</button><button class="btn" data-csv>${icon('download')}${t('reports.csv')}</button></div></div>
-    <div class="toolbar">${seg('range', [['today', t('sales.today')], ['week', t('sales.week')], ['month', t('sales.month')], ['quarter', t('reports.quarter')]], range)}</div>
+    <div class="toolbar" data-guide="reports.range">${seg('range', [['today', t('sales.today')], ['week', t('sales.week')], ['month', t('sales.month')], ['quarter', t('reports.quarter')]], range)}</div>
     <div id="r-body">${skeleton(8)}</div>`);
   let data;
   const load = async () => {

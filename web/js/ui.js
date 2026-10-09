@@ -86,7 +86,27 @@ export function toast(text, kind = 'ok', ms = 2600) {
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 260); }, ms);
 }
 export function errorText(e) { return e instanceof ApiError ? e.human : (e?.message || t('err.server')); }
-export function fail(e) { toast(errorText(e), 'bad', 4200); }
+function shown(e) {
+  const key = e instanceof ApiError ? e.key : '';
+  const page = document.body?.dataset?.route || 'signin';
+  if (key && window.__aftel) window.__aftel.track('err.shown', { code: key, page });
+  return key;
+}
+function explain(key) {
+  return key && window.__afguide ? window.__afguide.errorButton(key) : null;
+}
+export function fail(e) {
+  const btn = explain(shown(e));
+  toast(errorText(e), 'bad', btn ? 6400 : 4200);
+  if (btn) document.querySelector('.toasts .toast:last-child')?.appendChild(btn);
+}
+/** An error line on a form (sign-in, setup): the words, then «ماذا أفعل؟» when a problem entry exists. */
+export function showError(el, e) {
+  if (!el) return;
+  const btn = explain(shown(e));
+  el.textContent = errorText(e);
+  if (btn) el.appendChild(btn);
+}
 
 /** run a save: busy button, toast on success, the reason on failure, button back. Returns the result or undefined. */
 export async function run(promise, okText, btn) {

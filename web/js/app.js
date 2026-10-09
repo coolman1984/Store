@@ -1,10 +1,11 @@
 // The shell: start-up, sign-in, first-run setup, licence screen, navigation, command palette, keyboard shortcuts.
-import { api, on, isOnline, ApiError } from './api.js';
+import { api, on, isOnline } from './api.js';
 import { applyLang, lang, setLang, t } from './i18n.js';
 import { apply as applyPrefs, prefs } from './prefs.js';
-import { $, $$, html, icon, put, open, closeAll, anyOpen, toast, fail, run, initials, esc, money } from './ui.js';
+import { $, $$, html, icon, put, open, closeAll, anyOpen, toast, fail, run, initials, esc, money, showError } from './ui.js';
 import { transition, after, shake } from './motion.js';
 import { mark } from './brand.js';
+import { attachHelp, guideRole, maybeConsent, mountGuide, onRoute, signal } from './guide.js';
 
 export const S = { boot: null, me: null, lookups: null, route: 'home', params: {}, counts: {} };
 
@@ -29,6 +30,14 @@ const GROUPS = [['', ['pos', 'home']], ['nav.g.sell', ['sales', 'customers']], [
 
 export const can = (...perms) => !!S.me && perms.some((p) => S.me.perms.includes(p));
 const allowed = (r) => !ROUTES[r].perm || can(...ROUTES[r].perm);
+/** put() on document.body would drop the coach. Detach it first, then put it back. */
+function replaceBody(content) {
+  const keep = [...document.querySelectorAll('[data-afg], [data-afc], [data-aft="dialog"]')];
+  keep.forEach((n) => n.remove());
+  put(document.body, content);
+  keep.forEach((n) => document.body.appendChild(n));
+  attachHelp();
+}
 export const fmtCount = (v, f) => (f === 'money' ? money(v, { whole: true }) : new Intl.NumberFormat('en-US').format(v));
 /** call after a view puts content that arrived later (numbers count up, bars get their width) */
 export const settle = (el) => { after(el, fmtCount); scrollables(el); };
@@ -53,7 +62,7 @@ async function boot() {
   try {
     S.boot = await api.get('/api/boot');
   } catch (e) {
-    put(document.body, html`<main class="empty boot-error"><span class="brand-mark">${mark('light')}</span><h3>${t('err.offline')}</h3>
+    replaceBody(html`<main class="empty boot-error"><span class="brand-mark">${mark('light')}</span><h3>${t('err.offline')}</h3>
       <p>${t('err.retrying')}</p><span class="splash-bar"></span></main>`);
     setTimeout(boot, 3000);
     return;
@@ -68,8 +77,12 @@ async function boot() {
 async function startShell() {
   try { S.lookups = await api.get('/api/lookups'); } catch (e) { fail(e); }
   renderShell();
+  await mountGuide({
+    live: true, role: guideRole(S.me.role, S.me.perms), person: String(S.me.id), can: (p) => can(p), go,
+  });
   window.addEventListener('hashchange', route);
   route();
+  maybeConsent().catch(() => {});
 }
 
 // ---------------------------------------------------------------- sign-in, setup, licence
@@ -79,7 +92,7 @@ function lockup(tone, shop) {
 }
 
 function authFrame(content) {
-  put(document.body, html`<main class="auth">
+  replaceBody(html`<main class="auth">
     <section class="auth-art">
       ${lockup('dark', t('app.tag'))}
       <div class="auth-pitch"><p class="auth-line">${t('auth.tagline')}</p>
@@ -88,7 +101,7 @@ function authFrame(content) {
       <span class="auth-watermark" aria-hidden="true">${mark('dark')}</span>
     </section>
     <section class="auth-form">${content}
-      <div class="auth-tools"><button class="chip" data-lang>${icon('globe')}${lang() === 'ar' ? 'English' : 'العربية'}</button>
+      <div class="auth-tools"><span data-guide-slot></span><button class="chip" data-lang>${icon('globe')}${lang() === 'ar' ? 'English' : 'العربية'}</button>
       ${S.boot?.practice ? html`<span class="chip accent">${icon('sparkle')}${t('app.practice')}</span>` : ''}</div>
     </section></main>`);
   $('[data-lang]').addEventListener('click', () => { setLang(lang() === 'ar' ? 'en' : 'ar'); boot(); });
@@ -96,14 +109,16 @@ function authFrame(content) {
 
 function showAuth() {
   closeAll();
+  document.body.dataset.route = 'signin';
   authFrame(html`<form class="card auth-card form" id="auth-form" autocomplete="on">
     <div><h1>${t('auth.welcome')}</h1><p class="muted">${t('auth.sub')}</p></div>
     ${S.boot?.practice ? html`<div class="tip">${icon('sparkle')}<div>${t('auth.practiceHint')}</div></div>` : ''}
-    <div class="field"><label for="username">${t('f.username')}</label><input id="username" class="input big" autocomplete="username" required autofocus></div>
-    <div class="field"><label for="password">${t('f.password')}</label><input id="password" type="password" class="input big" autocomplete="current-password" required></div>
+    <div class="field"><label for="username">${t('f.username')}</label><input id="username" class="input big" data-guide="signin.user" autocomplete="username" required autofocus></div>
+    <div class="field"><label for="password">${t('f.password')}</label><input id="password" type="password" class="input big" data-guide="signin.password" autocomplete="current-password" required></div>
     <p class="err small" id="auth-err" role="alert"></p>
-    <button class="btn accent lg block" type="submit">${t('auth.signIn')}${icon('chev-l', 'flip')}</button>
+    <button class="btn accent lg block" type="submit" data-guide="signin.submit">${t('auth.signIn')}${icon('chev-l', 'flip')}</button>
   </form>`);
+  mountGuide({ live: false, role: 'guest', person: 'me', can: () => false, go });
   $('#auth-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = e.submitter;
@@ -113,8 +128,9 @@ function showAuth() {
       S.me = r.user;
       S.boot = await api.get('/api/boot');
       await startShell();
+      signal('session.started');
     } catch (err) {
-      $('#auth-err').textContent = err instanceof ApiError ? err.human : String(err);
+      showError($('#auth-err'), err);
       shake($('#auth-form'));
       $('#password').select();
     } finally { btn.removeAttribute('aria-busy'); }
@@ -122,18 +138,20 @@ function showAuth() {
 }
 
 function showSetup() {
+  document.body.dataset.route = 'setup';
   authFrame(html`<form class="card auth-card form" id="setup-form">
     <div><span class="badge accent">${t('setup.step')}</span><h1>${t('setup.title')}</h1><p class="muted">${t('setup.sub')}</p></div>
-    <div class="field"><label for="shop">${t('setup.shop')}</label><input id="shop" class="input" required autofocus placeholder="${t('setup.shopHint')}"></div>
+    <div class="field"><label for="shop">${t('setup.shop')}</label><input id="shop" class="input" data-guide="setup.shop" required autofocus placeholder="${t('setup.shopHint')}"></div>
     <div class="cols"><div class="field"><label for="phone">${t('f.phone')}</label><input id="phone" class="input" inputmode="tel"></div>
     <div class="field"><label for="addr">${t('f.address')}</label><input id="addr" class="input"></div></div>
     <hr class="sep">
-    <div class="cols"><div class="field"><label for="fn">${t('setup.ownerName')}</label><input id="fn" class="input" required></div>
-    <div class="field"><label for="un">${t('f.username')}</label><input id="un" class="input" required autocomplete="username"></div></div>
-    <div class="field"><label for="pw">${t('f.password')}</label><input id="pw" type="password" class="input" required autocomplete="new-password">
+    <div class="cols"><div class="field"><label for="fn">${t('setup.ownerName')}</label><input id="fn" class="input" data-guide="setup.owner" required></div>
+    <div class="field"><label for="un">${t('f.username')}</label><input id="un" class="input" data-guide="setup.user" required autocomplete="username"></div></div>
+    <div class="field"><label for="pw">${t('f.password')}</label><input id="pw" type="password" class="input" data-guide="setup.password" required autocomplete="new-password">
       <span class="hint">${t('setup.pwHint')}</span></div>
     <p class="err small" id="setup-err" role="alert"></p>
-    <button class="btn accent lg block" type="submit">${t('setup.go')}</button></form>`);
+    <button class="btn accent lg block" type="submit" data-guide="setup.go">${t('setup.go')}</button></form>`);
+  mountGuide({ live: false, role: 'owner', person: 'me', can: () => true, go });
   $('#setup-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
@@ -142,8 +160,9 @@ function showSetup() {
       S.boot = await api.get('/api/boot');
       S.me = S.boot.user;
       await startShell();
+      signal('setup.done');
       go('settings', { tab: 'licence' });
-    } catch (err) { $('#setup-err').textContent = err instanceof ApiError ? err.human : String(err); shake($('#setup-form')); }
+    } catch (err) { showError($('#setup-err'), err); shake($('#setup-form')); }
   });
 }
 
@@ -187,7 +206,7 @@ function navLink(r) {
 
 function renderShell() {
   const me = S.me;
-  put(document.body, html`<div class="shell">
+  replaceBody(html`<div class="shell">
     <aside class="rail" aria-label="${t('nav.main')}"><div class="rail-in">
       ${lockup('dark', S.lookups?.settings?.shop_name || S.boot.shop_name)}
       <nav class="nav" id="nav" aria-label="${t('nav.main')}">${GROUPS.map(([g, rs]) => {
@@ -201,7 +220,7 @@ function renderShell() {
       <header class="top">
         <span class="mobile-mark">${mark('light', t('app.name'))}</span>
         <button class="search-pill" data-cmdk>${icon('search')}<span class="grow">${t('cmdk.placeholder')}</span><span class="kbd hide-phone">Ctrl K</span></button>
-        <div class="top-end"><span id="shift-chip"></span>
+        <div class="top-end"><span data-guide-slot></span><span id="shift-chip"></span>
         <button class="icon-btn" data-theme-toggle aria-label="${t('pref.theme')}">${icon(document.documentElement.dataset.theme === 'night' ? 'sun' : 'moon')}</button>
         <button class="icon-btn" data-lang aria-label="${t('pref.lang')}"><span class="small">${lang() === 'ar' ? 'EN' : 'ع'}</span></button></div>
       </header>
@@ -219,7 +238,12 @@ function renderShell() {
     prefs.set('theme', night ? 'day' : 'night');
     put($('[data-theme-toggle]'), icon(night ? 'moon' : 'sun'));
   });
-  $('[data-lang]').addEventListener('click', () => { setLang(lang() === 'ar' ? 'en' : 'ar'); renderShell(); route(); });
+  $('[data-lang]').addEventListener('click', () => {
+    setLang(lang() === 'ar' ? 'en' : 'ar');
+    if (window.__afguide) window.__afguide.setLang(lang());
+    renderShell();
+    route();
+  });
   $('[data-more]').addEventListener('click', (e) => { e.preventDefault(); morePanel(); });
   renderBanners();
   refreshShift();
@@ -270,8 +294,10 @@ async function route() {
   S.params = Object.fromEntries(new URLSearchParams(query || ''));
   $$('[data-route]').forEach((a) => { if (a.dataset.route === name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const page = $('#page');
+  document.body.dataset.route = name;
   if (!allowed(name)) {
     put(page, html`<div class="card">${emptyDenied()}</div>`);
+    onRoute(name);
     return;
   }
   closeAll();
@@ -281,6 +307,7 @@ async function route() {
   try { mod = await ROUTES[name].load(); } catch (e) { fail(e); return; }
   if (current !== token) return;
   document.body.dataset.route = name;
+  onRoute(name);
   await transition(() => {
     page.className = 'page enter';
     put(page, html``);

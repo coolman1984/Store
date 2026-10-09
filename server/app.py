@@ -30,6 +30,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import afaccess  # noqa: E402
+import aftelemetry  # noqa: E402
+import assist  # noqa: E402
 import auth as auth_mod  # noqa: E402
 import backup  # noqa: E402
 import catalog  # noqa: E402
@@ -55,7 +57,9 @@ TYPES = {'.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf
          '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon'}
 # writes allowed while the licence does not give full access: reading, keeping data safe, and getting a new code
 OPEN_WRITES = {'/api/setup', '/api/login', '/api/logout', '/api/password', '/api/licence/activate', '/api/backup/now',
-               '/api/shift/close', '/api/watch/review', '/api/support/save', '/api/support/ping'}
+               '/api/shift/close', '/api/watch/review', '/api/support/save', '/api/support/ping',
+               '/api/guide/progress', '/api/consent/decide', '/api/telemetry/events',
+               '/api/telemetry/feedback', '/api/telemetry/feedback/preview'}
 log = logging.getLogger('store')
 
 
@@ -93,6 +97,7 @@ class App:
         self.org_id = self._meta_id('org_id')
         self.branch_id = self._meta_id('branch_id')
         self.auth = auth_mod.Auth(self.db, self.org_id)
+        self.assist = assist.Assist(self)
         self._static = {}
         self.started = time.time()
         self.failed_ips = {}
@@ -168,6 +173,8 @@ class App:
             fresh = Database(target, self.backup_dir)
             self.db.conn = fresh.conn
         self.auth = auth_mod.Auth(self.db, self.org_id)
+        if getattr(self, 'assist', None):
+            self.assist.rebind()
 
     def static(self, rel, gz):
         """Static file bytes (+ gzip copy) cached in memory, with an ETag from the content."""
@@ -320,6 +327,10 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:  # a bug: log the details on this PC, show a calm message
             log.error('ERROR %s\n%s', self.path, traceback.format_exc())
             APP.note_error()
+            try:  # type and fingerprint only; never the message. Consent still applies inside capture.
+                APP.assist.capture(e, self.path.split('?', 1)[0])
+            except Exception:
+                log.warning('telemetry capture failed', exc_info=True)
             self.send(500, {'error': f'Unexpected problem: {e.__class__.__name__}', 'key': 'err.server'})
 
     # ------------------------------------------------------------ routing
@@ -330,6 +341,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.host_ok():
             return self.send(421, {'error': 'Unknown host'})
         url = urlparse(self.path)
+        if url.path.startswith('/guide/'):
+            return self.safely(lambda: self.guide_file(url.path))
         if url.path.startswith('/api/'):
             qs = {k: v[-1] for k, v in parse_qs(url.query).items()}
             return self.safely(lambda: self.api_get(url.path, qs))
@@ -520,6 +533,17 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/support':
             ctx.need('settings.edit')
             d = support.public(APP.home)
+        elif path == '/api/guide/state':
+            d = APP.assist.guide_state(u)
+        elif path == '/api/consent/status':
+            d = APP.assist.consent_status(u)
+        elif path == '/api/consent/prompt':
+            d = APP.assist.prompt_for(u, qs.get('lang') or 'ar')
+        elif path == '/api/telemetry/sent':
+            d = APP.assist.sent_public()
+        elif path == '/api/telemetry/config':
+            ctx.need('settings.edit')
+            d = APP.assist.receiver_public()
         elif path == '/api/export':
             ctx.need('settings.edit')
             body = backup.export_zip(db)
@@ -568,6 +592,7 @@ class Handler(BaseHTTPRequestHandler):
             item = APP.backup_now('manual')
             with APP.db.tx():
                 ctx.audit('backup', 'backup', item['name'])
+            self._track('/api/backup/now', u)
             return self.send(200, item)
         if path == '/api/support/ping':  # network call: never while the database is locked for a write
             ctx.need('settings.edit')
@@ -579,12 +604,21 @@ class Handler(BaseHTTPRequestHandler):
             with APP.db.tx():
                 self.ctx(u).audit('backup.restore', 'backup', data.get('name'))
             return self.send(200, {'ok': True})
+        if path in ('/api/guide/progress', '/api/consent/decide', '/api/telemetry/events',
+                    '/api/telemetry/feedback', '/api/telemetry/feedback/preview'):
+            return self.assist_post(path, u, data)
+        if path == '/api/telemetry/config':
+            ctx.need('settings.edit')
+            if not APP.licence()['full']:
+                raise LicenceLocked()
+            return self.send(200, APP.assist.save_receiver(data))
         if path not in OPEN_WRITES and not APP.licence()['full']:
             raise LicenceLocked()
         if isinstance(data.get('approval'), dict):  # checked outside the transaction so a wrong password is counted
             ctx.approver = APP.auth.verify(data['approval'].get('username'), data['approval'].get('password'))
         with db.tx():
             out = self.write(path, ctx, u, data)
+        self._track(path, u)
         self.send(200, out if out is not None else {'ok': True})
 
     def write(self, path, ctx, u, data):
@@ -703,6 +737,45 @@ class Handler(BaseHTTPRequestHandler):
             return core.settings(db)
         raise Problem('err.notFound', 'Unknown address.', 404)
 
+    def guide_file(self, path):
+        """Guide JSON is outside web/ so the sign-in screen can load it. Only the three known names."""
+        name = path[len('/guide/'):]
+        if name not in ('catalogue.json', 'ar.json', 'en.json') or '/' in name or '\\' in name:
+            raise Problem('err.notFound', 'Unknown address.', 404)
+        full = os.path.join(ROOT, 'guide', name)
+        if not os.path.isfile(full):
+            raise Problem('err.notFound', 'Unknown address.', 404)
+        with open(full, 'rb') as f:
+            body = f.read()
+        self.send(200, body, 'application/json; charset=utf-8')
+
+    def assist_post(self, path, u, data):
+        try:
+            if path == '/api/guide/progress':
+                out = APP.assist.save_progress(u, data.get('update') if isinstance(data, dict) else None)
+            elif path == '/api/consent/decide':
+                out = APP.assist.decide(u, data if isinstance(data, dict) else {})
+            elif path == '/api/telemetry/events':
+                out = APP.assist.browser_events(u, data.get('events') if isinstance(data, dict) else None)
+            elif path == '/api/telemetry/feedback/preview':
+                out = APP.assist.preview(data if isinstance(data, dict) else {})
+            else:
+                out = APP.assist.feedback(u, data if isinstance(data, dict) else {})
+        except aftelemetry.PrivacyError as e:
+            return self.send(400, {'error': str(e), 'key': 'err.badRequest'})
+        except ValueError as e:
+            return self.send(400, {'error': str(e), 'key': 'err.badRequest'})
+        self.send(200, out if out is not None else {'ok': True})
+
+    def _track(self, path, u):
+        spec = assist.ACTIONS.get(path)
+        if not spec or not u:
+            return
+        try:
+            APP.assist.note_action(u, spec[0], spec[1])
+        except Exception:
+            log.warning('telemetry note failed', exc_info=True)
+
     def cookie(self, token):
         return {'Set-Cookie': f'{COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict'}
 
@@ -767,6 +840,18 @@ def serve(app, open_browser=None):
             time.sleep(600)
 
     threading.Thread(target=keep_backing_up, daemon=True).start()
+
+    def keep_reporting():
+        """Heartbeat and the optional send. Never on a request, and never while a shop write is open."""
+        while True:
+            try:
+                app.assist.heartbeat()
+                app.assist.flush_remote()
+            except Exception:
+                log.error('telemetry\n%s', traceback.format_exc())
+            time.sleep(300)
+
+    threading.Thread(target=keep_reporting, daemon=True).start()
     if not app.practice:
         threading.Thread(target=support.loop, args=(app,), daemon=True).start()
     url = f'http://127.0.0.1:{app.cfg["port"]}/'

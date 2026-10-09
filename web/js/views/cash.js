@@ -4,12 +4,13 @@ import { S, can, refreshShift, settle } from '../app.js';
 import { t } from '../i18n.js';
 import { shake } from '../motion.js';
 import { CUR, $, $$, html, put, icon, money, moneyH, date, time, open, empty, skeleton, errorText, parseMoney, run, confirm, seg, bindSeg } from '../ui.js';
+import { signal } from '../guide.js';
 
 export default async function view(page, params) {
   const tabs = [['drawer', 'cash', can('pos.sell') || can('cash.expense')], ['shifts', 'clock', can('shifts.manage')], ['safe', 'safe', can('cash.safe')]].filter((x) => x[2]);
   const tab = tabs.find((x) => x[0] === params.tab)?.[0] || tabs[0]?.[0];
   put(page, html`<div class="page-head"><div class="titles"><h1>${t('nav.cash')}</h1><p>${t('cash.sub')}</p></div></div>
-    <nav class="tabs" data-lab-scroll aria-label="${t('nav.sections')}">${tabs.map(([k, ic]) => html`<a href="#/cash?tab=${k}" ${tab === k ? CUR : ''}>${icon(ic)}${t('cash.tab.' + k)}</a>`)}</nav><div id="cash-body"></div>`);
+    <nav class="tabs" data-lab-scroll aria-label="${t('nav.sections')}">${tabs.map(([k, ic]) => html`<a href="#/cash?tab=${k}" data-guide="${k === 'safe' ? 'cash.safe.tab' : ''}" ${tab === k ? CUR : ''}>${icon(ic)}${t('cash.tab.' + k)}</a>`)}</nav><div id="cash-body"></div>`);
   const body = $('#cash-body', page);
   const again = () => view(page, params);
   if (tab === 'shifts') return shifts(body);
@@ -23,26 +24,26 @@ async function drawer(body, again) {
   try { s = await api.get('/api/shift'); } catch (e) { put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); return; }
   if (!s) {
     put(body, html`<div class="card accent-card pos-noshift"><div class="row">${icon('cash')}<h2>${t('cash.openTitle')}</h2></div><p>${t('cash.openText')}</p>
-      <div class="row wrap"><input id="fl" class="input big money-in" inputmode="decimal" placeholder="0" aria-label="${t('cash.float')}" autofocus>
-      <button class="btn primary lg" data-open>${t('cash.openShift')}</button></div></div>`);
+      <div class="row wrap"><input id="fl" class="input big money-in" data-guide="shift.cash" inputmode="decimal" placeholder="0" aria-label="${t('cash.float')}" autofocus>
+      <button class="btn primary lg" data-open data-guide="shift.open">${t('cash.openShift')}</button></div></div>`);
     $('[data-open]', body).addEventListener('click', async (e) => {
       const v = parseMoney($('#fl', body).value || '0');
       if (v === null) { shake($('#fl', body)); return; }
-      if (await run(api.post('/api/shift/open', { opening_float: v }), t('cash.opened'), e.currentTarget)) { await refreshShift(); again(); }
+      if (await run(api.post('/api/shift/open', { opening_float: v }), t('cash.opened'), e.currentTarget)) { signal('shift.opened'); await refreshShift(); again(); }
     });
     return;
   }
   const k = s.by_kind;
   const nonCash = Object.entries(s.tenders).filter(([m]) => m !== 'cash');
   put(body, html`<div class="stack enter">
-    <div class="hero"><div class="card ink-card"><div class="row between"><span class="muted">${t('cash.inDrawer')}</span><span class="badge ok num">${s.number} · ${time(s.opened_at)}</span></div>
+    <div class="hero" data-guide="shift.totals"><div class="card ink-card"><div class="row between"><span class="muted">${t('cash.inDrawer')}</span><span class="badge ok num">${s.number} · ${time(s.opened_at)}</span></div>
       <div class="hero-total"><div class="value num" data-count="${s.expected_now}" data-fmt="money">${money(s.expected_now, { whole: true })}</div></div>
       <div class="mini-stats"><div><span>${t('cash.float')}</span><b class="num">${money(k.float || 0)}</b></div><div><span>${t('cash.cashSales')}</span><b class="num">${money(k.sale || 0)}</b></div>
         <div><span>${t('cash.out')}</span><b class="num">${money((k.expense || 0) + (k.refund || 0) + (k.drop_out || 0) + (k.supplier || 0) + (k.purchase || 0))}</b></div></div></div>
       <div class="card"><div class="card-head"><h2>${t('cash.actions')}</h2></div><div class="stack tight">
-        ${can('cash.expense') ? html`<button class="btn block" data-expense>${icon('wallet')}${t('cash.expense')}</button>` : ''}
+        ${can('cash.expense') ? html`<button class="btn block" data-expense data-guide="cash.expense">${icon('wallet')}${t('cash.expense')}</button>` : ''}
         ${can('cash.safe') ? html`<button class="btn block" data-drop>${icon('safe')}${t('cash.drop')}</button>` : ''}
-        <button class="btn accent block lg" data-close>${icon('lock')}${t('cash.closeShift')}</button></div>
+        <button class="btn accent block lg" data-close data-guide="shift.close">${icon('lock')}${t('cash.closeShift')}</button></div>
         ${nonCash.length ? html`<div class="stack tight split"><p class="small muted">${t('cash.nonCash')}</p>${nonCash.map(([m, v]) => html`<div class="stat-line small"><span>${t('pay.' + m)}</span>${moneyH(v)}</div>`)}</div>` : ''}</div></div>
     <div class="card"><div class="card-head"><h2>${t('cash.moves')}</h2></div>${s.moves.length ? html`<div class="timeline">${s.moves.map((m) => html`<div class="ev">
       <span class="badge ${m.amount < 0 ? 'warn' : 'ok'}">${t('cashk.' + m.kind)}</span><span class="small"><span class="num">${time(m.at)}</span> · ${m.category ? t('exp.' + m.category) + ' · ' : ''}${m.note} · ${m.by_name}</span>
@@ -63,11 +64,11 @@ function expense(again) {
   const cats = S.lookups?.settings?.expense_categories || ['other'];
   open({
     title: t('cash.expense'),
-    body: html`<div class="field"><label for="ea">${t('f.amount')}</label><input id="ea" class="input big money-in" inputmode="decimal" autofocus></div>
+    body: html`<div class="field"><label for="ea">${t('f.amount')}</label><input id="ea" class="input big money-in" data-guide="expense.amount" inputmode="decimal" autofocus></div>
       <div class="field"><span class="label">${t('cash.category')}</span>${seg('cat', cats.map((c) => [c, t('exp.' + c)]), 'other')}</div>
-      <div class="field"><label for="en">${t('cash.forWhat')}</label><input id="en" class="input" placeholder="${t('cash.forWhatHint')}"></div>
+      <div class="field"><label for="en">${t('cash.forWhat')}</label><input id="en" class="input" data-guide="expense.note" placeholder="${t('cash.forWhatHint')}"></div>
       ${can('cash.safe') ? html`<div class="field"><span class="label">${t('receive.payFrom')}</span>${seg('src', [['drawer', t('cash.drawer')], ['safe', t('cash.safe')]], 'drawer')}</div>` : ''}`,
-    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok>${t('act.save')}</button>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok data-guide="expense.save">${t('act.save')}</button>`,
     mount(box, close) {
       let cat = 'other', src = 'drawer';
       bindSeg(box, 'cat', (v) => { cat = v; });
@@ -76,7 +77,7 @@ function expense(again) {
         const amount = parseMoney($('#ea', box).value);
         if (!amount) { shake($('#ea', box)); return; }
         if ($('#en', box).value.trim().length < 3) { shake($('#en', box)); $('#en', box).focus(); return; }
-        if (await run(api.post('/api/cash/expense', { idem_key: idem, amount, category: cat, note: $('#en', box).value, source: src }), t('saved'), e.currentTarget)) { close(); again(); }
+        if (await run(api.post('/api/cash/expense', { idem_key: idem, amount, category: cat, note: $('#en', box).value, source: src }), t('saved'), e.currentTarget)) { signal('expense.saved'); close(); again(); }
       });
     },
   });
@@ -92,7 +93,7 @@ function drop(s, again) {
       $('[data-ok]', box).addEventListener('click', async (e) => {
         const amount = parseMoney($('#da', box).value);
         if (!amount || amount > s.expected_now) { shake($('#da', box)); return; }
-        if (await run(api.post('/api/cash/safe', { kind: 'drop', amount, note: $('#dn', box).value }), t('saved'), e.currentTarget)) { close(); again(); }
+        if (await run(api.post('/api/cash/safe', { kind: 'drop', amount, note: $('#dn', box).value }), t('saved'), e.currentTarget)) { signal('safe.moved'); close(); again(); }
       });
     },
   });
@@ -106,11 +107,11 @@ function closeShift(s, again) {
     body: html`<p class="muted small">${t('cash.closeHint')}</p>
       <div class="two"><div class="card flat"><div class="card-head"><h2>${t('cash.countNotes')}</h2></div><div class="stack tight">${notes.map((n) => html`<div class="row">
         <span class="badge num">${money(n)}</span><span class="grow"></span>×<input class="input q-in num" data-note="${n}" inputmode="numeric" placeholder="0"></div>`)}</div></div>
-      <div class="stack"><div class="field"><label for="cc">${t('cash.counted')}</label><input id="cc" class="input big money-in" inputmode="decimal" autofocus></div>
+      <div class="stack"><div class="field"><label for="cc">${t('cash.counted')}</label><input id="cc" class="input big money-in" data-guide="shift.counted" inputmode="decimal" autofocus></div>
         <div class="change" id="cdiff"><span>${t('cash.difference')}</span><b class="num">—</b></div>
         <div class="field"><label for="cn">${t('cash.closeNote')}</label><textarea id="cn" class="input" placeholder="${t('cash.closeNoteHint')}"></textarea></div>
         <p class="small faint">${t('cash.blind')}</p></div></div>`,
-    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn accent" data-ok>${icon('lock')}${t('cash.closeShift')}</button>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn accent" data-ok data-guide="shift.close.save">${icon('lock')}${t('cash.closeShift')}</button>`,
     mount(box, close) {
       const upd = () => {
         const v = parseMoney($('#cc', box).value);
@@ -130,6 +131,7 @@ function closeShift(s, again) {
         if (counted === null) { shake($('#cc', box)); return; }
         const r = await run(api.post('/api/shift/close', { shift_id: s.id, counted, note: $('#cn', box).value }), null, e.currentTarget);
         if (r) {
+          signal('shift.closed');
           close();
           open({ title: t('cash.closedTitle'), body: html`<div class="done"><div class="done-mark">${icon('check')}</div>
             <div class="grid kpis"><div class="kpi"><span class="label">${t('cash.expected')}</span><span class="value num">${money(r.expected)}</span></div>
@@ -174,7 +176,7 @@ async function safe(body, again) {
   try { d = await api.get('/api/safe'); } catch (e) { put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); return; }
   put(body, html`<div class="stack enter"><div class="hero"><div class="card ink-card"><span class="muted">${t('cash.safeBalance')}</span>
       <div class="hero-total"><div class="value num" data-count="${d.balance}" data-fmt="money">${money(d.balance, { whole: true })}</div></div>
-      <div class="row wrap"><button class="btn accent" data-k="withdraw">${icon('arrow-up')}${t('cash.withdraw')}</button><button class="btn" data-k="deposit">${icon('arrow-down')}${t('cash.deposit')}</button></div></div>
+      <div class="row wrap"><button class="btn accent" data-k="withdraw">${icon('arrow-up')}${t('cash.withdraw')}</button><button class="btn" data-k="deposit" data-guide="safe.deposit">${icon('arrow-down')}${t('cash.deposit')}</button></div></div>
     <div class="card"><div class="card-head"><h2>${t('cash.financeDue')}</h2></div>${d.finance_due.length ? html`<div class="list">${d.finance_due.map((f) => html`<div class="li"><b class="grow">${f.provider}</b>
       <span class="money num">${money(f.amount)}</span><button class="btn sm" data-settle="${f.provider}" data-amount="${f.amount}">${t('cash.settle')}</button></div>`)}</div>`
       : html`<p class="muted small">${t('cash.noFinanceDue')}</p>`}</div></div>
@@ -184,14 +186,14 @@ async function safe(body, again) {
   settle(body);
   $$('[data-k]', body).forEach((b) => b.addEventListener('click', () => open({
     title: t('cash.' + b.dataset.k),
-    body: html`<div class="field"><label for="sa">${t('f.amount')}</label><input id="sa" class="input big money-in" inputmode="decimal" autofocus></div>
+    body: html`<div class="field"><label for="sa">${t('f.amount')}</label><input id="sa" class="input big money-in" data-guide="${b.dataset.k === 'deposit' ? 'safe.amount' : ''}" inputmode="decimal" autofocus></div>
       <div class="field"><label for="sn">${t('f.note')}</label><input id="sn" class="input"></div>`,
-    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok>${t('act.save')}</button>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok data-guide="${b.dataset.k === 'deposit' ? 'safe.save' : ''}">${t('act.save')}</button>`,
     mount(box, close) {
       $('[data-ok]', box).addEventListener('click', async (e) => {
         const amount = parseMoney($('#sa', box).value);
         if (!amount) { shake($('#sa', box)); return; }
-        if (await run(api.post('/api/cash/safe', { kind: b.dataset.k, amount, note: $('#sn', box).value }), t('saved'), e.currentTarget)) { close(); again(); }
+        if (await run(api.post('/api/cash/safe', { kind: b.dataset.k, amount, note: $('#sn', box).value }), t('saved'), e.currentTarget)) { signal('safe.moved'); close(); again(); }
       });
     },
   })));

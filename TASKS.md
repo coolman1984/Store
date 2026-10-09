@@ -14,6 +14,7 @@
 - [x] Design system v2 + Mizan (ميزان) identity on every screen, logo files, icon, splash; contrast and mark tests (docs/DESIGN.md)
 
 - [x] 1.1.0 People, profiles and pages (factory access standard, BAMS model): editable profiles, page permissions, lock-out guard, who-can-do-what, audit of ticks; gate `afaccess` in tests
+- [x] 1.2.0 In-app guide (role courses, coach, a problem entry for every server error), first-sign-in consent, and consented telemetry that stays on the PC unless a receiver address and token are set
 
 ## Next (in order)
 - [ ] Trademark/domain check for "Mizan / ميزان" in EG, SA, AE (owner) — **gate before renaming the installer and data folder**
