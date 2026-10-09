@@ -222,6 +222,9 @@ class Http(unittest.TestCase):
             self.assertEqual(cash.get(path)[0], 403, path)  # takes effect at once, without signing in again
         self.assertEqual(cash.get('/api/customers')[0], 200)  # the counter still picks the customer of a credit sale
         self.assertEqual(cash.get('/api/me')[1]['perms'], ['pos.discount', 'pos.sell'])
+        home = cash.get('/api/home')[1]  # the home page only points to pages the person can open
+        self.assertNotIn('due', home)
+        self.assertFalse({'low_stock', 'upcoming_prices', 'late_instalments', 'add_products', 'slow_stock'} & {x['id'] for x in home['advisor']})
 
     def test_people_screen_data_and_audit(self):
         st, d, _ = self.owner.get('/api/users')

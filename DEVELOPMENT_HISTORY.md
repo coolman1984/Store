@@ -24,6 +24,9 @@ protects the *right*: no save may leave no active person with `users.manage`, an
 themself off (`afaccess.admin_safety`). A shop already locked out by 1.0 is repaired once at start: its 1.0 owners get the owner
 profile back. Regression tests: `test_access.Guards`, `CarryOver`.
 
+**Own review:** the home page's advisor cards and the due-instalments list pointed to pages a person may now not open (they
+only checked the action, e.g. collecting instalments). Each card now also needs the page it opens; tested in `test_access.Http`.
+
 **Upgrade (schema 2):** a `profiles` table and a `perms` column. At first start every 1.0 person gets their own ticks once, equal
 to what they could do before (plus the pages that were open to everybody then), so nobody gains or loses anything; a verified
 copy of the database is made before the migration as always.
