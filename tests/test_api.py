@@ -1,5 +1,7 @@
 """The real HTTP server: sign-in, licence gate, roles, browser-attack guards, backups, practice mode."""
 import io
+import http.client
+import json
 import unittest
 import zipfile
 
@@ -55,6 +57,34 @@ class ApiTests(unittest.TestCase):
         st, d, _ = self.S.client().get('/api/home')
         self.assertEqual(st, 401)
         self.assertTrue(d['login'])
+
+    def test_logout_consumes_body_and_relogin_works_on_the_same_connection(self):
+        connection = http.client.HTTPConnection('127.0.0.1', self.S.port, timeout=5)
+        headers = {'Content-Type': 'application/json', 'Origin': self.S.base}
+        try:
+            connection.request('POST', '/api/login', json.dumps({'username': OWNER[0], 'password': OWNER[1]}), headers)
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertTrue(json.loads(response.read())['ok'])
+            headers['Cookie'] = response.getheader('Set-Cookie').split(';', 1)[0]
+            live_socket = connection.sock
+            connection.request('POST', '/api/logout', '{}', headers)
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertTrue(json.loads(response.read())['ok'])
+            self.assertIn('Max-Age=0', response.getheader('Set-Cookie'))
+            headers.pop('Cookie')
+            connection.request('GET', '/api/boot')
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertIsNone(json.loads(response.read())['user'])
+            connection.request('POST', '/api/login', json.dumps({'username': 'keeper', 'password': PW}), headers)
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(json.loads(response.read())['user']['role'], 'storekeeper')
+            self.assertIs(connection.sock, live_socket)
+        finally:
+            connection.close()
 
     def test_dns_rebinding_and_cross_site_writes_refused(self):
         st, _, _ = self.owner.get('/api/home', headers={'Host': 'evil.example.com'})

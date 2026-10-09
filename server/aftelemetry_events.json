@@ -1,0 +1,577 @@
+{
+ "_about": "af-telemetry event taxonomy. Every event type, its consent level and the ONLY data fields it may carry. id = a short machine id (letters, digits, . _ - : /; never 8+ digits in a row); int = a count or duration; feedback_text = the person's own previewed and redacted words (fb.* only); diagnostics = allowlisted counts and versions (fb.problem only). Levels: install (needs the installation's consent, no person), person (needs installation AND person consent, carries a pseudonymous person reference), feedback (sent deliberately by the person, allowed without tracking consent). prio: 0 = kept longest, 5 = dropped first.",
+ "version": 1,
+ "contact": [
+  "none",
+  "whatsapp",
+  "call",
+  "in_app"
+ ],
+ "diagnostics": [
+  "version",
+  "os",
+  "db_mb",
+  "disk_free_mb",
+  "pending_sync",
+  "error_count",
+  "last_backup_age_h",
+  "pcs",
+  "uptime_h",
+  "licence_state",
+  "build"
+ ],
+ "never": [
+  "password",
+  "passwd",
+  "pwd",
+  "pass",
+  "pin",
+  "otp",
+  "token",
+  "secret",
+  "api_key",
+  "key",
+  "keys",
+  "keystroke",
+  "keystrokes",
+  "typed",
+  "input",
+  "screenshot",
+  "screen",
+  "image",
+  "photo",
+  "name",
+  "full_name",
+  "first_name",
+  "last_name",
+  "username",
+  "phone",
+  "mobile",
+  "whatsapp_number",
+  "email",
+  "national_id",
+  "nid",
+  "address",
+  "location",
+  "gps",
+  "amount",
+  "price",
+  "total",
+  "balance",
+  "salary",
+  "cash",
+  "iban",
+  "card",
+  "account",
+  "customer",
+  "client",
+  "student",
+  "parent",
+  "employee",
+  "driver",
+  "patient",
+  "receipt",
+  "invoice",
+  "items",
+  "rows",
+  "record",
+  "records",
+  "note",
+  "notes",
+  "message",
+  "comment",
+  "body",
+  "content",
+  "query",
+  "search",
+  "url",
+  "ip"
+ ],
+ "types": {
+  "hb": {
+   "level": "install",
+   "prio": 3,
+   "data": {
+    "pending_sync": {
+     "type": "int"
+    },
+    "error_count": {
+     "type": "int"
+    },
+    "disk_free_mb": {
+     "type": "int"
+    },
+    "uptime_h": {
+     "type": "int"
+    },
+    "people": {
+     "type": "int"
+    }
+   }
+  },
+  "upgrade.start": {
+   "level": "install",
+   "prio": 2,
+   "data": {
+    "from": {
+     "type": "id"
+    },
+    "to": {
+     "type": "id"
+    }
+   }
+  },
+  "upgrade.ok": {
+   "level": "install",
+   "prio": 2,
+   "data": {
+    "from": {
+     "type": "id"
+    },
+    "to": {
+     "type": "id"
+    },
+    "seconds": {
+     "type": "int"
+    }
+   }
+  },
+  "upgrade.fail": {
+   "level": "install",
+   "prio": 1,
+   "data": {
+    "from": {
+     "type": "id"
+    },
+    "to": {
+     "type": "id"
+    },
+    "code": {
+     "type": "id"
+    }
+   }
+  },
+  "err.server": {
+   "level": "install",
+   "prio": 1,
+   "required": ["code", "fingerprint"],
+   "data": {
+    "code": {
+     "type": "id"
+    },
+    "fingerprint": {
+     "type": "id"
+    },
+    "where": {
+     "type": "id"
+    },
+    "status": {
+     "type": "int"
+    },
+    "count": {
+     "type": "int"
+    }
+   },
+   "merge": [
+    "code",
+    "fingerprint"
+   ]
+  },
+  "err.client": {
+   "level": "install",
+   "prio": 1,
+   "required": ["code", "fingerprint"],
+   "data": {
+    "code": {
+     "type": "id"
+    },
+    "fingerprint": {
+     "type": "id"
+    },
+    "where": {
+     "type": "id"
+    },
+    "count": {
+     "type": "int"
+    }
+   },
+   "merge": [
+    "code",
+    "fingerprint"
+   ]
+  },
+  "err.shown": {
+   "level": "person",
+   "prio": 2,
+   "data": {
+    "code": {
+     "type": "id"
+    },
+    "page": {
+     "type": "id"
+    },
+    "count": {
+     "type": "int"
+    }
+   },
+   "merge": [
+    "code",
+    "page"
+   ]
+  },
+  "sync.ok": {
+   "level": "install",
+   "prio": 4,
+   "data": {
+    "peers": {
+     "type": "int"
+    },
+    "pending": {
+     "type": "int"
+    },
+    "seconds": {
+     "type": "int"
+    },
+    "count": {
+     "type": "int"
+    }
+   },
+   "merge": []
+  },
+  "sync.fail": {
+   "level": "install",
+   "prio": 2,
+   "data": {
+    "code": {
+     "type": "id"
+    },
+    "peers": {
+     "type": "int"
+    },
+    "pending": {
+     "type": "int"
+    },
+    "count": {
+     "type": "int"
+    }
+   },
+   "merge": [
+    "code"
+   ]
+  },
+  "sync.conflict": {
+   "level": "install",
+   "prio": 2,
+   "data": {
+    "kind": {
+     "type": "id"
+    },
+    "count": {
+     "type": "int"
+    }
+   },
+   "merge": [
+    "kind"
+   ]
+  },
+  "backup.ok": {
+   "level": "install",
+   "prio": 3,
+   "data": {
+    "size_mb": {
+     "type": "int"
+    },
+    "seconds": {
+     "type": "int"
+    },
+    "kind": {
+     "type": "id"
+    }
+   }
+  },
+  "backup.fail": {
+   "level": "install",
+   "prio": 1,
+   "data": {
+    "code": {
+     "type": "id"
+    },
+    "kind": {
+     "type": "id"
+    }
+   }
+  },
+  "backup.restore": {
+   "level": "install",
+   "prio": 2,
+   "data": {
+    "ok": {
+     "type": "bool"
+    },
+    "seconds": {
+     "type": "int"
+    }
+   }
+  },
+  "use.page": {
+   "level": "person",
+   "prio": 5,
+   "data": {
+    "page": {
+     "type": "id"
+    },
+    "count": {
+     "type": "int"
+    }
+   },
+   "merge": [
+    "page"
+   ]
+  },
+  "use.action": {
+   "level": "person",
+   "prio": 5,
+   "data": {
+    "action": {
+     "type": "id"
+    },
+    "page": {
+     "type": "id"
+    },
+    "count": {
+     "type": "int"
+    }
+   },
+   "merge": [
+    "action",
+    "page"
+   ]
+  },
+  "use.shortcut": {
+   "level": "person",
+   "prio": 5,
+   "data": {
+    "shortcut": {
+     "type": "id"
+    },
+    "count": {
+     "type": "int"
+    }
+   },
+   "merge": [
+    "shortcut"
+   ]
+  },
+  "deny": {
+   "level": "person",
+   "prio": 3,
+   "data": {
+    "perm": {
+     "type": "id"
+    },
+    "page": {
+     "type": "id"
+    },
+    "count": {
+     "type": "int"
+    }
+   },
+   "merge": [
+    "perm",
+    "page"
+   ]
+  },
+  "guide.start": {
+   "level": "person",
+   "prio": 4,
+   "data": {
+    "guide": {
+     "type": "id"
+    }
+   }
+  },
+  "guide.step": {
+   "level": "person",
+   "prio": 5,
+   "data": {
+    "guide": {
+     "type": "id"
+    },
+    "step": {
+     "type": "int"
+    },
+    "kind": {
+     "type": "id"
+    },
+    "seconds": {
+     "type": "int"
+    }
+   }
+  },
+  "guide.done": {
+   "level": "person",
+   "prio": 4,
+   "data": {
+    "guide": {
+     "type": "id"
+    }
+   }
+  },
+  "guide.abandon": {
+   "level": "person",
+   "prio": 4,
+   "data": {
+    "guide": {
+     "type": "id"
+    },
+    "step": {
+     "type": "int"
+    }
+   }
+  },
+  "guide.lang": {
+   "level": "person",
+   "prio": 5,
+   "data": {
+    "lang": {
+     "type": "id"
+    }
+   }
+  },
+  "problem.open": {
+   "level": "person",
+   "prio": 4,
+   "data": {
+    "problem": {
+     "type": "id"
+    },
+    "error": {
+     "type": "id"
+    }
+   }
+  },
+  "problem.solved": {
+   "level": "person",
+   "prio": 4,
+   "data": {
+    "problem": {
+     "type": "id"
+    },
+    "solved": {
+     "type": "bool"
+    }
+   }
+  },
+  "fb.problem": {
+   "level": "feedback",
+   "prio": 0,
+   "data": {
+    "category": {
+     "type": "id"
+    },
+    "page": {
+     "type": "id"
+    },
+    "guide": {
+     "type": "id"
+    },
+    "problem": {
+     "type": "id"
+    },
+    "contact": {
+     "type": "id"
+    },
+    "text": {
+     "type": "feedback_text"
+    },
+    "diagnostics": {
+     "type": "diagnostics"
+    }
+   }
+  },
+  "fb.idea": {
+   "level": "feedback",
+   "prio": 0,
+   "data": {
+    "category": {
+     "type": "id"
+    },
+    "page": {
+     "type": "id"
+    },
+    "contact": {
+     "type": "id"
+    },
+    "text": {
+     "type": "feedback_text"
+    }
+   }
+  },
+  "fb.question": {
+   "level": "feedback",
+   "prio": 0,
+   "data": {
+    "category": {
+     "type": "id"
+    },
+    "page": {
+     "type": "id"
+    },
+    "guide": {
+     "type": "id"
+    },
+    "contact": {
+     "type": "id"
+    },
+    "text": {
+     "type": "feedback_text"
+    }
+   }
+  },
+  "sup.window_open": {
+   "level": "install",
+   "prio": 2,
+   "data": {
+    "minutes": {
+     "type": "int"
+    }
+   }
+  },
+  "sup.window_close": {
+   "level": "install",
+   "prio": 2,
+   "data": {
+    "minutes": {
+     "type": "int"
+    },
+    "repairs": {
+     "type": "int"
+    }
+   }
+  },
+  "sup.repair": {
+   "level": "install",
+   "prio": 2,
+   "data": {
+    "repair": {
+     "type": "id"
+    },
+    "ok": {
+     "type": "bool"
+    }
+   }
+  },
+  "lic.state_change": {
+   "level": "install",
+   "prio": 1,
+   "data": {
+    "from": {
+     "type": "id"
+    },
+    "to": {
+     "type": "id"
+    }
+   }
+  }
+ }
+}

@@ -267,4 +267,167 @@ class LicenceLock(Browser):
         self.assertEqual([e for e in self.errors if '400' not in e], [])
 
 
+@SKIP
+class GuideCoach(Browser):
+    """The owner answers the first-sign-in consent card, opens help, and the open-shift coach
+    shows step 1 of N, then moves on once that step is done."""
+
+    def setUp(self):
+        with self.S.app.db.tx():
+            self.S.app.db.run('DELETE FROM consent_log')
+
+    def test_owner_answers_consent_and_the_open_shift_coach_advances(self):
+        import re
+        pg = self.open('owner')
+        pg.wait_for_selector('[data-afc="card"]')
+        self.assertEqual(pg.locator('[data-afc="agree"], [data-afc="decline"]').count(), 2)
+        pg.click('[data-afc="agree"]')
+        pg.wait_for_selector('[data-afc="card"]', state='detached')
+        pg.click('[data-afg="help"]')
+        pg.wait_for_selector('[data-guide-id="open-shift"] [data-afg="start"]')
+        pg.click('[data-guide-id="open-shift"] [data-afg="start"]')
+        pg.wait_for_selector('[data-afg="coach"] [data-afg="step"]')
+        step = pg.inner_text('[data-afg="step"]')
+        found = re.search(r'1\D+(\d+)', step)
+        self.assertIsNotNone(found, step)
+        self.assertGreater(int(found.group(1)), 1, step)
+        pg.click('[data-afg="there"]')
+        advanced = self.until(pg, """(() => {
+          const s = document.querySelector('[data-afg="step"]');
+          const t = s ? s.textContent : '';
+          return /2\\D+[0-9]+/.test(t) ? t : '';
+        })()""")
+        again = re.search(r'2\D+(\d+)', advanced)
+        self.assertIsNotNone(again, advanced)
+        self.assertEqual(again.group(1), found.group(1), advanced)
+        self.assertEqual(self.errors, [])
+
+    def test_consent_card_is_nonmodal_and_a_shop_dialog_stays_clickable(self):
+        pg = self.open('owner', width=360, height=844)
+        pg.wait_for_selector('[data-afc="card"]')
+        self.assertEqual(pg.get_attribute('[data-afc="card"] section', 'aria-modal'), 'false')
+        pg.click('[data-cmdk]')
+        pg.wait_for_selector('#cmdk-q')
+        pg.fill('#cmdk-q', 'غلاية')
+        pg.keyboard.press('Escape')
+        self.assertLessEqual(pg.evaluate('document.documentElement.scrollWidth'), 360)
+        self.assertEqual(self.errors, [])
+
+    def test_relogin_has_one_guide_and_f1_uses_the_current_person(self):
+        pg = self.open('owner')
+        pg.wait_for_selector('[data-afc="card"]')
+        pg.click('[data-afc="decline"]')
+        pg.wait_for_selector('[data-afc="card"]', state='detached')
+        pg.click('[data-logout]')
+        pg.wait_for_selector('#auth-form')
+        self.assertEqual(pg.locator('[data-afc="card"]').count(), 0)
+        pg.fill('#username', 'store')
+        pg.fill('#password', 'practice-1234')
+        pg.click('button[type=submit]')
+        pg.wait_for_selector('.shell')
+        self.until(pg, "!!window.__afguide && window.__afguideLive")
+        pg.keyboard.press('F1')
+        pg.wait_for_selector('[data-afg="panel"]', state='visible')
+        self.assertEqual(pg.locator('[data-afg="fab"]').count(), 1)
+        self.assertEqual(pg.locator('[data-afg="panel"]').count(), 1)
+        self.assertEqual(pg.locator('[data-guide-id="make-sale"]').count(), 0)
+        self.assertGreater(pg.locator('[data-guide-id="read-stock"]').count(), 0)
+        self.assertEqual(self.errors, [])
+
+    def test_language_switch_keeps_guide_controls_inside_the_panel(self):
+        pg = self.open('owner')
+        pg.wait_for_selector('[data-afc="card"]')
+        pg.click('[data-afc="decline"]')
+        pg.wait_for_selector('[data-afc="card"]', state='detached')
+        pg.click('[data-afg="help"]')
+        pg.wait_for_selector('[data-afg="panel"]', state='visible')
+        pg.keyboard.press('Escape')
+        pg.click('[data-lang]')
+        self.until(pg, "document.documentElement.lang === 'en'")
+        pg.click('[data-afg="help"]')
+        pg.wait_for_selector('[data-afg="panel"]', state='visible')
+        self.assertEqual(pg.locator('body > [data-afg="start"], body > [data-afg="help"]').count(), 0)
+        self.assertGreater(pg.locator('[data-afg="panel"] [data-afg="start"]').count(), 0)
+        self.assertEqual(pg.locator('[data-afg="help"]').count(), 1)
+        self.assertEqual(self.errors, [])
+
+    def test_report_previews_redacted_words_and_queues_only_after_send(self):
+        text = 'Sale screen freezes password=fixture-only phone 01000000000'
+        for language, theme, width in (('ar', 'day', 1366), ('en', 'night', 390)):
+            with self.subTest(language=language, theme=theme):
+                self.setUp()
+                pg = self.open('owner', width=width, prefs={'lang': language, 'theme': theme})
+                pg.wait_for_selector('[data-afc="agree"]')
+                pg.click('[data-afc="agree"]')
+                pg.wait_for_selector('[data-afc="card"]', state='detached')
+                pg.click('[data-afg="help"]')
+                pg.click('[data-guide-id="open-shift"] [data-afg="start"]')
+                pg.wait_for_selector('[data-afg="coach"]', state='visible')
+                pg.click('[data-afg="help"]')
+                pg.click('[data-afg="report"]')
+                pg.wait_for_selector('[data-report-text]')
+                reports = lambda: [e for e in self.S.app.assist.tel.pending() if e['type'] == 'fb.problem']
+                before = {e['id'] for e in reports()}
+                self.assertTrue(pg.locator('[data-report-send]').is_disabled())
+                pg.fill('[data-report-text]', text)
+                pg.check('[data-report-diag]')
+                pg.click('[data-report-check]')
+                pg.wait_for_selector('[data-report-preview]', state='visible')
+                preview = json.loads(pg.inner_text('[data-report-preview]'))
+                self.assertEqual(preview['data']['text'], 'Sale screen freezes password=[SECRET] phone [PHONE]')
+                self.assertIn('diagnostics', preview['data'])
+                self.assertEqual(pg.get_attribute('[data-report-preview]', 'dir'), 'ltr')
+                self.assertTrue(pg.evaluate("""(() => {
+                  const r = document.querySelector('[data-report-send]').getBoundingClientRect();
+                  return r.top >= 0 && r.bottom <= innerHeight;
+                })()"""))
+                self.assertNotIn('fixture-only', json.dumps(preview))
+                self.assertNotIn('01000000000', json.dumps(preview))
+                self.assertEqual({e['id'] for e in reports()}, before)
+                pg.fill('[data-report-text]', text + ' after opening the shift')
+                self.assertTrue(pg.locator('[data-report-send]').is_disabled())
+                self.assertTrue(pg.locator('[data-report-preview]').is_hidden())
+                pg.click('[data-report-check]')
+                pg.wait_for_selector('[data-report-preview]', state='visible')
+                preview = json.loads(pg.inner_text('[data-report-preview]'))
+                self.assertLessEqual(pg.evaluate('document.documentElement.scrollWidth'), width)
+                pg.click('[data-report-send]')
+                pg.wait_for_selector('[data-report-text]', state='detached')
+                saved = [e for e in reports() if e['id'] not in before]
+                self.assertEqual(len(saved), 1)
+                self.assertEqual(saved[0]['data'], preview['data'])
+                self.assertEqual(saved[0]['type'], preview['type'])
+                self.assertEqual(self.errors, [])
+                pg.context.close()
+
+    def test_edit_during_report_preview_does_not_enable_stale_send(self):
+        pg = self.open('owner')
+        pg.wait_for_selector('[data-afc="agree"]')
+        pg.click('[data-afc="agree"]')
+        pg.wait_for_selector('[data-afc="card"]', state='detached')
+        pg.click('[data-afg="help"]')
+        pg.click('[data-afg="report"]')
+        pg.wait_for_selector('[data-report-text]')
+        pg.fill('[data-report-text]', 'Original report')
+        waiting = []
+        pg.route('**/api/telemetry/feedback/preview', lambda route: waiting.append(route))
+        with pg.expect_request('**/api/telemetry/feedback/preview'):
+            pg.click('[data-report-check]')
+        self.assertEqual(len(waiting), 1)
+        preview = pg.request.post(self.S.base + '/api/telemetry/feedback/preview',
+                                  data=waiting[0].request.post_data_json)
+        self.assertEqual(preview.status, 200)
+        pg.fill('[data-report-text]', 'Edited while waiting')
+        waiting[0].fulfill(status=200, json=preview.json())
+        pg.wait_for_selector('[data-report-check][aria-busy="true"]', state='detached')
+        self.assertTrue(pg.locator('[data-report-send]').is_disabled())
+        self.assertTrue(pg.locator('[data-report-preview]').is_hidden())
+        pg.unroute('**/api/telemetry/feedback/preview')
+        pg.click('[data-report-check]')
+        pg.wait_for_selector('[data-report-preview]', state='visible')
+        self.assertEqual(json.loads(pg.inner_text('[data-report-preview]'))['data']['text'], 'Edited while waiting')
+        self.assertTrue(pg.locator('[data-report-send]').is_enabled())
+        self.assertEqual(self.errors, [])
+
+
 _ = PW

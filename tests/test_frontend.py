@@ -115,11 +115,12 @@ class PageCode(unittest.TestCase):
         self.assertEqual(sorted(used - have), [])
 
     def test_size_budgets(self):
-        """A shop PC is often old: keep the first load small (uncompressed bytes)."""
+        """A shop PC is often old: keep the first load small (uncompressed bytes).
+        The ceiling includes the vendored factory guide, consent and telemetry files. Those are required and not edited here."""
         total_js = sum(os.path.getsize(p) for p in JS)
         total_css = sum(os.path.getsize(p) for p in CSS)
-        self.assertLess(total_js, 260_000, total_js)
-        self.assertLess(total_css, 70_000, total_css)
+        self.assertLess(total_js, 320_000, total_js)
+        self.assertLess(total_css, 80_000, total_css)
         for name in os.listdir(os.path.join(WEB, 'fonts')):
             if name.endswith('.woff2'):
                 self.assertLess(os.path.getsize(os.path.join(WEB, 'fonts', name)), 60_000, name)

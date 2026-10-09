@@ -1,0 +1,11 @@
+/* Vendored from Apps-Factory packages/af-consent 0.1.0 - do not edit here. */
+/* Update with: python scripts/vendor_consent.py <product repo> (from the Apps-Factory checkout) */
+/* af-consent 0.1.0 */
+.afc-scrim { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: center; background: var(--overlay-scrim, rgba(10,15,25,.45)); }
+.afc-card { inline-size: min(460px, calc(100vw - 32px)); padding: 20px; border-radius: var(--r-lg, 14px); background: var(--surface, #fff); color: var(--ink, #1c2430); box-shadow: var(--shadow-3, 0 10px 30px rgba(0,0,0,.25)); font-family: var(--font-ui, system-ui, "Segoe UI", Tahoma, sans-serif); }
+.afc-text { margin: 0 0 8px; font-size: var(--fs-lg, 18px); font-weight: 700; }
+.afc-more { margin: 0 0 12px; color: var(--ink-2, #5b6574); font-size: var(--fs-sm, 13px); line-height: 1.7; }
+.afc-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.afc-btn { min-block-size: 44px; padding: 0 16px; border-radius: var(--r-md, 10px); border: 1px solid var(--line-2, #c8cfdb); background: var(--surface, #fff); color: var(--ink, #1c2430); font: inherit; font-weight: 700; cursor: pointer; }
+.afc-btn:focus-visible { outline: 3px solid var(--focus, #ffbf47); outline-offset: 2px; }
+.afc-quiet { border-color: transparent; color: var(--brand, #1f5eff); }

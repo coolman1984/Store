@@ -1,5 +1,17 @@
 # Release notes
 
+## 1.2.0 — release candidate
+- New: Arabic and English in-app courses for owners, managers, cashiers and storekeepers, with per-person progress and a step-by-step coach. Custom profiles follow their permissions. Press F1 or the ? button for help.
+- New: each server error has an explanation and a next action. Arabic guidance uses «العربية الميسّرة»; the sale lesson is «إنشاء فاتورة بيع».
+- New: first-sign-in consent and Settings → Privacy and help. Both the shop and person must agree; changing the shop's choice preserves the person's previous refusal. Withdrawing removes pending events and reports.
+- Restored: write a problem report in your own words. The factory redactor removes recognized secrets and phone-like strings before the complete preview and local storage. Both the shop and person must consent; only pressing Queue report saves it. Editing text or diagnostics requires a new preview. Existing free-text reports with current consent are kept. Usage/error telemetry still collects only allowed IDs/counts, without typed business input or screenshots.
+- Nothing leaves this PC until a receiver address and token are configured. Sending runs in the background and does not block new event requests during the network timeout. HTTPS or exact local endpoints only; redirects are refused.
+- Fixed: consent covering shop controls, guide chrome covering dialog buttons, and the narrow phone top bar. Guide controls remain inside their panel when changing language; old controllers and telemetry cannot follow someone into another account.
+- Fixed: signing in again after logout could fail when the browser reused its connection. The server now reads the logout request body before replying.
+- Fixed: the open help panel stays clickable above a paused or active lesson card, including its Report a problem button.
+- Guide, progress and privacy withdrawal stay available while the licence is locked. Restore reconnects consent and removes pending events that no longer have permission to send.
+- Automated verification complete in the socket-enabled session: **155 tests passed, 0 failures, 0 errors, 0 skips**, including all 16 browser tests. Relogin, report redaction/confirmation, preserved consented reports and the AR/EN report dialog are covered. Field acceptance checks in TASKS remain separate.
+
 ## 1.1.0
 - New: **profiles** — ready-made sets of permissions you can rename, change (for everybody who has them at once) or delete, and
   your own new ones. The owner profile always has everything.

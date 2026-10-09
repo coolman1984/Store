@@ -271,3 +271,58 @@ html[data-print="r80"] { --page: 80mm; } html[data-print="r58"] { --page: 58mm; 
 .t.matrix .center { text-align: center; }
 .t.matrix .group-row th { position: static; background: var(--surface); color: var(--ink); }
 .t.matrix .badge .i { inline-size: 14px; block-size: 14px; color: inherit; }
+
+/* The factory coach button is position:fixed at the same corner as a side panel's save
+   button, and its z-index (9000) paints it on top of that button. Keep it above the
+   page and the dock, and under a dialog (z-index 60). On a phone it sits above the dock.
+   Vendor CSS is not edited. */
+.afg-fab { z-index: 35; }
+/* The open help panel must stay clickable even with a paused lesson at the same corner. */
+.afg-coach { z-index: 36; }
+.afg-panel { z-index: 37; }
+.afg-panel[hidden], .afg-coach[hidden] { display: none; }
+.report-preview { white-space: pre-wrap; overflow-wrap: anywhere; max-inline-size: 100%; }
+.report-dialog { display: flex; flex-direction: column; }
+.report-dialog .dialog-body { overflow: auto; min-block-size: 0; }
+.report-dialog .dialog-head, .report-dialog .dialog-foot { flex-shrink: 0; }
+@media (max-width: 860px) {
+  .afg-fab { inset-block-end: 76px; }
+}
+/* The coach outline pulse is endless. The factory sheet stops it for prefers-reduced-motion only. */
+[data-motion="off"] .afg-target { animation: none; }
+
+/* The factory consent card is a full-screen modal. It must stay on the first sign-in, with both
+   buttons, but a sale, a licence code or the people page has to stay clickable underneath.
+   Dialogs use z-index 60, so they open above this corner card. Vendor CSS is not edited. */
+.afc-scrim {
+  inset: auto;
+  inset-block-end: 16px;
+  inset-inline-start: 16px;
+  inline-size: min(420px, calc(100vw - 32px));
+  max-inline-size: calc(100vw - 32px);
+  block-size: auto;
+  display: block;
+  background: transparent;
+  pointer-events: none;
+  z-index: 40;
+}
+.afc-card {
+  pointer-events: auto;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  max-block-size: min(420px, 70dvh);
+  overflow: auto;
+}
+.afc-actions, .afc-btn { min-inline-size: 0; }
+@media (max-width: 860px) {
+  .afc-scrim { inset-block-end: 140px; } /* above the dock and the guide button */
+}
+
+/* The ? help control sits in the top bar. At 360px that bar was 9px wider than the phone
+   (closed-shift chip + help + two 44px buttons): 369 > 360 on every page.
+   The group must keep its own width: shrinking it lets the buttons spill off the screen. */
+@media (max-width: 380px) {
+  .top { padding-inline: var(--s-2); gap: var(--s-1); }
+  .top-end { gap: var(--s-1); }
+}

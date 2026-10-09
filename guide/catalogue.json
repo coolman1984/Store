@@ -1,0 +1,1309 @@
+{
+  "product": "al-store",
+  "format": 1,
+  "languages": [
+    "ar",
+    "en"
+  ],
+  "defaultLang": "ar",
+  "uiLanguages": [
+    "ar",
+    "en"
+  ],
+  "pages": [
+    "signin",
+    "setup",
+    "home",
+    "help",
+    "settings",
+    "pos",
+    "sales",
+    "customers",
+    "products",
+    "stock",
+    "receive",
+    "cash",
+    "watch",
+    "reports"
+  ],
+  "unguided": [],
+  "states": [
+    "setup.done",
+    "signed.in",
+    "shift.open",
+    "sale.first",
+    "person.second",
+    "backup.made"
+  ],
+  "checklist": [
+    "first-setup",
+    "add-user",
+    "open-shift",
+    "make-sale",
+    "backup"
+  ],
+  "targets": {
+    "signin.user": {
+      "page": "signin",
+      "sel": "[data-guide=\"signin.user\"]"
+    },
+    "signin.password": {
+      "page": "signin",
+      "sel": "[data-guide=\"signin.password\"]"
+    },
+    "signin.submit": {
+      "page": "signin",
+      "sel": "[data-guide=\"signin.submit\"]"
+    },
+    "setup.shop": {
+      "page": "setup",
+      "sel": "[data-guide=\"setup.shop\"]"
+    },
+    "setup.owner": {
+      "page": "setup",
+      "sel": "[data-guide=\"setup.owner\"]"
+    },
+    "setup.user": {
+      "page": "setup",
+      "sel": "[data-guide=\"setup.user\"]"
+    },
+    "setup.password": {
+      "page": "setup",
+      "sel": "[data-guide=\"setup.password\"]"
+    },
+    "setup.go": {
+      "page": "setup",
+      "sel": "[data-guide=\"setup.go\"]"
+    },
+    "settings.shop.tab": {
+      "page": "settings",
+      "sel": "[data-guide=\"settings.shop.tab\"]"
+    },
+    "settings.users.tab": {
+      "page": "settings",
+      "sel": "[data-guide=\"settings.users.tab\"]"
+    },
+    "settings.backup.tab": {
+      "page": "settings",
+      "sel": "[data-guide=\"settings.backup.tab\"]"
+    },
+    "settings.shop.name": {
+      "page": "settings",
+      "sel": "[data-guide=\"settings.shop.name\"]"
+    },
+    "settings.save": {
+      "page": "settings",
+      "sel": "[data-guide=\"settings.save\"]"
+    },
+    "users.add": {
+      "page": "settings",
+      "sel": "[data-guide=\"users.add\"]"
+    },
+    "user.name": {
+      "page": "settings",
+      "sel": "[data-guide=\"user.name\"]"
+    },
+    "user.profile": {
+      "page": "settings",
+      "sel": "[data-guide=\"user.profile\"]"
+    },
+    "user.password": {
+      "page": "settings",
+      "sel": "[data-guide=\"user.password\"]"
+    },
+    "user.save": {
+      "page": "settings",
+      "sel": "[data-guide=\"user.save\"]"
+    },
+    "backup.now": {
+      "page": "settings",
+      "sel": "[data-guide=\"backup.now\"]"
+    },
+    "home.today": {
+      "page": "home",
+      "sel": "[data-guide=\"home.today\"]"
+    },
+    "shift.cash": {
+      "page": "cash",
+      "sel": "[data-guide=\"shift.cash\"]"
+    },
+    "shift.open": {
+      "page": "cash",
+      "sel": "[data-guide=\"shift.open\"]"
+    },
+    "shift.totals": {
+      "page": "cash",
+      "sel": "[data-guide=\"shift.totals\"]"
+    },
+    "shift.close": {
+      "page": "cash",
+      "sel": "[data-guide=\"shift.close\"]"
+    },
+    "shift.counted": {
+      "page": "cash",
+      "sel": "[data-guide=\"shift.counted\"]"
+    },
+    "shift.close.save": {
+      "page": "cash",
+      "sel": "[data-guide=\"shift.close.save\"]"
+    },
+    "cash.expense": {
+      "page": "cash",
+      "sel": "[data-guide=\"cash.expense\"]"
+    },
+    "expense.amount": {
+      "page": "cash",
+      "sel": "[data-guide=\"expense.amount\"]"
+    },
+    "expense.note": {
+      "page": "cash",
+      "sel": "[data-guide=\"expense.note\"]"
+    },
+    "expense.save": {
+      "page": "cash",
+      "sel": "[data-guide=\"expense.save\"]"
+    },
+    "cash.safe.tab": {
+      "page": "cash",
+      "sel": "[data-guide=\"cash.safe.tab\"]"
+    },
+    "safe.deposit": {
+      "page": "cash",
+      "sel": "[data-guide=\"safe.deposit\"]"
+    },
+    "safe.amount": {
+      "page": "cash",
+      "sel": "[data-guide=\"safe.amount\"]"
+    },
+    "safe.save": {
+      "page": "cash",
+      "sel": "[data-guide=\"safe.save\"]"
+    },
+    "pos.search": {
+      "page": "pos",
+      "sel": "[data-guide=\"pos.search\"]"
+    },
+    "pos.pay": {
+      "page": "pos",
+      "sel": "[data-guide=\"pos.pay\"]"
+    },
+    "pos.received": {
+      "page": "pos",
+      "sel": "[data-guide=\"pos.received\"]"
+    },
+    "pos.change": {
+      "page": "pos",
+      "sel": "[data-guide=\"pos.change\"]"
+    },
+    "pos.confirm": {
+      "page": "pos",
+      "sel": "[data-guide=\"pos.confirm\"]"
+    },
+    "sales.return": {
+      "page": "sales",
+      "sel": "[data-guide=\"sales.return\"]"
+    },
+    "return.reason": {
+      "page": "sales",
+      "sel": "[data-guide=\"return.reason\"]"
+    },
+    "return.save": {
+      "page": "sales",
+      "sel": "[data-guide=\"return.save\"]"
+    },
+    "cust.collect": {
+      "page": "customers",
+      "sel": "[data-guide=\"cust.collect\"]"
+    },
+    "collect.amount": {
+      "page": "customers",
+      "sel": "[data-guide=\"collect.amount\"]"
+    },
+    "collect.save": {
+      "page": "customers",
+      "sel": "[data-guide=\"collect.save\"]"
+    },
+    "reports.range": {
+      "page": "reports",
+      "sel": "[data-guide=\"reports.range\"]"
+    },
+    "stock.search": {
+      "page": "stock",
+      "sel": "[data-guide=\"stock.search\"]"
+    },
+    "receive.supplier": {
+      "page": "receive",
+      "sel": "[data-guide=\"receive.supplier\"]"
+    },
+    "receive.save": {
+      "page": "receive",
+      "sel": "[data-guide=\"receive.save\"]"
+    }
+  },
+  "guides": [
+    {
+      "id": "sign-in",
+      "perm": "*",
+      "minutes": 2,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "signin",
+          "until": {
+            "route": "signin"
+          }
+        },
+        {
+          "k": "type",
+          "target": "signin.user",
+          "until": {
+            "filled": "signin.user"
+          }
+        },
+        {
+          "k": "type",
+          "target": "signin.password",
+          "until": {
+            "filled": "signin.password"
+          }
+        },
+        {
+          "k": "click",
+          "target": "signin.submit",
+          "until": {
+            "event": "session.started"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ],
+      "done": {
+        "state": "signed.in"
+      }
+    },
+    {
+      "id": "first-setup",
+      "perm": "settings.edit",
+      "minutes": 3,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "setup",
+          "until": {
+            "route": "setup"
+          }
+        },
+        {
+          "k": "type",
+          "target": "setup.shop",
+          "until": {
+            "filled": "setup.shop"
+          }
+        },
+        {
+          "k": "type",
+          "target": "setup.owner",
+          "until": {
+            "filled": "setup.owner"
+          }
+        },
+        {
+          "k": "type",
+          "target": "setup.user",
+          "until": {
+            "filled": "setup.user"
+          }
+        },
+        {
+          "k": "type",
+          "target": "setup.password",
+          "until": {
+            "filled": "setup.password"
+          }
+        },
+        {
+          "k": "click",
+          "target": "setup.go",
+          "until": {
+            "event": "setup.done"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ],
+      "done": {
+        "state": "setup.done"
+      }
+    },
+    {
+      "id": "shop-settings",
+      "perm": "settings.edit",
+      "minutes": 2,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "settings",
+          "until": {
+            "route": "settings"
+          }
+        },
+        {
+          "k": "click",
+          "target": "settings.shop.tab",
+          "until": {
+            "target": "settings.shop.name"
+          }
+        },
+        {
+          "k": "type",
+          "target": "settings.shop.name",
+          "until": {
+            "filled": "settings.shop.name"
+          }
+        },
+        {
+          "k": "click",
+          "target": "settings.save",
+          "until": {
+            "event": "settings.saved"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "add-user",
+      "perm": "users.manage",
+      "minutes": 3,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "settings",
+          "until": {
+            "route": "settings"
+          }
+        },
+        {
+          "k": "click",
+          "target": "settings.users.tab",
+          "until": {
+            "target": "users.add"
+          }
+        },
+        {
+          "k": "click",
+          "target": "users.add",
+          "until": {
+            "target": "user.name"
+          }
+        },
+        {
+          "k": "type",
+          "target": "user.name",
+          "until": {
+            "filled": "user.name"
+          }
+        },
+        {
+          "k": "choose",
+          "target": "user.profile",
+          "until": {
+            "filled": "user.profile"
+          }
+        },
+        {
+          "k": "type",
+          "target": "user.password",
+          "until": {
+            "filled": "user.password"
+          }
+        },
+        {
+          "k": "click",
+          "target": "user.save",
+          "until": {
+            "event": "user.saved"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ],
+      "done": {
+        "state": "person.second"
+      }
+    },
+    {
+      "id": "backup",
+      "perm": "settings.edit",
+      "minutes": 2,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "settings",
+          "until": {
+            "route": "settings"
+          }
+        },
+        {
+          "k": "click",
+          "target": "settings.backup.tab",
+          "until": {
+            "target": "backup.now"
+          }
+        },
+        {
+          "k": "click",
+          "target": "backup.now",
+          "until": {
+            "event": "backup.done"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ],
+      "done": {
+        "state": "backup.made"
+      }
+    },
+    {
+      "id": "home-today",
+      "perm": "*",
+      "minutes": 1,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "home",
+          "until": {
+            "route": "home"
+          }
+        },
+        {
+          "k": "check",
+          "target": "home.today",
+          "until": {
+            "target": "home.today"
+          }
+        },
+        {
+          "k": "tip"
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "open-shift",
+      "perm": "pos.sell",
+      "minutes": 2,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "cash",
+          "until": {
+            "route": "cash"
+          }
+        },
+        {
+          "k": "type",
+          "target": "shift.cash",
+          "until": {
+            "filled": "shift.cash"
+          }
+        },
+        {
+          "k": "click",
+          "target": "shift.open",
+          "until": {
+            "event": "shift.opened"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ],
+      "done": {
+        "state": "shift.open"
+      }
+    },
+    {
+      "id": "make-sale",
+      "perm": "pos.sell",
+      "minutes": 4,
+      "requires": [
+        "open-shift"
+      ],
+      "steps": [
+        {
+          "k": "go",
+          "page": "pos",
+          "until": {
+            "route": "pos"
+          }
+        },
+        {
+          "k": "type",
+          "target": "pos.search",
+          "until": {
+            "filled": "pos.search"
+          }
+        },
+        {
+          "k": "tip"
+        },
+        {
+          "k": "click",
+          "target": "pos.pay",
+          "until": {
+            "target": "pos.received"
+          }
+        },
+        {
+          "k": "type",
+          "target": "pos.received",
+          "until": {
+            "filled": "pos.received"
+          }
+        },
+        {
+          "k": "tip",
+          "target": "pos.change"
+        },
+        {
+          "k": "click",
+          "target": "pos.confirm",
+          "until": {
+            "event": "sale.done"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ],
+      "done": {
+        "state": "sale.first"
+      }
+    },
+    {
+      "id": "collect-instalment",
+      "perm": "installments.collect",
+      "minutes": 3,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "customers",
+          "until": {
+            "route": "customers"
+          }
+        },
+        {
+          "k": "tip"
+        },
+        {
+          "k": "click",
+          "target": "cust.collect",
+          "until": {
+            "target": "collect.amount"
+          }
+        },
+        {
+          "k": "type",
+          "target": "collect.amount",
+          "until": {
+            "filled": "collect.amount"
+          }
+        },
+        {
+          "k": "click",
+          "target": "collect.save",
+          "until": {
+            "event": "instalment.paid"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "record-expense",
+      "perm": "cash.expense",
+      "minutes": 2,
+      "requires": [
+        "open-shift"
+      ],
+      "steps": [
+        {
+          "k": "go",
+          "page": "cash",
+          "until": {
+            "route": "cash"
+          }
+        },
+        {
+          "k": "click",
+          "target": "cash.expense",
+          "until": {
+            "target": "expense.amount"
+          }
+        },
+        {
+          "k": "type",
+          "target": "expense.amount",
+          "until": {
+            "filled": "expense.amount"
+          }
+        },
+        {
+          "k": "type",
+          "target": "expense.note",
+          "until": {
+            "filled": "expense.note"
+          }
+        },
+        {
+          "k": "click",
+          "target": "expense.save",
+          "until": {
+            "event": "expense.saved"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "read-shift",
+      "perm": "pos.sell",
+      "minutes": 2,
+      "requires": [
+        "open-shift"
+      ],
+      "steps": [
+        {
+          "k": "go",
+          "page": "cash",
+          "until": {
+            "route": "cash"
+          }
+        },
+        {
+          "k": "check",
+          "target": "shift.totals",
+          "until": {
+            "target": "shift.totals"
+          }
+        },
+        {
+          "k": "tip"
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "safe-move",
+      "perm": "cash.safe",
+      "minutes": 3,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "cash",
+          "until": {
+            "route": "cash"
+          }
+        },
+        {
+          "k": "click",
+          "target": "cash.safe.tab",
+          "until": {
+            "target": "safe.deposit"
+          }
+        },
+        {
+          "k": "click",
+          "target": "safe.deposit",
+          "until": {
+            "target": "safe.amount"
+          }
+        },
+        {
+          "k": "type",
+          "target": "safe.amount",
+          "until": {
+            "filled": "safe.amount"
+          }
+        },
+        {
+          "k": "click",
+          "target": "safe.save",
+          "until": {
+            "event": "safe.moved"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "close-shift",
+      "perm": "pos.sell",
+      "minutes": 3,
+      "requires": [
+        "open-shift"
+      ],
+      "steps": [
+        {
+          "k": "go",
+          "page": "cash",
+          "until": {
+            "route": "cash"
+          }
+        },
+        {
+          "k": "click",
+          "target": "shift.close",
+          "until": {
+            "target": "shift.counted"
+          }
+        },
+        {
+          "k": "type",
+          "target": "shift.counted",
+          "until": {
+            "filled": "shift.counted"
+          }
+        },
+        {
+          "k": "warn"
+        },
+        {
+          "k": "click",
+          "target": "shift.close.save",
+          "until": {
+            "event": "shift.closed"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "take-return",
+      "perm": "sales.return",
+      "minutes": 3,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "sales",
+          "until": {
+            "route": "sales"
+          }
+        },
+        {
+          "k": "tip"
+        },
+        {
+          "k": "click",
+          "target": "sales.return",
+          "until": {
+            "target": "return.reason"
+          }
+        },
+        {
+          "k": "type",
+          "target": "return.reason",
+          "until": {
+            "filled": "return.reason"
+          }
+        },
+        {
+          "k": "click",
+          "target": "return.save",
+          "until": {
+            "event": "return.done"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "read-reports",
+      "perm": "reports.view",
+      "minutes": 2,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "reports",
+          "until": {
+            "route": "reports"
+          }
+        },
+        {
+          "k": "check",
+          "target": "reports.range",
+          "until": {
+            "target": "reports.range"
+          }
+        },
+        {
+          "k": "tip"
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "read-stock",
+      "perm": "stock.view",
+      "minutes": 2,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "stock",
+          "until": {
+            "route": "stock"
+          }
+        },
+        {
+          "k": "type",
+          "target": "stock.search",
+          "until": {
+            "filled": "stock.search"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "receive-goods",
+      "perm": "stock.receive",
+      "minutes": 3,
+      "requires": [],
+      "steps": [
+        {
+          "k": "go",
+          "page": "receive",
+          "until": {
+            "route": "receive"
+          }
+        },
+        {
+          "k": "choose",
+          "target": "receive.supplier",
+          "until": {
+            "filled": "receive.supplier"
+          }
+        },
+        {
+          "k": "tip"
+        },
+        {
+          "k": "click",
+          "target": "receive.save",
+          "until": {
+            "event": "receive.done"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "id": "owner",
+      "profiles": [
+        "owner"
+      ],
+      "path": [
+        "sign-in",
+        "first-setup",
+        "shop-settings",
+        "add-user",
+        "backup",
+        "home-today",
+        "open-shift",
+        "make-sale",
+        "collect-instalment",
+        "record-expense",
+        "read-shift",
+        "safe-move",
+        "close-shift",
+        "take-return",
+        "read-reports"
+      ]
+    },
+    {
+      "id": "manager",
+      "profiles": [
+        "manager"
+      ],
+      "path": [
+        "sign-in",
+        "home-today",
+        "open-shift",
+        "make-sale",
+        "collect-instalment",
+        "record-expense",
+        "read-shift",
+        "safe-move",
+        "close-shift",
+        "take-return",
+        "read-reports"
+      ]
+    },
+    {
+      "id": "cashier",
+      "profiles": [
+        "cashier"
+      ],
+      "path": [
+        "sign-in",
+        "home-today",
+        "open-shift",
+        "make-sale",
+        "collect-instalment",
+        "record-expense",
+        "read-shift",
+        "close-shift"
+      ]
+    },
+    {
+      "id": "storekeeper",
+      "profiles": [
+        "storekeeper"
+      ],
+      "path": [
+        "sign-in",
+        "home-today",
+        "read-stock",
+        "receive-goods"
+      ]
+    }
+  ],
+  "problems": [
+    {
+      "id": "sign-in-wrong",
+      "page": "signin",
+      "errors": [
+        "auth.err.wrong",
+        "auth.err.locked",
+        "auth.err.disabled",
+        "err.signIn"
+      ],
+      "roles": [],
+      "guide": "sign-in"
+    },
+    {
+      "id": "password-weak",
+      "page": "settings",
+      "errors": [
+        "auth.err.short",
+        "auth.err.weak",
+        "auth.err.sameAsName",
+        "auth.err.pct"
+      ],
+      "roles": [],
+      "guide": "add-user"
+    },
+    {
+      "id": "people-guard",
+      "page": "settings",
+      "errors": [
+        "auth.err.selfLockout",
+        "auth.err.lastManager",
+        "auth.err.noProfile",
+        "auth.err.lockedProfile",
+        "auth.err.profileName",
+        "auth.err.profileReserved",
+        "auth.err.profileTaken",
+        "auth.err.role",
+        "auth.err.username",
+        "auth.err.fullName",
+        "auth.err.taken",
+        "auth.err.noUser"
+      ],
+      "roles": [],
+      "guide": "add-user"
+    },
+    {
+      "id": "no-permission",
+      "page": "help",
+      "errors": [
+        "err.forbidden"
+      ],
+      "roles": []
+    },
+    {
+      "id": "licence-locked",
+      "page": "settings",
+      "errors": [
+        "err.licence",
+        "lic.err.no_code",
+        "lic.err.other_device",
+        "lic.err.expired",
+        "lic.err.bad_signature",
+        "lic.err.wrong_length",
+        "lic.err.bad_character",
+        "lic.err.unknown_key",
+        "lic.err.wrong_product",
+        "lic.err.unknown_edition",
+        "lic.err.no_keys",
+        "lic.err.unknown_version",
+        "lic.err.invalid"
+      ],
+      "roles": []
+    },
+    {
+      "id": "bad-request",
+      "page": "help",
+      "errors": [
+        "err.badRequest",
+        "err.tooLarge",
+        "err.origin",
+        "err.notFound",
+        "err.server",
+        "err.number",
+        "err.date",
+        "err.required",
+        "err.unknownSetting",
+        "err.settingType"
+      ],
+      "roles": []
+    },
+    {
+      "id": "setup-done",
+      "page": "setup",
+      "errors": [
+        "err.setupDone"
+      ],
+      "roles": [],
+      "guide": "first-setup"
+    },
+    {
+      "id": "backup-bad",
+      "page": "settings",
+      "errors": [
+        "err.backupName",
+        "err.backupBad",
+        "err.backupOtherShop"
+      ],
+      "roles": [],
+      "guide": "backup"
+    },
+    {
+      "id": "no-shift",
+      "page": "cash",
+      "errors": [
+        "err.noShift",
+        "err.shiftOpen",
+        "err.shiftClosed"
+      ],
+      "roles": [],
+      "guide": "open-shift"
+    },
+    {
+      "id": "drawer-diff",
+      "page": "cash",
+      "errors": [
+        "err.diffReason",
+        "err.drawerShort",
+        "err.safeShort"
+      ],
+      "roles": [],
+      "guide": "close-shift"
+    },
+    {
+      "id": "cash-form",
+      "page": "cash",
+      "errors": [
+        "err.source",
+        "err.category",
+        "err.note",
+        "err.zero",
+        "err.kind",
+        "err.notReversible",
+        "err.alreadyReversed"
+      ],
+      "roles": []
+    },
+    {
+      "id": "sale-lines",
+      "page": "pos",
+      "errors": [
+        "err.noLines",
+        "err.noPayment",
+        "err.paymentsMismatch",
+        "err.method",
+        "err.discountTooBig",
+        "err.hidden",
+        "err.noPrice"
+      ],
+      "roles": [],
+      "guide": "make-sale"
+    },
+    {
+      "id": "sale-serial",
+      "page": "pos",
+      "errors": [
+        "err.serialNeeded",
+        "err.serialTwice",
+        "err.serialNotInStock",
+        "err.serialNotHere",
+        "err.noSerials",
+        "err.serialCount",
+        "err.serialInStock",
+        "err.serialFraction",
+        "err.serialLocked"
+      ],
+      "roles": []
+    },
+    {
+      "id": "sale-approval",
+      "page": "pos",
+      "errors": [
+        "err.needsApproval",
+        "err.selfApproval",
+        "err.approverLimit"
+      ],
+      "roles": []
+    },
+    {
+      "id": "sale-customer",
+      "page": "pos",
+      "errors": [
+        "err.needCustomer",
+        "err.nothingToFinance",
+        "err.downPayment",
+        "err.totalChanged",
+        "err.noShopPlace"
+      ],
+      "roles": []
+    },
+    {
+      "id": "return-problem",
+      "page": "sales",
+      "errors": [
+        "err.returnTooMuch",
+        "err.condition"
+      ],
+      "roles": [],
+      "guide": "take-return"
+    },
+    {
+      "id": "stock-short",
+      "page": "stock",
+      "errors": [
+        "err.notEnough",
+        "err.notSellable",
+        "err.samePlace",
+        "err.countOpen",
+        "err.countClosed",
+        "err.countSerialFound",
+        "err.locationKind"
+      ],
+      "roles": [],
+      "guide": "read-stock"
+    },
+    {
+      "id": "receive-problem",
+      "page": "receive",
+      "errors": [
+        "err.paidTooMuch",
+        "err.needSupplier"
+      ],
+      "roles": [],
+      "guide": "receive-goods"
+    },
+    {
+      "id": "customer-problem",
+      "page": "customers",
+      "errors": [
+        "err.phoneTaken",
+        "err.nationalId",
+        "err.payMoreThanOwed",
+        "err.months",
+        "err.firstDue"
+      ],
+      "roles": [],
+      "guide": "collect-instalment"
+    },
+    {
+      "id": "product-problem",
+      "page": "products",
+      "errors": [
+        "err.barcode",
+        "err.barcodeTaken",
+        "err.skuTaken",
+        "err.priceKind",
+        "err.pastPrice",
+        "err.minAboveRetail",
+        "err.percent",
+        "err.roundTo",
+        "err.bulkScope",
+        "err.bulkEmpty",
+        "err.unit",
+        "err.qty",
+        "err.qtyWhole",
+        "err.money",
+        "err.negative",
+        "err.tooBig"
+      ],
+      "roles": []
+    },
+    {
+      "id": "support-problem",
+      "page": "settings",
+      "errors": [
+        "err.supportUrl",
+        "err.supportToken",
+        "err.supportIncomplete",
+        "err.supportOff"
+      ],
+      "roles": []
+    },
+    {
+      "id": "reason-needed",
+      "page": "help",
+      "errors": [
+        "err.reason"
+      ],
+      "roles": []
+    },
+    {
+      "id": "watch-page",
+      "page": "watch",
+      "errors": [],
+      "roles": []
+    }
+  ]
+}

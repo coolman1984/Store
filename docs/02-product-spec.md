@@ -43,6 +43,11 @@ Licence Studio, verified here with the vendored stdlib checker (`server/afcodes.
 
 ## Data map (privacy by design)
 Customer name, mobile, address (needed for instalments and delivery); national ID **optional**, only visible with
-`customers.private`; guarantor name/mobile. No data leaves the PC: no cloud, no analytics, no telemetry.
+`customers.private`; guarantor name/mobile. Nothing leaves the PC unless the owner turns on optional remote help in Settings.
+Usage and error telemetry send only allowlisted counts and IDs after both the shop and person agree; they do not collect
+typed business input, screenshots, names, phones or amounts. The person's explicit problem report is the free-text exception:
+the factory redactor removes recognized secrets and phone-like strings, and the complete preview shows the text/context that
+will be stored. Both consent scopes, matching confirmation and the person's send action are required. Redaction is pattern-based;
+the person must review the preview and avoid private details. Sending stays off until the owner sets a receiver address and a token.
 Sessions, failed logins and every write are in the audit table. Backups contain personal data: keep them on the shop's own
 disks (the program refuses nothing here; the guide says so).

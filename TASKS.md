@@ -14,6 +14,8 @@
 - [x] Design system v2 + Mizan (ميزان) identity on every screen, logo files, icon, splash; contrast and mark tests (docs/DESIGN.md)
 
 - [x] 1.1.0 People, profiles and pages (factory access standard, BAMS model): editable profiles, page permissions, lock-out guard, who-can-do-what, audit of ticks; gate `afaccess` in tests
+- [x] 1.2.0 implemented: role courses and coach, per-person progress, every server error explained, two-scope consent, IDs/counts-only usage/error telemetry and redacted free-text reports with explicit preview/send. Nothing leaves the PC without receiver URL and token; withdrawals work while licence-locked.
+- [x] 1.2.0 automated release verification (2026-10-09 second pass): requested full browser-enabled command is green — **155 passed, 0 failures, 0 errors, 0 skips**, including all **16 browser tests**. No discovery changes or extra skips. Cause/fix report: `/workspace/grok-log/codex-report2.md`. Field checks below remain open.
 
 ## Next (in order)
 - [ ] Trademark/domain check for "Mizan / ميزان" in EG, SA, AE (owner) — **gate before renaming the installer and data folder**

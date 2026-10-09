@@ -35,7 +35,7 @@ function advisor(items) {
 }
 
 export default async function view(page) {
-  put(page, html`<div class="page-head"><div class="titles"><h1>${greeting()}</h1><p>${date(new Date().toISOString())} · ${S.lookups?.settings?.shop_name || ''}</p></div>
+  put(page, html`<div class="page-head"><div class="titles"><h1 data-guide="home.today">${greeting()}</h1><p>${date(new Date().toISOString())} · ${S.lookups?.settings?.shop_name || ''}</p></div>
     <div class="actions">${can('pos.sell') ? html`<a class="btn accent" href="#/pos">${icon('cart')}${t('home.newSale')}</a>` : ''}
     ${can('stock.receive') ? html`<a class="btn" href="#/receive">${icon('truck')}${t('nav.receive')}</a>` : ''}</div></div>
     <div id="home-body">${skeleton(6)}</div>`);
