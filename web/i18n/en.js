@@ -89,6 +89,7 @@ export default {
   'err.trialHave': 'This PC already has a working licence.',
   'err.practiceOnly': 'This is available in the practice shop only.', 'err.practicePort': 'Another program is using the practice shop place. Close it and try again.',
   'err.trainingUsers': 'The practice accounts are missing. Erase the practice data and start fresh.',
+  'err.practiceStart': 'The practice shop could not be started from this program. Close the program and open it again; if it keeps failing, contact us.',
   'lic.err.no_code': 'Type the code first.', 'lic.err.generic': 'This code does not work on this PC.', 'lic.err.other_device': 'This code was made for another PC. Send this "Device code" to the vendor.',
   'lic.err.expired': 'This code has ended. Ask for a new one.', 'lic.err.bad_signature': 'A character in the code is wrong. Copy it again exactly.',
   'lic.err.wrong_length': 'The code is incomplete or too long. Copy all of it.', 'lic.err.bad_character': 'The code has unexpected symbols. Copy it again.',

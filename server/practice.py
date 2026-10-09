@@ -9,6 +9,7 @@ own program instance on its own port (127.0.0.1 only) and in its own folder. Thi
 - the made-up shop can be thrown away and rebuilt (`App.reset_practice` uses `mark`, `MARKER`).
 """
 import json
+import logging
 import os
 import socket
 import subprocess
@@ -26,6 +27,7 @@ KIND_KEY = 'shop_kind'
 MARKER = 'PRACTICE.txt'  # written into a practice folder; the reset refuses a folder that does not carry it
 _lock = threading.Lock()
 _child = None
+log = logging.getLogger('store')
 
 
 class WrongShop(Exception):
@@ -150,9 +152,20 @@ def follow(pid, stop, every=3):
     threading.Thread(target=watch, daemon=True).start()
 
 
+def program():
+    """The program to start for the practice shop: in the compiled build, this very .exe (sys.executable is not reliable there, the first
+    Windows run of the journey found it missing); from source, the Python that is running."""
+    if not FROZEN:
+        return sys.executable
+    for candidate in ((getattr(sys, 'orig_argv', None) or [None])[0], sys.argv[0], sys.executable):
+        if candidate and os.path.isfile(os.path.abspath(candidate)):
+            return os.path.abspath(candidate)
+    raise OSError('the program file was not found')
+
+
 def _command(home, port):
     args = ['--practice', '--no-browser', '--home', home, '--port', str(port), '--host', '127.0.0.1', '--parent', str(os.getpid())]
-    return [sys.executable, *args] if FROZEN else [sys.executable, os.path.join(ROOT, 'server', 'app.py'), *args]
+    return [program(), *args] if FROZEN else [sys.executable, os.path.join(ROOT, 'server', 'app.py'), *args]
 
 
 def launch(app):
@@ -173,6 +186,11 @@ def launch(app):
         flags['start_new_session'] = True
     with _lock:
         if _child is None or _child.poll() is not None:
-            _child = subprocess.Popen(_command(home, port), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                      stderr=subprocess.DEVNULL, cwd=ROOT, **flags)
+            try:
+                _child = subprocess.Popen(_command(home, port), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                          stderr=subprocess.DEVNULL, cwd=ROOT, **flags)
+            except OSError as e:
+                log.error('the practice shop could not be started: %s: %s (frozen=%s, executable=%r, argv0=%r)', e.__class__.__name__, e, FROZEN,
+                          sys.executable, sys.argv[:1])
+                raise Problem('err.practiceStart', 'The practice shop could not be started from this program.', 500) from None
     return {'state': 'starting', 'url': f'http://127.0.0.1:{port}/'}

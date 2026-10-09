@@ -1067,7 +1067,7 @@
     {
       "id": "practice-shop",
       "page": "help",
-      "errors": ["err.practiceOnly", "err.practicePort", "err.trainingUsers"],
+      "errors": ["err.practiceOnly", "err.practicePort", "err.trainingUsers", "err.practiceStart"],
       "roles": []
     },
     {

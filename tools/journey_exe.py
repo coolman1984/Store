@@ -124,7 +124,14 @@ def first(home, cmd):
         # the practice shop from Help: it starts from this very program, in its own folder, with nothing of the real shop in it
         assert shop.call('GET', '/api/practice')['state'] == 'stopped'
         shop.call('POST', '/api/login', {'username': OWNER, 'password': PASSWORD})
-        shop.call('POST', '/api/practice/open')
+        try:
+            shop.call('POST', '/api/practice/open')
+        except SystemExit:
+            log_path = os.path.join(home, 'store.log')
+            if os.path.exists(log_path):
+                print('--- the shop log, last lines ---')
+                print(''.join(open(log_path, encoding='utf-8', errors='replace').readlines()[-25:]))
+            raise
         for _ in range(180):
             if shop.call('GET', '/api/practice')['state'] == 'running':
                 break

@@ -478,6 +478,38 @@ class RebuildAndLaunch(unittest.TestCase):
                     p.kill()
             shutil.rmtree(home, ignore_errors=True)
 
+    def test_in_the_compiled_build_the_program_is_found_without_sys_executable(self):
+        """Found by the Windows build: sys.executable was not a file inside the compiled program, so Popen raised FileNotFoundError (a 500)."""
+        saved = (practice.FROZEN, sys.executable, sys.argv, getattr(sys, 'orig_argv', None))
+        try:
+            practice.FROZEN = True
+            sys.executable = os.path.join(tempfile.gettempdir(), 'no-such-python.exe')
+            sys.orig_argv = None
+            sys.argv = [os.path.abspath(__file__)]  # any file that exists stands in for Al-Store.exe
+            self.assertEqual(practice.program(), os.path.abspath(__file__))
+            self.assertEqual(practice._command('h', 1)[0], os.path.abspath(__file__))
+            sys.argv = [os.path.join(tempfile.gettempdir(), 'nothing-here.exe')]
+            with self.assertRaises(OSError):
+                practice.program()
+        finally:
+            practice.FROZEN, sys.executable, sys.argv, sys.orig_argv = saved
+
+    def test_a_program_that_cannot_start_is_a_plain_message_not_a_500(self):
+        shop = Server(practice=False)
+        real = subprocess.Popen
+
+        def broken(*a, **k):
+            raise FileNotFoundError('nope')
+        subprocess.Popen = broken
+        try:
+            c = shop.client()
+            self.assertEqual(c.post('/api/login', {'username': OWNER[0], 'password': OWNER[1]})[0], 200)
+            st, d, _ = c.post('/api/practice/open')
+            self.assertEqual((st, d.get('key')), (500, 'err.practiceStart'))
+        finally:
+            subprocess.Popen = real
+            shop.stop()
+
     def test_a_slow_refusal_is_a_stopped_practice_shop_not_another_program(self):
         """Found by the Windows build: a closed port takes about two seconds to refuse there, longer than we wait. That is 'stopped'."""
         real = socket.create_connection
