@@ -187,6 +187,7 @@ def sell(ctx, data):
         raise Problem('err.paymentsMismatch', 'The payments do not add up to the total.', 400, total=total, paid=paid)
     if ('account' in by_method or 'installment' in by_method):
         ctx.need('pos.credit')
+        one_credit_kind(by_method)
         if not customer:
             raise Problem('err.needCustomer', 'Choose the customer: this sale is on their account.')
         if 'account' in by_method and customer['credit_limit']:
@@ -366,9 +367,26 @@ def credit_outstanding(db, sale):
     wiped = -db.value("SELECT COALESCE(SUM(a.amount), 0) FROM ar_entries a JOIN returns r ON r.id = a.ref_id "
                       "WHERE a.kind = 'return' AND a.ref_type = 'return' AND r.sale_id = ?", sale['id'])
     left = max(0, credit - wiped)
+    plan_owed, account_owed = _owed_parts(db, sale)
+    return max(0, min(left, plan_owed + account_owed))
+
+
+def _owed_parts(db, sale):
+    """(still owed on this sale's instalment plan, still owed on the customer's open account). A sale made before the two were kept
+    apart can carry both (review of PR #15): each part is wiped from its own ledger."""
     plan = db.one('SELECT * FROM plans WHERE sale_id = ?', sale['id'])
-    owed = cash.plan_schedule(db, plan)['remaining'] if plan else cash.customer_balance(db, sale['customer_id'])
-    return max(0, min(left, owed))
+    plan_owed = max(0, cash.plan_schedule(db, plan)['remaining']) if plan else 0
+    has_account = db.value("SELECT 1 FROM tenders WHERE ref_type = 'sale' AND ref_id = ? AND method = 'account'", sale['id'])
+    account_owed = max(0, db.value('SELECT COALESCE(SUM(amount), 0) FROM ar_entries WHERE customer_id = ? AND plan_id IS NULL',
+                                   sale['customer_id'])) if has_account or not plan else 0
+    return plan_owed, account_owed
+
+
+def one_credit_kind(by_method):
+    """A sale is on the customer's open account OR on shop instalments, never both: the down payment of a plan must be money that
+    came in, and a return must know which ledger to clear (review of PR #15)."""
+    if 'account' in by_method and 'installment' in by_method:
+        raise Problem('err.creditMix', 'Choose one: on the customer\'s account, or shop instalments.')
 
 
 def take_return(ctx, data):
@@ -451,15 +469,20 @@ def take_return(ctx, data):
     number = ctx.number('return')
     ctx.db.insert('returns', {'id': rid, 'org_id': ctx.org_id, 'branch_id': ctx.branch_id, 'number': number, 'idem_key': key,
                               'sale_id': sale['id'], 'at': at, 'by_user': ctx.uid, 'approved_by': approver['id'] if approver else None,
-                              'shift_id': shift['id'] if shift else None, 'reason': reason, 'refund_method': paid_by, 'total': total})
+                              'shift_id': shift['id'] if shift else None, 'reason': reason, 'refund_method': paid_by, 'total': total,
+                              'fee': fee_back})
     for line, qty, amount, to, condition in prepared:
         ctx.db.insert('return_lines', {'id': ids.uuid7(), 'return_id': rid, 'sale_line_id': line['id'], 'qty': qty, 'amount': amount,
                                        'to_location_id': to, 'condition': condition})
         stock.move(ctx, line['product_id'], to, qty, 'return', 'return', rid, line['unit_cost'], line['serial'],
                    condition, at)
-    if on_account:
+    if on_account:  # the plan's debt first, then the open account (store credit, if any, also lands on the open account)
         plan = ctx.db.one('SELECT id FROM plans WHERE sale_id = ?', sale['id'])
-        cash.ar_entry(ctx, sale['customer_id'], -on_account, 'return', 'return', rid, plan['id'] if plan else None, number, at=at)
+        to_plan = min(on_account, _owed_parts(ctx.db, sale)[0]) if plan else 0
+        if to_plan:
+            cash.ar_entry(ctx, sale['customer_id'], -to_plan, 'return', 'return', rid, plan['id'], number, at=at)
+        if on_account - to_plan:
+            cash.ar_entry(ctx, sale['customer_id'], -(on_account - to_plan), 'return', 'return', rid, None, number, at=at)
     if paid_back and paid_by == 'cash':
         cash.cash_move(ctx, 'drawer', 'refund', -paid_back, shift['id'], ref_type='return', ref_id=rid, note=number, at=at)
         cash.tender(ctx, 'return', rid, 'cash', -paid_back, '', shift['id'], at)
@@ -469,7 +492,7 @@ def take_return(ctx, data):
     ctx.audit('return', 'sale', sale['id'], {'number': number, 'total': total, 'method': paid_by, 'on_account': on_account, 'reason': reason,
                                              'approved_by': approver['full_name'] if approver else None,
                                              'days_since_sale': sale['days_since']})
-    return {'id': rid, 'number': number, 'total': total, 'on_account': on_account, 'paid_back': paid_back, 'method': paid_by}
+    return {'id': rid, 'number': number, 'total': total, 'fee': fee_back, 'on_account': on_account, 'paid_back': paid_back, 'method': paid_by}
 
 
 def return_view(db, return_id):

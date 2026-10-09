@@ -69,7 +69,12 @@
 
 **Screen:** the return dialog tells the cashier (both languages) that what is owed is taken off the account first, and the message after saving says how much came off the account and how much was paid back.
 
-**Evidence:** `test_domain.RefundFollowsTheMoneyTests` (9 tests; the first fails on the old code: the drawer lost 1,000,000 for goods nobody paid); `test_e2e_browser.ReturnOnCredit` returns a practice-shop instalment sale in a real browser.
+**Found in the independent review of this PR (Codex, two P1) and fixed in it:**
+- The ledgers gave the instalment fee back, but `returns.total` held only the goods, and the reports (`summary`, `daily_series`, `year_turnover`) subtract `returns.total`: a fully returned 1,160,000 sale with a 160,000 fee still showed 160,000 of sales and profit. Each return now keeps the fee it gave back (`returns.fee`, schema 4, `ALTER TABLE … ADD COLUMN`, a checked copy is made before the upgrade as always); the reports subtract `total + fee`. Returns made before keep `fee = 0`, which is what they gave back.
+- A sale could be put partly on the open account and partly on instalments (the account part even counted as the plan's "down payment"). A return then cleared only the plan and paid the account part from the drawer. Such a sale is now refused (`err.creditMix`: one way of credit per sale, in both languages and in the guide), and an older one that has both clears each part from its own ledger (`sales._owed_parts`).
+- Tests: `test_a_returned_instalment_fee_leaves_the_reports_too`, `test_a_sale_is_on_the_account_or_on_instalments_never_both`, `test_an_older_sale_on_both_credits_clears_both_when_it_comes_back`; the N-1 upgrade test now starts from a schema-3 shop.
+
+**Evidence:** `test_domain.RefundFollowsTheMoneyTests` (12 tests; the first fails on the old code: the drawer lost 1,000,000 for goods nobody paid); `test_e2e_browser.ReturnOnCredit` returns a practice-shop instalment sale in a real browser.
 
 **Not changed (decision, not a bug):** the sale's own fee is not refunded when the customer chooses store credit for an unpaid plan beyond what they owe (the account just goes negative = the shop owes them). The owner can see it on the customer's page.
 
@@ -93,13 +98,15 @@
 - a static guard fails the build when any read route in `app.py` neither asks for a permission nor is on the short list of "own" routes;
 - return and warranty by role; the export for a person with only `settings.edit`; the counter with only `pos.sell`.
 
+**Found in the independent review of this PR (Codex, P1) and fixed in it:** blanking `purchases.total` and the unit costs was not enough: the same purchase total was still in the supplier's ledger (`ap_entries`, kind `purchase`), in the cash paid on receiving without a supplier (`cash_moves`, kind `purchase`) and in the audit line `purchase.receive`. Those rows now lose the amount too (`backup.COST_ROWS`); every other row stays whole. `ExportUnit.test_a_purchase_cost_does_not_leave_through_the_supplier_ledger_cash_or_audit` fails on the first version. A supplier *payment* keeps its amount: payments are what the cash and supplier pages show, not a cost.
+
 **Not changed (decisions, not bugs):** `/api/lookups` (the people list and settings the counter needs) and `/api/licence` stay open to any signed-in person.
 
 ## 2026-10-09 — Today page: leaving before its numbers arrive no longer raises an error
 **Found by:** CI of the review branches (a browser test failed on the GitHub runner, passed on the reviewer's machine: a timing race).
 **Cause:** `views/home.js` waits for `/api/home`, then looks for its own box `#home-body` inside the page. If the person had already gone to another page (slow PC, slow disk, a quick click on the menu), the box was gone, the lookup gave nothing, and `root.className = …` raised «Cannot set properties of null». The other pages were probed the same way (a slow answer, then a click elsewhere): none of them overwrote the new page, so this was the only one.
 **Fix:** after the answer arrives, the Today page checks its box is still on the screen and stops quietly if not (also in the error branch).
-**Evidence:** `test_e2e_browser.LeavingWhileLoading` holds `/api/home` for 1.2 s, goes to Sales, and expects no console error. It fails on the old code with the message above and passes now.
+**Evidence:** `test_e2e_browser.LeavingWhileLoading` holds the answer of `/api/home`, goes to Sales, waits until Sales is on the screen, and only then lets the answer through; it expects no console error. It fails on the old code with the message above (3 runs out of 3) and passes now. (The first version delayed the answer inside the route handler, which only raced; the independent review of PR #18 pointed it out.)
 
 ## 2026-10-09 — 1.5.0: three activation kinds and the release proofs
 **Why:** the owner asked for a full push to the first paid shop. The release gate needed three things:

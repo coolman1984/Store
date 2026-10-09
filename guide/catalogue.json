@@ -1211,6 +1211,7 @@
       "page": "pos",
       "errors": [
         "err.needCustomer",
+        "err.creditMix",
         "err.nothingToFinance",
         "err.downPayment",
         "err.totalChanged",
