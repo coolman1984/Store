@@ -10,7 +10,7 @@
 - Fixed: signing in again after logout could fail when the browser reused its connection. The server now reads the logout request body before replying.
 - Fixed: the open help panel stays clickable above a paused or active lesson card, including its Report a problem button.
 - Guide, progress and privacy withdrawal stay available while the licence is locked. Restore reconnects consent and removes pending events that no longer have permission to send.
-- Validation pending: the browser-enabled full suite could not start its HTTP servers in this sandbox (socket creation refused). Run it in a socket-enabled environment before releasing 1.2.0.
+- Automated verification complete in the socket-enabled session: **155 tests passed, 0 failures, 0 errors, 0 skips**, including all 16 browser tests. Relogin, report redaction/confirmation, preserved consented reports and the AR/EN report dialog are covered. Field acceptance checks in TASKS remain separate.
 
 ## 1.1.0
 - New: **profiles** — ready-made sets of permissions you can rename, change (for everybody who has them at once) or delete, and
