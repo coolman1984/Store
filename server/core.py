@@ -3,7 +3,7 @@ import json
 import math
 
 import ids
-from auth import Forbidden, PERMISSIONS
+from auth import Forbidden
 
 DEFAULT_SETTINGS = {
     'shop_name': 'الستور',
@@ -66,6 +66,11 @@ class Ctx:
         for p in perms:
             if p not in self.perms:
                 raise Forbidden(p)
+
+    def need_any(self, *perms):
+        """Pages: any one of their permissions opens them (the same table as the menu, auth.PAGES)."""
+        if not any(p in self.perms for p in perms):
+            raise Forbidden(perms[0])
 
     def audit(self, action, entity='', entity_id='', detail=None):
         self.db.insert('audit', {'id': ids.uuid7(), 'at': ids.iso(), 'user_id': self.uid, 'user_name': self.name,
@@ -176,6 +181,3 @@ def day(value, field='date'):
         raise Problem('err.date', f'{field}: write the date as YYYY-MM-DD.', field=field) from None
     return value
 
-
-def perm_list():
-    return [{'id': k, 'group': g, 'label': label} for k, (g, label) in PERMISSIONS.items()]

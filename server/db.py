@@ -8,7 +8,6 @@ Rules the schema enforces on purpose:
 - The ledger tables refuse UPDATE and DELETE with triggers, so even a bug cannot rewrite money history.
 """
 import os
-import shutil
 import sqlite3
 import threading
 
@@ -158,6 +157,11 @@ CREATE TABLE audit (
   id TEXT PRIMARY KEY, at TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT NOT NULL, ip TEXT NOT NULL, action TEXT NOT NULL,
   entity TEXT NOT NULL DEFAULT '', entity_id TEXT NOT NULL DEFAULT '', detail TEXT NOT NULL DEFAULT '') STRICT;
 CREATE INDEX audit_at ON audit(at);
+""", 2: """
+CREATE TABLE profiles (
+  id TEXT PRIMARY KEY, org_id TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', perms TEXT NOT NULL DEFAULT '[]',
+  max_discount_pct INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, changed_at TEXT NOT NULL) STRICT;
+ALTER TABLE users ADD COLUMN perms TEXT;
 """}
 
 
@@ -202,8 +206,8 @@ class Database:
         if current > SCHEMA:
             raise NewerData(f'data schema {current} is newer than this program ({SCHEMA})')
         if current < SCHEMA and not fresh and backup_dir:  # verified copy before any migration (factory: updates never touch data unsafely)
-            os.makedirs(backup_dir, exist_ok=True)
-            shutil.copy2(self.path, os.path.join(backup_dir, f'before-schema-{current + 1}.db'))
+            import backup  # SQLite's own backup (includes what is still in the write-ahead log), checked, and listed for restore
+            backup.make(self, backup_dir, 'before-upgrade')
         for n in range(current + 1, SCHEMA + 1):
             with self.lock:
                 self.conn.execute('BEGIN IMMEDIATE')

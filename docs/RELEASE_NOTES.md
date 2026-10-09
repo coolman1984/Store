@@ -1,5 +1,15 @@
 # Release notes
 
+## 1.1.0
+- New: **profiles** — ready-made sets of permissions you can rename, change (for everybody who has them at once) or delete, and
+  your own new ones. The owner profile always has everything.
+- New: choose per person which **pages** they see (Products, Stock, Customers have their own tick now); hidden pages disappear
+  from the menu and the main PC refuses their data.
+- New: **Who can do what** — every permission against every profile in one table, printable.
+- Fixed: removing "People and permissions" from the only owner could lock the shop out of its own people screen. Now refused,
+  and a shop already in that state is repaired at start.
+- Every change of a person's or profile's permissions is in the activity log with what was added and removed.
+
 ## 1.0.2
 - Fixed: a return listing the same sale line twice could refund twice; an empty licence box wiped the working code; the safe
   grew by the float at every shift; a sale after counting a product turned into a false surplus; the owing-customers list

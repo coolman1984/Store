@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, urlparse
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import afaccess  # noqa: E402
 import auth as auth_mod  # noqa: E402
 import backup  # noqa: E402
 import catalog  # noqa: E402
@@ -388,17 +389,20 @@ class Handler(BaseHTTPRequestHandler):
                 'finance_providers', 'expense_categories', 'tax_number')},
                  'users': db.all('SELECT id, full_name, role FROM users WHERE active = 1 ORDER BY full_name')}
         elif path == '/api/products':
+            ctx.need_any('products.view', 'stock.view')
             d = catalog.search(db, qs.get('q', ''), qint(qs, 'limit', 200, 1, 1000), True, qs.get('location_id'),
                                qs.get('hidden') == '1', {'category_id': qs.get('category_id'), 'brand_id': qs.get('brand_id')})
             if can_cost:
                 for r in d['items']:
                     r['avg_cost'] = catalog.current_cost(db, r['id'])['avg_cost']
         elif path == '/api/product':
+            ctx.need_any('products.view', 'stock.view')
             d = stock.detail(db, qs.get('id'), can_cost)
         elif path == '/api/pos/search':
             ctx.need('pos.sell')
             d = catalog.search(db, qs.get('q', ''), 12, True, qs.get('location_id'))
         elif path == '/api/serials':
+            ctx.need_any('pos.sell', 'products.view', 'stock.view')
             d = stock.serials_in_stock(db, qs.get('product_id'), qs.get('location_id'))
         elif path == '/api/sales':
             d = sales.sales_list(db, ctx, qs.get('from'), qs.get('to'), qs.get('q', ''), qs.get('user_id'))
@@ -412,14 +416,19 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/warranty':
             d = sales.warranty(db, qs.get('serial'))
         elif path == '/api/customers':
+            ctx.need_any('customers.view', 'pos.sell')  # the counter picks the customer of a credit sale
             d = cash.customers_list(db, qs.get('q', ''), qs.get('only', 'all'))
         elif path == '/api/customer':
+            ctx.need('customers.view')
             d = cash.customer_view(db, qs.get('id'), ctx.can('customers.private'))
         elif path == '/api/instalments':
+            ctx.need('customers.view')
             d = {'due': cash.instalments_due(db), 'upcoming': cash.instalments_upcoming(db, 7)}
         elif path == '/api/suppliers':
+            ctx.need_any('stock.receive', 'suppliers.pay')
             d = cash.suppliers_list(db)
         elif path == '/api/supplier':
+            ctx.need_any('stock.receive', 'suppliers.pay')
             d = cash.supplier_view(db, qs.get('id'))
         elif path == '/api/purchases':
             ctx.need('stock.receive')
@@ -439,16 +448,20 @@ class Handler(BaseHTTPRequestHandler):
             d['lines'] = db.all('SELECT pl.*, pr.name, pr.sku FROM purchase_lines pl JOIN products pr ON pr.id = pl.product_id '
                                 'WHERE purchase_id = ?', d['id'])
         elif path == '/api/stock':
+            ctx.need('stock.view')
             d = stock.overview(db, can_cost, qs.get('q', ''), qs.get('only', 'all'), qs.get('location_id'))
         elif path == '/api/stock/value':
             ctx.need('cost.view')
             d = {'value': stock.stock_value(db), 'slow': stock.slow_movers(db, qint(qs, 'days', 60, 1, 3650), 30)}
         elif path == '/api/counts':
+            ctx.need('stock.view')
             d = db.all('SELECT c.*, l.name AS place, u.full_name AS by_name FROM counts c JOIN locations l ON l.id = c.location_id '
                        'JOIN users u ON u.id = c.started_by ORDER BY c.started_at DESC LIMIT 50')
         elif path == '/api/count':
+            ctx.need('stock.view')
             d = stock.count_view(db, qs.get('id'), can_cost)
         elif path == '/api/transfers':
+            ctx.need('stock.view')
             d = db.all('SELECT t.*, a.name AS from_name, b.name AS to_name, u.full_name AS by_name FROM transfers t '
                        'JOIN locations a ON a.id = t.from_id JOIN locations b ON b.id = t.to_id JOIN users u ON u.id = t.by_user '
                        'ORDER BY t.at DESC LIMIT 100')
@@ -494,7 +507,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/users':
             ctx.need('users.manage')
             d = {'users': [auth_mod.public(x) for x in db.all('SELECT * FROM users ORDER BY active DESC, full_name')],
-                 'roles': {k: v for k, v in auth_mod.ROLES.items()}, 'permissions': core.perm_list()}
+                 'profiles': APP.auth.profiles(), 'permissions': auth_mod.perm_list(), 'groups': auth_mod.GROUPS,
+                 'locked': auth_mod.LOCKED}
         elif path == '/api/settings':
             ctx.need('settings.edit')
             d = {'settings': core.settings(db), 'licence': APP.licence(), 'backups': backup.listing(APP.backup_dir)[:30],
@@ -654,15 +668,31 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/user/save':
             ctx.need('users.manage')
             if data.get('id'):
-                before = auth_mod.public(APP.auth.get(data['id']) or {}) if APP.auth.get(data['id']) else None
-                user = APP.auth.update(data['id'], data)
-                ctx.audit('user.edit', 'user', data['id'], {'before': before and {k: before[k] for k in ('role', 'active', 'max_discount_pct')},
-                                                            'after': {k: user[k] for k in ('role', 'active', 'max_discount_pct')}})
+                old = APP.auth.get(data['id']) if isinstance(data['id'], str) else None
+                user = APP.auth.update(data['id'], data, ctx.uid)
+                before, after = auth_mod.public(old), auth_mod.public(user)
+                ctx.audit('user.edit', 'user', data['id'], {  # who changed what: the ticks added and removed, never a password
+                    'before': {k: before[k] for k in ('role', 'active', 'max_discount_pct')},
+                    'after': {k: after[k] for k in ('role', 'active', 'max_discount_pct')},
+                    **afaccess.perm_diff(before['perms'], after['perms']), 'password': bool(data.get('password'))})
             else:
                 user = APP.auth.create(data.get('username'), data.get('full_name'), data.get('role'), data.get('password'),
-                                       data.get('max_discount_pct'), data.get('extra_perms') or (), data.get('denied_perms') or ())
-                ctx.audit('user.add', 'user', user['id'], {'username': user['username'], 'role': user['role']})
+                                       data.get('max_discount_pct'), data.get('extra_perms') or (), data.get('denied_perms') or (),
+                                       data['perms'] if isinstance(data.get('perms'), list) else None)
+                ctx.audit('user.add', 'user', user['id'], {'username': user['username'], 'role': user['role'],
+                                                           'perms': auth_mod.effective_perms(user)})
             return auth_mod.public(user)
+        if path == '/api/profile/save':
+            ctx.need('users.manage')
+            prof, before, n = APP.auth.save_profile(data, ctx.uid)
+            ctx.audit('profile.save', 'profile', prof['id'], {'name': prof['name'] or prof['id'], 'people_updated': n,
+                                                              **afaccess.perm_diff(before['perms'] if before else [], prof['perms'])})
+            return {'profile': prof, 'updated': n}
+        if path == '/api/profile/delete':
+            ctx.need('users.manage')
+            prof, n = APP.auth.delete_profile(data.get('id'))
+            ctx.audit('profile.delete', 'profile', prof['id'], {'name': prof['name'] or prof['id'], 'people_kept_their_ticks': n})
+            return {'ok': True, 'people': n}
         if path == '/api/settings/save':
             ctx.need('settings.edit')
             changed = {}

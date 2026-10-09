@@ -134,9 +134,11 @@ class CoreJourney(Browser):
         pg.reload()
         pg.wait_for_selector('.shell')
         self.go(pg, 'sales')
+        pg.click('[data-seg="range"] [data-v="week"]')  # the practice shop's day starts at 10:05: "today" is empty before that
         pg.click('tr[data-id]')
         pg.wait_for_selector('[data-print], [data-reprint], .dialog')
-        pg.evaluate("import('/js/print.js').then((m) => fetch('/api/sales').then((r) => r.json()).then((rows) => fetch('/api/sale?id=' + rows[0].id).then((r) => r.json()).then((sale) => m.printReceipt(sale))))")
+        pg.evaluate("(id) => import('/js/print.js').then((m) => fetch('/api/sale?id=' + id).then((r) => r.json()).then((sale) => m.printReceipt(sale)))",
+                    pg.get_attribute('tr[data-id]', 'data-id'))
         receipt = self.until(pg, 'window.__printed')
         self.assertIn('class="barcode"', receipt)  # the receipt number is a real Code 128 barcode now
         pg.evaluate('window.__printed = null')
@@ -165,6 +167,52 @@ class CoreJourney(Browser):
         pg.fill('#cmdk-q', 'خلاط')
         pg.wait_for_selector('.cmdk-item >> text=خلاط')
         self.assertEqual(self.errors, [])
+
+
+@SKIP
+class PeopleAndProfiles(Browser):
+    """The owner checks who can do what, makes a profile and takes a page away from the cashier; the cashier no longer
+    sees it in the menu and gets the "not allowed" card when typing its address (the server refuses its data too)."""
+
+    def test_owner_controls_what_each_person_sees(self):
+        pg = self.open('owner')
+        pg.add_init_script("window.print = () => { window.__printed = document.getElementById('print-area').innerHTML; }")
+        pg.reload()
+        pg.wait_for_selector('.shell')
+        self.go(pg, 'settings?tab=users')
+        pg.click('[data-matrix]')
+        pg.wait_for_selector('.t.matrix')
+        self.assertGreater(pg.locator('.t.matrix tbody tr').count(), 25)
+        pg.click('.dialog [data-print]')
+        self.assertIn('✓', self.until(pg, 'window.__printed'))  # printed on A4 from the print area, not a blank page
+        pg.locator('.dialog [data-close]').last.click()
+        pg.click('[data-newprof]')
+        pg.fill('#pn', 'مساعد مخزن')
+        pg.click('.panel [data-g="pages"]')
+        pg.click('.panel [data-ok]')
+        pg.wait_for_selector('[data-prof] >> text=مساعد مخزن')
+        pg.click('[data-id] >> text=الكاشير (تدريب)')
+        pg.wait_for_selector('.panel #ur')
+        self.assertEqual(pg.input_value('#ur'), 'cashier')
+        pg.click('.panel details summary')
+        pg.uncheck('.panel [data-p="products.view"]')
+        pg.uncheck('.panel [data-p="stock.view"]')
+        self.assertEqual(pg.input_value('#ur'), 'custom')
+        pg.click('.panel [data-ok]')
+        pg.wait_for_selector('.panel', state='detached')
+        card = pg.locator('[data-id]', has_text='الكاشير (تدريب)')
+        card.locator('text=مخصص').wait_for()
+        self.assertIn('مخصص', card.inner_text())
+        self.assertEqual(self.errors, [])
+
+        cashier = self.open('cashier')
+        self.assertEqual(cashier.locator('.rail a[data-route="products"], .rail a[data-route="stock"]').count(), 0)
+        self.assertEqual(cashier.locator('.rail a[data-route="pos"]').count(), 1)
+        cashier.goto(self.S.base + '/#/products')
+        cashier.wait_for_timeout(400)
+        self.assertEqual(cashier.locator('#page .card').count(), 1)
+        for api in ('/api/products', '/api/stock'):
+            self.assertEqual(cashier.evaluate("(u) => fetch(u).then((r) => r.status)", api), 403, api)
 
 
 @SKIP

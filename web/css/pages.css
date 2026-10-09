@@ -261,3 +261,13 @@ html[data-print="r80"] { --page: 80mm; } html[data-print="r58"] { --page: 58mm; 
 .plain { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s-2); }
 .plain li { display: flex; align-items: center; gap: var(--s-2); }
 .split { margin-block-start: var(--s-5); padding-block-start: var(--s-4); border-block-start: 1px solid var(--line); }
+
+/* ---------------------------------------------------------------- people: permission groups and the who-can-do-what matrix */
+.perm-group { border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--s-2) var(--s-4) var(--s-3); margin: 0; display: grid; min-width: 0; }
+.perm-group legend { padding-inline: var(--s-2); }
+.perm-group.admin { border-color: color-mix(in oklab, var(--warn) 45%, var(--line)); background: var(--warn-soft); }
+.perm-group .check { min-width: 0; }
+.t.matrix td, .t.matrix th { block-size: auto; padding-block: var(--s-2); }
+.t.matrix .center { text-align: center; }
+.t.matrix .group-row th { position: static; background: var(--surface); color: var(--ink); }
+.t.matrix .badge .i { inline-size: 14px; block-size: 14px; color: inherit; }

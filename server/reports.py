@@ -200,13 +200,13 @@ def advisor(db, ctx, licence_state=None, backup_age_hours=None):
     shift = cash.open_shift_of(db, ctx.uid)
     if ctx.can('pos.sell') and not shift:
         out.append({'id': 'open_shift', 'level': 'info', 'go': 'cash'})
-    if not db.value('SELECT 1 FROM products LIMIT 1') and ctx.can('products.edit'):
+    if not db.value('SELECT 1 FROM products LIMIT 1') and ctx.can('products.edit') and ctx.can('products.view'):
         out.append({'id': 'add_products', 'level': 'info', 'go': 'products'})
-    if ctx.can('installments.collect'):
+    if ctx.can('installments.collect') and ctx.can('customers.view'):  # its card opens the customers page
         due = cash.instalments_due(db)
         if due:
             out.append({'id': 'late_instalments', 'level': 'bad', 'go': 'customers', 'n': len(due), 'amount': sum(d['due_now'] for d in due)})
-    if ctx.can('stock.receive') or ctx.can('products.edit'):
+    if (ctx.can('stock.receive') or ctx.can('products.edit')) and ctx.can('stock.view'):
         low = stock.low_stock(db)
         if low:
             out.append({'id': 'low_stock', 'level': 'warn', 'go': 'stock', 'n': len(low), 'names': [r['name'] for r in low[:3]]})
@@ -215,14 +215,14 @@ def advisor(db, ctx, licence_state=None, backup_age_hours=None):
         if n:
             out.append({'id': 'watch', 'level': 'warn', 'go': 'watch', 'n': n})
     upcoming = db.value('SELECT COUNT(DISTINCT product_id) FROM prices WHERE starts_on > ?', ids.local_day())
-    if upcoming and ctx.can('prices.change'):
+    if upcoming and ctx.can('prices.change') and ctx.can('products.view'):
         out.append({'id': 'upcoming_prices', 'level': 'info', 'go': 'products', 'n': upcoming})
     if ctx.can('settings.edit') and (backup_age_hours is None or backup_age_hours > 30):
         out.append({'id': 'backup', 'level': 'warn', 'go': 'settings', 'hours': backup_age_hours})
     if licence_state and licence_state.get('state') in ('trial', 'active') and licence_state.get('days_left') is not None \
             and licence_state['days_left'] <= 3:
         out.append({'id': 'licence_soon', 'level': 'warn', 'go': 'settings', 'days': licence_state['days_left']})
-    if ctx.can('cost.view'):
+    if ctx.can('cost.view') and ctx.can('reports.view'):
         slow = stock.slow_movers(db, 60, 5)
         if slow:
             out.append({'id': 'slow_stock', 'level': 'info', 'go': 'reports', 'n': len(slow), 'value': sum(r['value'] for r in slow)})
@@ -246,7 +246,7 @@ def home(db, ctx, licence_state=None, backup_age_hours=None):
     data['shift'] = cash.shift_summary(db, shift['id']) if shift else None
     if data['shift']:
         data['shift'].pop('moves', None)
-    if ctx.can('installments.collect'):
+    if ctx.can('installments.collect') and ctx.can('customers.view'):  # its card opens the customers page
         data['due'] = cash.instalments_due(db)[:6]
     return data
 

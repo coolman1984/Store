@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { S, can, licenceCard, renderBanners } from '../app.js';
 import { t, lang, setLang } from '../i18n.js';
 import { shake } from '../motion.js';
+import { printHTML } from '../print.js';
 import { prefs } from '../prefs.js';
 import { CUR, raw, $, $$, html, put, icon, date, open, empty, skeleton, errorText, toast, run, confirm, seg, bindSeg, initials, download, parseMoney } from '../ui.js';
 
@@ -61,59 +62,158 @@ async function licence(body, again) {
   renderBanners();
 }
 
+// ---------------------------------------------------------------- people, profiles and permissions
+// A profile is a named set of ticks (factory standard: docs/ACCESS_AND_ADMINISTRATION_STANDARD.md). Choosing a profile ticks
+// the boxes; changing one tick makes the person "Custom". The owner profile always has everything. The server checks it all.
+const pname = (p) => (p ? p.name || t('role.' + p.id) : t('users.customProfile'));
+const same = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
+
 async function users(body, again) {
   let d;
   try { d = await api.get('/api/users'); } catch (e) { put(body, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); return; }
-  put(body, html`<div class="stack"><div class="row between wrap"><p class="muted">${t('users.sub')}</p><button class="btn primary" data-new>${icon('plus')}${t('users.add')}</button></div>
+  const profOf = (u) => d.profiles.find((p) => p.id === u.role);
+  put(body, html`<div class="stack"><div class="row between wrap"><p class="muted">${t('users.sub')}</p>
+      <div class="row wrap"><button class="btn" data-matrix>${icon('layers')}${t('users.matrix')}</button><button class="btn primary" data-new>${icon('plus')}${t('users.add')}</button></div></div>
     <div class="grid">${d.users.map((u) => html`<button class="card flat user-card" data-id="${u.id}"><div class="row"><span class="avatar">${initials(u.full_name)}</span>
-      <span class="grow"><b>${u.full_name}</b><bdi class="small muted"> @${u.username}</bdi><div class="small">${t('role.' + u.role)}${u.max_discount_pct ? ' · ' + t('users.discountN', { n: u.max_discount_pct }) : ''}</div></span>
+      <span class="grow"><b>${u.full_name}</b><bdi class="small muted"> @${u.username}</bdi><div class="small">${pname(profOf(u))}${u.max_discount_pct ? ' · ' + t('users.discountN', { n: u.max_discount_pct }) : ''}</div></span>
       ${u.active ? '' : html`<span class="badge bad">${t('users.off')}</span>`}</div></button>`)}</div>
-    <div class="card"><div class="card-head"><h2>${t('users.rolesTitle')}</h2></div><div class="grid">${Object.keys(d.roles).map((r) => html`<div><b>${t('role.' + r)}</b><p class="small muted">${t('role.' + r + '.hint')}</p></div>`)}</div></div></div>`);
+    <div class="card"><div class="card-head"><h2>${t('profiles.title')}</h2><button class="btn" data-newprof>${icon('plus')}${t('profiles.add')}</button></div>
+      <p class="small muted">${t('profiles.hint')}</p>
+      <div class="grid">${d.profiles.map((p) => html`<button class="card flat user-card" data-prof="${p.id}"><div class="row">${icon(p.locked ? 'lock' : 'shield')}
+        <span class="grow"><b>${pname(p)}</b><div class="small muted">${p.builtin && !p.name ? t('role.' + p.id + '.hint') : t('profiles.nPerms', { n: p.perms.length })}</div>
+        <div class="xs faint">${t('profiles.nPeople', { n: p.users })}</div></span></div></button>`)}</div></div></div>`);
   $('[data-new]', body).addEventListener('click', () => editUser(null, d, again));
+  $('[data-newprof]', body).addEventListener('click', () => editProfile(null, d, again));
+  $('[data-matrix]', body).addEventListener('click', () => matrix(d));
   $$('[data-id]', body).forEach((b) => b.addEventListener('click', () => editUser(d.users.find((u) => u.id === b.dataset.id), d, again)));
+  $$('[data-prof]', body).forEach((b) => b.addEventListener('click', () => editProfile(d.profiles.find((p) => p.id === b.dataset.prof), d, again)));
+}
+
+/** The tick boxes, grouped like the server's list. The administrator group is shown apart and "Select all" never ticks it.
+ *  Ticking an action ticks the page it needs; unticking a page unticks what needs it. */
+function ticks(root, d, state, { locked = false, onChange = () => {} } = {}) {
+  const groups = d.groups.map((g) => [g, d.permissions.filter((p) => p.group === g)]);
+  const needs = (id) => d.permissions.find((p) => p.id === id)?.requires || [];
+  const draw = () => {
+    put(root, html`${locked ? html`<div class="tip">${icon('lock')}<div>${t('profiles.lockedHint')}</div></div>` : html`<div class="row wrap">
+        <button type="button" class="btn sm" data-all>${t('perms.all')}</button><button type="button" class="btn sm ghost" data-none>${t('perms.none')}</button>
+        <span class="small muted grow">${t('perms.count', { n: state.size, of: d.permissions.length })}</span></div>`}
+      ${groups.map(([g, ps]) => html`<fieldset class="perm-group ${ps[0]?.admin ? 'admin' : ''}"><legend><label class="check"><input type="checkbox" data-g="${g}"
+        ${ps.every((p) => state.has(p.id)) ? 'checked' : ''} ${locked ? 'disabled' : ''}><b>${t('permg.' + g)}</b></label></legend>
+        ${ps[0]?.admin ? html`<p class="xs faint">${t('perms.adminHint')}</p>` : ''}
+        ${ps.map((p) => html`<label class="check"><input type="checkbox" data-p="${p.id}" ${state.has(p.id) ? 'checked' : ''} ${locked ? 'disabled' : ''}>${t('perm.' + p.id)}</label>`)}</fieldset>`)}`);
+    $$('[data-g]', root).forEach((c) => {
+      const ps = groups.find(([g]) => g === c.dataset.g)[1];
+      c.indeterminate = !c.checked && ps.some((p) => state.has(p.id));
+      c.addEventListener('change', () => { ps.forEach((p) => set(p.id, c.checked)); changed(); });
+    });
+    $$('[data-p]', root).forEach((c) => c.addEventListener('change', () => { set(c.dataset.p, c.checked); changed(); }));
+    $('[data-all]', root)?.addEventListener('click', () => { d.permissions.filter((p) => !p.admin).forEach((p) => state.add(p.id)); changed(); });
+    $('[data-none]', root)?.addEventListener('click', () => { state.clear(); changed(); });
+  };
+  const set = (id, on) => {
+    if (on) { state.add(id); needs(id).forEach((r) => state.add(r)); } else {
+      state.delete(id);
+      d.permissions.filter((p) => p.requires.includes(id)).forEach((p) => state.delete(p.id));
+    }
+  };
+  const changed = () => { onChange(); draw(); };
+  draw();
+  return draw;
 }
 
 function editUser(u, d, again) {
-  const groups = {};
-  d.permissions.forEach((p) => { (groups[p.group] = groups[p.group] || []).push(p); });
-  const rolePerms = (role) => new Set(d.roles[role]?.perms || []);
+  const usable = d.profiles;
+  let role = u ? u.role : (usable.find((p) => p.id === 'cashier') || usable.find((p) => !p.locked) || usable[0]).id;
+  const state = new Set(u ? u.perms : usable.find((p) => p.id === role).perms);
+  const options = () => html`${usable.map((p) => html`<option value="${p.id}" ${p.id === role ? 'selected' : ''}>${pname(p)}</option>`)}
+    ${role === 'custom' ? html`<option value="custom" selected>${t('users.customProfile')}</option>` : ''}`;
   open({
     title: u ? u.full_name : t('users.add'), kind: 'panel',
     body: html`<div class="form"><div class="cols"><div class="field"><label for="uf">${t('f.name')}</label><input id="uf" class="input" value="${u?.full_name || ''}" autofocus></div>
       <div class="field"><label for="uu">${t('f.username')}</label><input id="uu" class="input num" value="${u?.username || ''}" ${u ? 'disabled' : ''} autocomplete="off"></div></div>
-      <div class="field"><span class="label">${t('users.role')}</span>${seg('role', Object.keys(d.roles).map((r) => [r, t('role.' + r)]), u?.role || 'cashier')}</div>
+      <div class="field"><label for="ur">${t('users.profile')}</label><select id="ur" class="input">${options()}</select><span class="hint" id="ur-hint"></span></div>
       <div class="cols"><div class="field"><label for="ud">${t('users.maxDiscount')}</label><input id="ud" class="input num" inputmode="numeric" value="${u ? u.max_discount_pct : ''}" placeholder="${t('users.byRole')}"></div>
       <div class="field"><label for="up">${u ? t('users.newPassword') : t('f.password')}</label><input id="up" type="password" class="input" autocomplete="new-password" placeholder="${u ? t('users.keepPassword') : ''}"></div></div>
       ${u ? html`<label class="check"><input type="checkbox" id="ua" ${u.active ? 'checked' : ''}>${t('users.active')}</label>` : ''}
-      <details class="card flat"><summary class="row"><b class="grow">${t('users.custom')}</b>${icon('chev-d')}</summary><p class="small muted">${t('users.customHint')}</p>
+      <details class="card flat" ${role === 'custom' ? 'open' : ''}><summary class="row"><b class="grow">${t('users.custom')}</b>${icon('chev-d')}</summary><p class="small muted">${t('users.customHint')}</p>
         <div id="perms" class="stack tight"></div></details></div>`,
     foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok>${t('act.save')}</button>`,
     mount(box, close) {
-      let role = u?.role || 'cashier';
-      const extra = new Set(u?.extra_perms || []), denied = new Set(u?.denied_perms || []);
-      const drawPerms = () => {
-        const base = rolePerms(role);
-        put($('#perms', box), html`${Object.entries(groups).map(([g, ps]) => html`<div><div class="nav-label">${t('permg.' + g)}</div>${ps.map((p) => {
-          const on = (base.has(p.id) && !denied.has(p.id)) || extra.has(p.id);
-          return html`<label class="check"><input type="checkbox" data-p="${p.id}" ${on ? 'checked' : ''}>${t('perm.' + p.id)}</label>`;
-        })}</div>`)}`);
-        $$('[data-p]', box).forEach((c) => c.addEventListener('change', () => {
-          const id = c.dataset.p, inBase = rolePerms(role).has(id);
-          extra.delete(id); denied.delete(id);
-          if (c.checked && !inBase) extra.add(id);
-          if (!c.checked && inBase) denied.add(id);
-        }));
+      const sel = $('#ur', box);
+      const hint = () => put($('#ur-hint', box), role === 'custom' ? t('users.customNow') : t('profiles.nPerms', { n: state.size }));
+      let redraw;
+      const draw = () => { redraw = ticks($('#perms', box), d, state, { locked: role === d.locked, onChange: follow }); hint(); };
+      const follow = () => {  // a tick changed: the person still has the profile only if the ticks are exactly its ticks
+        const match = usable.find((p) => !p.locked && same(new Set(p.perms), state));
+        role = match ? match.id : 'custom';
+        put(sel, options()); hint();
       };
-      bindSeg(box, 'role', (v) => { role = v; extra.clear(); denied.clear(); drawPerms(); });
-      drawPerms();
+      sel.addEventListener('change', () => {
+        role = sel.value;
+        const p = usable.find((x) => x.id === role);
+        if (p) { state.clear(); p.perms.forEach((x) => state.add(x)); $('#ud', box).placeholder = String(p.max_discount_pct); }
+        put(sel, options()); draw();
+      });
+      draw();
       $('[data-ok]', box).addEventListener('click', async (e) => {
-        const body = { id: u?.id, full_name: $('#uf', box).value, role, extra_perms: [...extra], denied_perms: [...denied] };
+        const body = { id: u?.id, full_name: $('#uf', box).value, role, perms: [...state] };
         if (!u) body.username = $('#uu', box).value;
         if ($('#ud', box).value !== '') body.max_discount_pct = +$('#ud', box).value;
         if ($('#up', box).value) body.password = $('#up', box).value;
         else if (!u) { shake($('#up', box)); return; }
         if (u) body.active = $('#ua', box).checked;
         if (await run(api.post('/api/user/save', body), t('saved'), e.currentTarget)) { close(); again(); }
+      });
+      void redraw;
+    },
+  });
+}
+
+function editProfile(p, d, again) {
+  const state = new Set(p ? p.perms : []);
+  const locked = !!p?.locked;
+  open({
+    title: p ? pname(p) : t('profiles.add'), kind: 'panel',
+    body: html`<div class="form"><div class="cols"><div class="field"><label for="pn">${t('profiles.name')}</label>
+        <input id="pn" class="input" value="${p?.name || ''}" placeholder="${p?.builtin ? t('role.' + p.id) : t('profiles.namePh')}" ${locked ? 'disabled' : ''} autofocus></div>
+      <div class="field"><label for="pd">${t('users.maxDiscount')}</label><input id="pd" class="input num" inputmode="numeric" value="${p ? p.max_discount_pct : 0}" ${locked ? 'disabled' : ''}></div></div>
+      ${p && p.users && !locked ? html`<label class="check"><input type="checkbox" id="pa" checked>${t('profiles.apply', { n: p.users })}</label>` : ''}
+      <div id="pp" class="stack tight"></div></div>`,
+    foot: locked ? html`<button class="btn primary" data-close>${t('act.close')}</button>`
+      : html`${p ? html`<button class="btn danger ghost" data-del>${icon('trash')}${t('act.delete')}</button>` : ''}<span class="grow"></span>
+        <button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok>${t('act.save')}</button>`,
+    mount(box, close) {
+      ticks($('#pp', box), d, state, { locked });
+      if (locked) return;
+      $('[data-ok]', box).addEventListener('click', async (e) => {
+        const body = { id: p?.id, name: $('#pn', box).value, max_discount_pct: +$('#pd', box).value || 0, perms: [...state], apply: $('#pa', box)?.checked ?? true };
+        const res = await run(api.post('/api/profile/save', body), t('saved'), e.currentTarget);
+        if (res) { if (res.updated) toast(t('profiles.updatedN', { n: res.updated })); close(); again(); }
+      });
+      $('[data-del]', box)?.addEventListener('click', async (e) => {
+        if (!await confirm({ title: t('profiles.delete', { name: pname(p) }), text: t('profiles.deleteHint', { n: p.users }), ok: t('act.delete'), danger: true })) return;
+        if (await run(api.post('/api/profile/delete', { id: p.id }), t('saved'), e.currentTarget)) { close(); again(); }
+      });
+    },
+  });
+}
+
+/** Who can do what: one row per permission, one column per profile. For the owner to check at a glance (and print). */
+function matrix(d) {
+  open({
+    title: t('users.matrix'), kind: 'dialog', wide: true,
+    body: html`<p class="small muted">${t('users.matrixHint')}</p><div class="table-wrap"><table class="t matrix"><thead><tr><th>${t('users.permission')}</th>
+      ${d.profiles.map((p) => html`<th class="center">${pname(p)}</th>`)}</tr></thead><tbody>${d.groups.map((g) => html`<tr class="group-row"><th colspan="${d.profiles.length + 1}">${t('permg.' + g)}</th></tr>
+      ${d.permissions.filter((x) => x.group === g).map((x) => html`<tr><td>${t('perm.' + x.id)}</td>${d.profiles.map((p) => html`<td class="center">${p.perms.includes(x.id)
+        ? html`<span class="badge ok" aria-label="${t('users.yes')}">${icon('check')}</span>` : html`<span class="faint" aria-label="${t('users.no')}">–</span>`}</td>`)}</tr>`)}`)}</tbody></table></div>`,
+    foot: html`<button class="btn ghost" data-print>${icon('print')}${t('act.print')}</button><button class="btn primary" data-close>${t('act.close')}</button>`,
+    mount(box) {
+      $('[data-print]', box).addEventListener('click', () => {  // A4 from the hidden print area, like the reports
+        printHTML(html`<h2>${t('users.matrix')} · ${S.lookups?.settings?.shop_name || ''}</h2><p>${date(new Date().toISOString(), true)}</p>
+          <table><thead><tr><th>${t('users.permission')}</th>${d.profiles.map((p) => html`<th>${pname(p)}</th>`)}</tr></thead><tbody>${d.groups.map((g) => html`
+          <tr><th colspan="${d.profiles.length + 1}">${t('permg.' + g)}</th></tr>${d.permissions.filter((x) => x.group === g).map((x) => html`<tr><td>${t('perm.' + x.id)}</td>
+          ${d.profiles.map((p) => html`<td>${p.perms.includes(x.id) ? '✓' : ''}</td>`)}</tr>`)}`)}</tbody></table>`, 'a4');
       });
     },
   });

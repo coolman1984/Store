@@ -1,5 +1,52 @@
 # Development history (newest first)
 
+## 2026-10-09 — 1.1.0: people, profiles and pages, the BAMS way (factory access standard)
+**Why:** the owner asked that every product let the administrator decide, person by person, which pages they see and what
+they may do, learned from BAMS (Mr.Ayman-HR) and made a factory standard first (`Apps-Factory/docs/ACCESS_AND_ADMINISTRATION_STANDARD.md`,
+gate `packages/af-access`, controls IAM-08…IAM-12). Al-Store had four roles fixed in code with per-person extra/removed ticks.
+
+**What:**
+1. **Profiles** (named sets of ticks) replace fixed roles: the four ready-made ones (owner, manager, cashier, storekeeper) can be
+   renamed, changed — optionally for everybody who has them — or deleted (people keep their ticks, shown as *Custom*), and the
+   owner can make new ones ("Senior cashier"). The **owner profile is locked**: always every permission.
+2. **Page permissions:** Products, Stock and Customers pages each have their own tick (before they were open to everybody, and
+   their data was readable by any signed-in person through the API). The menu, the dock, the palette and the server use one
+   table (`auth.PAGES`; a test keeps `app.js` equal to it). An action ticks the page it needs (`REQUIRES`).
+3. **Administrator group** (people and permissions; settings, backups and licence) shown apart in orange; *Select all* never ticks it.
+4. **Who can do what:** a table of every permission against every profile, printable on A4.
+5. **Audit:** every save of a person or profile records the ticks added and removed (never a password).
+6. **The person window** now shows the profile picker and the grouped ticks with group ticks, *Select all*, *Clear all*;
+   changing a tick shows *Custom* (or the profile whose ticks match exactly).
+
+**Bug found and fixed (lock-out):** 1.0's "last owner" guard looked at the role *name*. Removing the tick "People and permissions"
+from the only owner (a per-person removed tick) was accepted — after that nobody could manage people any more. The guard now
+protects the *right*: no save may leave no active person with `users.manage`, and nobody can remove their own right or switch
+themself off (`afaccess.admin_safety`). A shop already locked out by 1.0 is repaired once at start: its 1.0 owners get the owner
+profile back. Regression tests: `test_access.Guards`, `CarryOver`.
+
+**Own review:** the home page's advisor cards and the due-instalments list pointed to pages a person may now not open (they
+only checked the action, e.g. collecting instalments). Each card now also needs the page it opens; tested in `test_access.Http`.
+
+**Upgrade (schema 2):** a `profiles` table and a `perms` column. At first start every 1.0 person gets their own ticks once, equal
+to what they could do before (plus the pages that were open to everybody then), so nobody gains or loses anything; a verified
+copy of the database is made before the migration as always.
+
+**Mistakes on the way:** the first "who can do what" print button called the browser print, which printed a blank page (the
+print style shows only the hidden print area) — caught while checking screenshots; it now prints through `printHTML(…, 'a4')`
+and the browser test checks the printed table. A first carry-over draft tried to repair lock-outs with a confusing condition;
+rewritten to "only the 1.0 owners, only if nobody can manage people".
+
+**Review fixes (Codex, PR #3):** (1) the copy made before a schema upgrade was a plain file copy named `before-schema-N.db`:
+it could miss rows still in the write-ahead log and was not listed for restore. It is now made with SQLite's backup, checked,
+and named like every backup (`store-…-before-upgrade.db`, kept by pruning). (2) A new profile could be called "Cashier" or
+"كاشير" while the ready-made one still showed that name; ready-made names (`auth.BUILTIN_NAMES`, equal to the dictionaries by
+test) are now taken. (3) The browser receipt test opened "today's" sales, which are empty before the practice shop's 10:05
+opening (it failed on CI and here at 04:00 UTC); it now opens the week and prints the sale it clicked.
+
+**Tests:** `tests/test_access.py` (factory gate with Arabic words, menu = server page table, lock-out guards, profiles, carry-over,
+HTTP page guards and audit), browser `PeopleAndProfiles` (owner makes a profile, takes pages from the cashier; the cashier's menu
+and the server follow). The full suite is green (110 tests).
+
 ## 2026-10-08 — Stock count: a sale in the same millisecond as the count line made a phantom surplus
 **Found by:** the GitHub runner failing `test_sale_after_counting_a_product_is_not_a_false_surplus` on PR #2 (it passed on
 slower PCs by luck). **Why:** times have millisecond precision; when the count line and the sale fell in the same
