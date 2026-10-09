@@ -50,6 +50,11 @@ from version import FROZEN, PRODUCT, PRODUCT_AR, ROOT, VERSION  # noqa: E402
 
 WEB = os.path.join(ROOT, 'web')
 COOKIE = 'store_session'
+PRACTICE_COOKIE = 'store_practice_session'  # cookies are per host, not per port: the practice shop must not share the real shop's cookie
+
+
+def cookie_name():
+    return PRACTICE_COOKIE if APP is not None and APP.practice else COOKIE
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
        "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
 TYPES = {'.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8',
@@ -247,7 +252,7 @@ class Handler(BaseHTTPRequestHandler):
     def token(self):
         for part in (self.headers.get('Cookie') or '').split(';'):
             k, _, v = part.strip().partition('=')
-            if k == COOKIE:
+            if k == cookie_name():
                 return v
         return ''
 
@@ -312,7 +317,7 @@ class Handler(BaseHTTPRequestHandler):
             fn()
         except NotLoggedIn:
             self.send(401, {'error': 'Please sign in.', 'key': 'err.signIn', 'login': True},
-                      headers={'Set-Cookie': f'{COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
+                      headers={'Set-Cookie': f'{cookie_name()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
         except LicenceLocked:
             self.send(402, {'error': 'The licence does not allow changes now.', 'key': 'err.licence', 'licence': APP.licence()})
         except Forbidden as e:
@@ -618,7 +623,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/logout':
             self.body(65536)
             APP.auth.end_session(self.token())
-            return self.send(200, {'ok': True}, headers={'Set-Cookie': f'{COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
+            return self.send(200, {'ok': True}, headers={'Set-Cookie': f'{cookie_name()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
         u = self.user()
         ctx = self.ctx(u)
         data = self.body(2 * 1048576)
@@ -823,7 +828,7 @@ class Handler(BaseHTTPRequestHandler):
             log.warning('telemetry note failed', exc_info=True)
 
     def cookie(self, token):
-        return {'Set-Cookie': f'{COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict'}
+        return {'Set-Cookie': f'{cookie_name()}={token}; Path=/; HttpOnly; SameSite=Strict'}
 
     def too_many(self, ip, add=False):
         now = time.time()

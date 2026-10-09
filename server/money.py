@@ -77,7 +77,8 @@ def shift_summary(db, shift_id):
     s['expected_now'] = drawer_expected(db, shift_id) if not s['closed_at'] else s['expected']
     s['sales_count'] = db.value('SELECT COUNT(*) FROM sales WHERE shift_id = ?', shift_id)
     s['sales_total'] = db.value('SELECT COALESCE(SUM(total), 0) FROM sales WHERE shift_id = ?', shift_id)
-    s['moves'] = db.all("SELECT c.at, c.kind, c.amount, c.category, c.note, c.ref_type, c.ref_id, c.id, c.reverses, u.full_name AS by_name "
+    s['moves'] = db.all("SELECT c.at, c.kind, c.amount, c.category, c.note, c.ref_type, c.ref_id, c.id, c.reverses, u.full_name AS by_name, "
+                        "(SELECT 1 FROM cash_moves r WHERE r.reverses = c.id) AS reversed "
                         "FROM cash_moves c LEFT JOIN users u ON u.id = c.by_user WHERE c.account = 'drawer' AND c.shift_id = ? "
                         "ORDER BY c.at DESC", shift_id)
     s['difference'] = None if s['counted'] is None else s['counted'] - s['expected']

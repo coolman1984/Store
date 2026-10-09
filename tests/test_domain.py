@@ -331,6 +331,18 @@ class ReturnTests(Base):
 
 
 class CashTests(Base):
+    def test_the_drawer_list_marks_a_reversed_expense_so_the_screen_stops_offering_to_reverse_it(self):
+        shift = cash.open_shift_of(self.s.db, self.s.users['owner']['id'])
+        made = self.s.do(cash.expense, {'idem_key': 'e1', 'amount': 1000, 'category': 'other', 'note': 'tea and sugar'})
+        before = [m for m in cash.shift_summary(self.s.db, shift['id'])['moves'] if m['id'] == made['id']][0]
+        self.assertFalse(before['reversed'])
+        self.s.do(cash.reverse_cash, made['id'], 'typed twice')
+        after = {m['id']: m for m in cash.shift_summary(self.s.db, shift['id'])['moves']}
+        self.assertTrue(after[made['id']]['reversed'])
+        with self.assertRaises(Problem) as e:
+            self.s.do(cash.reverse_cash, made['id'], 'again')
+        self.assertEqual(e.exception.key, 'err.alreadyReversed')
+
     def test_close_shift_with_difference_needs_reason_and_goes_to_safe(self):
         shift = cash.open_shift_of(self.s.db, self.s.users['owner']['id'])
         with self.assertRaises(Problem):
@@ -375,6 +387,47 @@ class CashTests(Base):
             self.assertTrue(self.s.db.value(f'SELECT COUNT(*) FROM {sql.split()[1] if sql.startswith("UPDATE") else sql.split()[2]}'))
             with self.assertRaises(sqlite3.DatabaseError):
                 self.s.db.run(sql)
+
+
+class HeaderTests(Base):
+    """The headers that carry the totals of money and goods documents are append-only too (found by the independent review of 2026-10-09:
+    only their lines were protected, so a bug or a hand-typed SQL line could change what a sale was worth)."""
+
+    def test_sale_return_purchase_transfer_and_plan_cannot_be_edited_or_deleted(self):
+        s = self.s
+        cust = s.do(cash.save_customer, {'name': 'Customer', 'phone': '01000000000'})
+        pid = s.product('TV', 1000000, 800000, qty=3)
+        r = sale(s, [{'product_id': pid, 'qty': 1}], [{'method': 'cash', 'amount': 200000}, {'method': 'installment', 'amount': 800000}], customer_id=cust,
+                 instalment={'months': 2, 'first_due': day(30), 'guarantor': {'name': 'G'}})
+        line = sales.sale_view(s.db, r['id'])['lines'][0]
+        s.do(sales.take_return, {'idem_key': 'h1', 'sale_id': r['id'], 'reason': 'changed mind', 'refund_method': 'cash',
+                                 'lines': [{'sale_line_id': line['id'], 'qty': 1}]})
+        s.do(stock.transfer, {'idem_key': 't1', 'from_id': s.shop, 'to_id': s.store, 'lines': [{'product_id': pid, 'qty': 1}]})
+        for sql in ('UPDATE sales SET total = 1', 'DELETE FROM sales', 'UPDATE returns SET total = 1', 'DELETE FROM returns',
+                    'UPDATE purchases SET total = 1', 'DELETE FROM purchases', 'UPDATE transfers SET note = \'x\'', 'DELETE FROM transfers',
+                    'UPDATE plans SET financed = 1', 'DELETE FROM plans'):
+            table = sql.split()[1] if sql.startswith('UPDATE') else sql.split()[2]
+            self.assertTrue(s.db.value(f'SELECT COUNT(*) FROM {table}'), table)
+            with self.assertRaises(sqlite3.DatabaseError, msg=sql):
+                s.db.run(sql)
+
+    def test_an_old_database_gets_the_new_guards_when_it_opens(self):
+        """The guards are made every time the database opens, so a shop that upgrades has them without any migration."""
+        import os
+        from db import Database
+        path = os.path.join(self.s.dir, 'data', 'store.db')
+        sale(self.s, [{'product_id': self.s.product(), 'qty': 1}])
+        for trigger in ('sales_no_update', 'sales_no_delete'):
+            self.s.db.run(f'DROP TRIGGER {trigger}')  # what a 1.5.0 database looks like
+        self.s.db.run('UPDATE sales SET note = \'edited by hand\'')  # nothing stops it there
+        reopened = Database(path)
+        try:
+            with self.assertRaises(sqlite3.DatabaseError):
+                reopened.run('UPDATE sales SET total = 1')
+            with self.assertRaises(sqlite3.DatabaseError):
+                reopened.run('DELETE FROM sales')
+        finally:
+            reopened.close()
 
 
 class StockTests(Base):

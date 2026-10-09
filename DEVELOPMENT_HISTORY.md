@@ -1,5 +1,15 @@
 # Development history (newest first)
 
+## 2026-10-09 — independent review: the practice shop no longer signs the real shop out; document headers are append-only
+**Found by the review (confirmed by running):**
+1. **Cookie collision.** Cookies belong to a host, not to a port. The real shop (port 8096) and the practice shop (8097) both used the cookie `store_session` on `127.0.0.1`. In one browser, signing in to the practice shop **signed the real shop out** (and the real shop's "please sign in" answer deleted the practice cookie in turn). A trainee opening the practice shop from the real one would lose the real session. The practice shop now has its own cookie name, `store_practice_session`; the real shop keeps `store_session`, so nobody is signed out by an update.
+2. **Document headers were not protected.** The ledger triggers covered the lines and moves (`sale_lines`, `stock_moves`, `tenders`…) but not the headers that carry the totals: `sales`, `returns`, `purchases`, `transfers`, `plans`. A hand-typed SQL line changed what a sale was worth and nothing refused it. No code in the program edits those rows, so the guards cost nothing. They are created every time the database opens, so a shop that upgrades has them with no migration (a test starts from a 1.5.0-shaped database).
+3. A reversed expense still offered "reverse" in the drawer list (the server then said "already reversed"). The shift list now carries `reversed`, and the screen marks it and stops offering.
+
+**Evidence:** `test_api.CookieIsolationTests`, `test_e2e_browser.TwoShopsOneBrowser` (a real practice shop process and a real shop in one browser: both signed in, a reload keeps both) — both fail on the old code; `test_domain.HeaderTests` (2), `CashTests` (reversed flag).
+
+**Seen and left alone (low):** a browser that closes the connection while a static file is being sent prints a traceback to the console log (`BrokenPipeError`); harmless, and the Windows build has no console.
+
 ## 2026-10-09 — independent review: a return gives back only money that came in
 **Why:** the same review as the entry below. Reading `take_return`, the reviewer asked what happens to a sale that was never paid.
 

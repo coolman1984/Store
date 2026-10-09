@@ -201,6 +201,54 @@ class ReturnOnCredit(Browser):
 
 
 @SKIP
+class TwoShopsOneBrowser(Browser):
+    """The real shop and the practice shop on one PC, in one browser. Cookies belong to a host, not to a port, so before 1.5.1 signing in
+    to the practice shop signed the real shop out (found by the independent review of 2026-10-09)."""
+    practice = False
+
+    def test_signing_in_to_practice_does_not_sign_the_real_shop_out(self):
+        import socket
+        import subprocess
+        import sys
+        import tempfile
+        import time
+        from harness import ROOT, free_port
+        port, home = free_port(), tempfile.mkdtemp(prefix='store-practice-')
+        proc = subprocess.Popen([sys.executable, os.path.join(ROOT, 'server', 'app.py'), '--practice', '--home', home, '--port', str(port), '--host', '127.0.0.1',
+                                 '--no-browser'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            for _ in range(80):
+                try:
+                    socket.create_connection(('127.0.0.1', port), timeout=0.5).close()
+                    break
+                except OSError:
+                    time.sleep(0.25)
+            ctx = self.browser.new_context(viewport={'width': 1366, 'height': 860})
+            ctx.add_init_script("localStorage.setItem('store.prefs', %s)" % json.dumps(json.dumps({'lang': 'ar', 'sound': False, 'motion': 'off'})))
+
+            def sign_in(base, user, password):
+                pg = ctx.new_page()
+                pg.goto(base)
+                pg.wait_for_selector('#auth-form')
+                pg.fill('#username', user)
+                pg.fill('#password', password)
+                pg.click('button[type=submit]')
+                pg.wait_for_selector('.shell')
+                return pg
+            real = sign_in(self.S.base, OWNER[0], OWNER[1])
+            practice = sign_in(f'http://127.0.0.1:{port}', 'owner', 'practice-1234')
+            self.assertEqual(real.evaluate("fetch('/api/me').then((r) => r.status)"), 200, 'the real shop is still signed in')
+            self.assertEqual(practice.evaluate("fetch('/api/me').then((r) => r.status)"), 200)
+            real.reload()
+            real.wait_for_selector('.shell')  # still in the real shop after a reload, no sign-in page
+            self.assertEqual(sorted(c['name'] for c in ctx.cookies()), ['store_practice_session', 'store_session'])
+            ctx.close()
+        finally:
+            proc.terminate()
+            proc.wait(15)
+
+
+@SKIP
 class PeopleAndProfiles(Browser):
     """The owner checks who can do what, makes a profile and takes a page away from the cashier; the cashier no longer
     sees it in the menu and gets the "not allowed" card when typing its address (the server refuses its data too)."""
