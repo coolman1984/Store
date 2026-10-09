@@ -80,6 +80,10 @@ ROLES = {
     'storekeeper': {'perms': ['products.view', 'stock.view', 'stock.receive', 'stock.transfer', 'stock.count', 'products.edit'],
                     'max_discount_pct': 0},
 }
+# the names the ready-made profiles show while not renamed (the page dictionaries' role.<id>; a test keeps them equal), so a new
+# profile cannot take the same name and two choices look alike in the picker
+BUILTIN_NAMES = {'owner': ('Owner', 'صاحب المحل'), 'manager': ('Manager', 'مدير'), 'cashier': ('Cashier', 'كاشير'),
+                 'storekeeper': ('Storekeeper', 'أمين مخزن')}
 LOCKED = 'owner'  # always every permission, cannot be changed or deleted: there is always a way to manage the shop
 CUSTOM = 'custom'  # a person whose ticks match no profile
 _OLD_ROLE_PERMS = {  # the fixed roles of 1.0 (pages were open to everybody then): used once to carry old people over
@@ -285,7 +289,8 @@ class Auth:
             raise AuthError('auth.err.profileName', 'Give the profile a name, for example "Senior cashier".')
         if name.lower() in afaccess.RESERVED_PROFILE_NAMES:
             raise AuthError('auth.err.profileReserved', '"Custom" is for people with their own ticks. Choose another name.')
-        if name and any(p['id'] != pid and p['name'].lower() == name.lower() for p in self.profiles()):
+        shown = lambda p: {p['name'].lower()} if p['name'] else {n.lower() for n in BUILTIN_NAMES.get(p['id'], ())}  # noqa: E731
+        if name and any(p['id'] != pid and name.lower() in shown(p) for p in self.profiles()):
             raise AuthError('auth.err.profileTaken', 'There is already a profile with this name.')
         new_id = pid or ids.uuid7()
         holders = [u for u in self.db.all('SELECT * FROM users WHERE role = ?', new_id)] if cur and data.get('apply', True) is not False else []

@@ -134,9 +134,11 @@ class CoreJourney(Browser):
         pg.reload()
         pg.wait_for_selector('.shell')
         self.go(pg, 'sales')
+        pg.click('[data-seg="range"] [data-v="week"]')  # the practice shop's day starts at 10:05: "today" is empty before that
         pg.click('tr[data-id]')
         pg.wait_for_selector('[data-print], [data-reprint], .dialog')
-        pg.evaluate("import('/js/print.js').then((m) => fetch('/api/sales').then((r) => r.json()).then((rows) => fetch('/api/sale?id=' + rows[0].id).then((r) => r.json()).then((sale) => m.printReceipt(sale))))")
+        pg.evaluate("(id) => import('/js/print.js').then((m) => fetch('/api/sale?id=' + id).then((r) => r.json()).then((sale) => m.printReceipt(sale)))",
+                    pg.get_attribute('tr[data-id]', 'data-id'))
         receipt = self.until(pg, 'window.__printed')
         self.assertIn('class="barcode"', receipt)  # the receipt number is a real Code 128 barcode now
         pg.evaluate('window.__printed = null')

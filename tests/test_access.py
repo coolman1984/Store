@@ -43,6 +43,12 @@ class Catalogue(unittest.TestCase):
             routes[name] = sorted(re.findall(r"'([\w.]+)'", m.group(1))) if m else '*'
         self.assertEqual(routes, {k: v if v == '*' else sorted(v) for k, v in auth.PAGES.items()})
 
+    def test_ready_made_profile_names_match_the_dictionaries(self):
+        en = words('en')
+        for pid, (english, arabic) in auth.BUILTIN_NAMES.items():
+            self.assertEqual((en['role.' + pid], LABELS['ar']['role.' + pid]), (english, arabic))
+        self.assertEqual(set(auth.BUILTIN_NAMES), set(auth.ROLES))
+
     def test_owner_profile_has_everything_and_admin_rights_are_apart(self):
         self.assertEqual(set(auth.ROLES['owner']['perms']), set(auth.PERMISSIONS))
         self.assertEqual(auth.ADMIN_PERMS, {'users.manage', 'settings.edit'})
@@ -141,7 +147,8 @@ class Profiles(unittest.TestCase):
             self.A.delete_profile('cashier')
         self.assertNotIn('cashier', [p['id'] for p in self.A.profiles()])
         for bad in ({'id': 'owner', 'name': 'Boss', 'perms': []}, {'name': '', 'perms': []}, {'name': 'Custom', 'perms': []},
-                    {'name': 'warehouse', 'perms': []}, {'id': 'nope', 'name': 'X', 'perms': []}):
+                    {'name': 'warehouse', 'perms': []}, {'id': 'nope', 'name': 'X', 'perms': []},
+                    {'name': 'Manager', 'perms': []}, {'name': 'مدير', 'perms': []}):
             with self.subTest(bad=bad), self.assertRaises(auth.AuthError):
                 self.save(bad)
         with self.assertRaises(auth.AuthError), self.S.db.tx():
@@ -184,6 +191,36 @@ class CarryOver(unittest.TestCase):
             self.assertIn('users.manage', auth.effective_perms(o))
             auth.Auth(db, S.app.org_id)  # once only: a second start changes nothing
             self.assertEqual(A.get(c['id'])['perms'], c['perms'])
+        finally:
+            S.cleanup()
+
+
+class Upgrade(unittest.TestCase):
+    def test_a_1_0_database_gets_a_checked_restorable_copy_before_schema_2(self):
+        """The copy is made with SQLite's backup (it includes rows still in the write-ahead log) under a backup name, so
+        Settings lists it and a restore can use it."""
+        import app as app_mod
+        import backup
+        S = Shop()
+        try:
+            home, db = S.dir, S.db
+            S.user('cashier', 'late1')  # a fresh row, possibly still only in the WAL file
+            db.conn.execute('DROP TABLE profiles')
+            db.conn.execute('ALTER TABLE users DROP COLUMN perms')
+            db.conn.execute("UPDATE meta SET value = '1' WHERE key = 'schema'")
+            db.close()
+            app = app_mod.build(home)
+            names = [b['name'] for b in backup.listing(app.backup_dir)]
+            copy = next(n for n in names if n.endswith('-before-upgrade.db'))
+            self.assertTrue(backup.NAME.match(copy))
+            path = os.path.join(app.backup_dir, copy)
+            self.assertTrue(backup.check(path))
+            import sqlite3
+            with sqlite3.connect(path) as old:
+                self.assertEqual(old.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone()[0], '1')
+                self.assertTrue(old.execute("SELECT 1 FROM users WHERE username = 'late1'").fetchone())
+            self.assertEqual(app.db.version(), 2)
+            S.db = app.db
         finally:
             S.cleanup()
 

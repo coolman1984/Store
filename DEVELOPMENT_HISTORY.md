@@ -36,10 +36,16 @@ print style shows only the hidden print area) — caught while checking screensh
 and the browser test checks the printed table. A first carry-over draft tried to repair lock-outs with a confusing condition;
 rewritten to "only the 1.0 owners, only if nobody can manage people".
 
+**Review fixes (Codex, PR #3):** (1) the copy made before a schema upgrade was a plain file copy named `before-schema-N.db`:
+it could miss rows still in the write-ahead log and was not listed for restore. It is now made with SQLite's backup, checked,
+and named like every backup (`store-…-before-upgrade.db`, kept by pruning). (2) A new profile could be called "Cashier" or
+"كاشير" while the ready-made one still showed that name; ready-made names (`auth.BUILTIN_NAMES`, equal to the dictionaries by
+test) are now taken. (3) The browser receipt test opened "today's" sales, which are empty before the practice shop's 10:05
+opening (it failed on CI and here at 04:00 UTC); it now opens the week and prints the sale it clicked.
+
 **Tests:** `tests/test_access.py` (factory gate with Arabic words, menu = server page table, lock-out guards, profiles, carry-over,
 HTTP page guards and audit), browser `PeopleAndProfiles` (owner makes a profile, takes pages from the cashier; the cashier's menu
-and the server follow). `test_e2e_browser.CoreJourney.test_receipt_and_labels_carry_barcodes` also fails on `main` before this
-change in this environment (clicking the first sale row times out) — not caused by this work, left as is.
+and the server follow). The full suite is green (110 tests).
 
 ## 2026-10-08 — Stock count: a sale in the same millisecond as the count line made a phantom surplus
 **Found by:** the GitHub runner failing `test_sale_after_counting_a_product_is_not_a_false_surplus` on PR #2 (it passed on
