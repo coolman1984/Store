@@ -1,5 +1,11 @@
 # Development history (newest first)
 
+## 2026-10-09 — Today page: leaving before its numbers arrive no longer raises an error
+**Found by:** CI of the review branches (a browser test failed on the GitHub runner, passed on the reviewer's machine: a timing race).
+**Cause:** `views/home.js` waits for `/api/home`, then looks for its own box `#home-body` inside the page. If the person had already gone to another page (slow PC, slow disk, a quick click on the menu), the box was gone, the lookup gave nothing, and `root.className = …` raised «Cannot set properties of null». The other pages were probed the same way (a slow answer, then a click elsewhere): none of them overwrote the new page, so this was the only one.
+**Fix:** after the answer arrives, the Today page checks its box is still on the screen and stops quietly if not (also in the error branch).
+**Evidence:** `test_e2e_browser.LeavingWhileLoading` holds the answer of `/api/home`, goes to Sales, waits until Sales is on the screen, and only then lets the answer through; it expects no console error. It fails on the old code with the message above (3 runs out of 3) and passes now. (The first version delayed the answer inside the route handler, which only raced; the independent review of PR #18 pointed it out.)
+
 ## 2026-10-09 — 1.5.0: three activation kinds and the release proofs
 **Why:** the owner asked for a full push to the first paid shop. The release gate needed three things:
 - the three ways a shop pays: a 14-day trial, a monthly subscription and a permanent activation;

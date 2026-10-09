@@ -172,6 +172,30 @@ class CoreJourney(Browser):
 
 
 @SKIP
+class LeavingWhileLoading(Browser):
+    """Going to another page while the Today numbers are still on their way must not break anything (found by CI on 2026-10-09: the
+    late answer looked for a box that was no longer on the screen and raised an error)."""
+
+    def test_leaving_today_before_its_numbers_arrive_is_quiet(self):
+        pg = self.open('owner')
+        self.go(pg, 'customers')
+        held = []  # the answer is held, not delayed in the handler: the order is then certain (review of PR #18)
+        pg.route('**/api/home**', lambda r: held.append(r))
+        pg.evaluate("location.hash = '#/home'")
+        for _ in range(100):
+            if held:
+                break
+            pg.wait_for_timeout(50)
+        self.assertEqual(len(held), 1, 'the Today page asked for its numbers')
+        pg.evaluate("location.hash = '#/sales'")
+        pg.wait_for_selector('#page h1:has-text("المبيعات")')
+        held[0].continue_()  # only now do the numbers arrive, on a page that is no longer Today
+        pg.wait_for_timeout(800)
+        self.assertIn('المبيعات', pg.inner_text('#page h1'))
+        self.assertEqual(self.errors, [])
+
+
+@SKIP
 class PeopleAndProfiles(Browser):
     """The owner checks who can do what, makes a profile and takes a page away from the cashier; the cashier no longer
     sees it in the menu and gets the "not allowed" card when typing its address (the server refuses its data too)."""
