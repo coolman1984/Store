@@ -1,5 +1,12 @@
 # Development history (newest first)
 
+## 2026-10-09 — 1.2.1: plain-language problem-report review
+**Why:** the review before sending showed the raw JSON payload, which a shop owner or cashier cannot read. They must understand what leaves the PC before they agree to send it.
+
+**What:** pressing «مراجعة قبل الإرسال» / "Review before sending" now shows a short summary in the selected language. "What will be sent" lists the description exactly as it will be stored (passwords and phone numbers already removed, with a note when something was removed), the program version, the problem type and lesson when the report came from a problem entry, the page name, whether device counts are attached, and that only a PC code and a code in place of the person's name are included. "What will NOT be sent" lists passwords and other typing, names and phones from shop records, invoices, amounts and records, and screenshots. The raw payload stays available behind «عرض التفاصيل الفنية» / "Show technical details", folded by default. The footer has Cancel, Review before sending, and Send report. The preview response carries `version` outside the signed event, so the digest and the stored report are unchanged. Consent gating, redaction, the signed digest, and invalidation on edit are unchanged. An edit made while the summary is being built hides it again and keeps Send disabled.
+
+**Evidence:** a new browser test checks the AR and EN summaries on a 390px phone, the redacted text, version, page label, the four not-sent items, the folded technical details, and that Cancel queues nothing. The existing report tests now read the payload from the technical details. The HTTP test checks that `version` is in the preview response and not in the event.
+
 ## 2026-10-09 — 1.2.0 second pass: relogin and the person's own problem report
 **Why:** browser verification became available, and the owner chose to restore factory free-text feedback while keeping the product's stricter consent requirement and every other first-pass safeguard.
 

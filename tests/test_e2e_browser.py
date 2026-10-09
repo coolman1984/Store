@@ -372,11 +372,11 @@ class GuideCoach(Browser):
                 pg.fill('[data-report-text]', text)
                 pg.check('[data-report-diag]')
                 pg.click('[data-report-check]')
-                pg.wait_for_selector('[data-report-preview]', state='visible')
-                preview = json.loads(pg.inner_text('[data-report-preview]'))
+                pg.wait_for_selector('[data-report-review]', state='visible')
+                preview = json.loads(pg.text_content('[data-report-raw]'))
                 self.assertEqual(preview['data']['text'], 'Sale screen freezes password=[SECRET] phone [PHONE]')
                 self.assertIn('diagnostics', preview['data'])
-                self.assertEqual(pg.get_attribute('[data-report-preview]', 'dir'), 'ltr')
+                self.assertEqual(pg.get_attribute('[data-report-raw]', 'dir'), 'ltr')
                 self.assertTrue(pg.evaluate("""(() => {
                   const r = document.querySelector('[data-report-send]').getBoundingClientRect();
                   return r.top >= 0 && r.bottom <= innerHeight;
@@ -386,10 +386,10 @@ class GuideCoach(Browser):
                 self.assertEqual({e['id'] for e in reports()}, before)
                 pg.fill('[data-report-text]', text + ' after opening the shift')
                 self.assertTrue(pg.locator('[data-report-send]').is_disabled())
-                self.assertTrue(pg.locator('[data-report-preview]').is_hidden())
+                self.assertTrue(pg.locator('[data-report-review]').is_hidden())
                 pg.click('[data-report-check]')
-                pg.wait_for_selector('[data-report-preview]', state='visible')
-                preview = json.loads(pg.inner_text('[data-report-preview]'))
+                pg.wait_for_selector('[data-report-review]', state='visible')
+                preview = json.loads(pg.text_content('[data-report-raw]'))
                 self.assertLessEqual(pg.evaluate('document.documentElement.scrollWidth'), width)
                 pg.click('[data-report-send]')
                 pg.wait_for_selector('[data-report-text]', state='detached')
@@ -421,13 +421,62 @@ class GuideCoach(Browser):
         waiting[0].fulfill(status=200, json=preview.json())
         pg.wait_for_selector('[data-report-check][aria-busy="true"]', state='detached')
         self.assertTrue(pg.locator('[data-report-send]').is_disabled())
-        self.assertTrue(pg.locator('[data-report-preview]').is_hidden())
+        self.assertTrue(pg.locator('[data-report-review]').is_hidden())
         pg.unroute('**/api/telemetry/feedback/preview')
         pg.click('[data-report-check]')
-        pg.wait_for_selector('[data-report-preview]', state='visible')
-        self.assertEqual(json.loads(pg.inner_text('[data-report-preview]'))['data']['text'], 'Edited while waiting')
+        pg.wait_for_selector('[data-report-review]', state='visible')
+        self.assertEqual(json.loads(pg.text_content('[data-report-raw]'))['data']['text'], 'Edited while waiting')
         self.assertTrue(pg.locator('[data-report-send]').is_enabled())
         self.assertEqual(self.errors, [])
+
+    def test_report_review_is_plain_language_with_technical_details_on_request(self):
+        typed = 'Sale screen freezes password=fixture-only phone 01000000000'
+        for language, labels in (('ar', ('ما سيُرسل', 'ما لن يُرسل', 'إصدار البرنامج', 'البيع', 'عرض التفاصيل الفنية')),
+                                 ('en', ('What will be sent', 'What will NOT be sent', 'Program version', 'Sell',
+                                         'Show technical details'))):
+            with self.subTest(language=language):
+                self.setUp()
+                pg = self.open('owner', width=390, prefs={'lang': language})
+                pg.wait_for_selector('[data-afc="agree"]')
+                pg.click('[data-afc="agree"]')
+                pg.wait_for_selector('[data-afc="card"]', state='detached')
+                pg.goto(self.S.base + '/#/pos')
+                self.until(pg, "document.body.dataset.route === 'pos'")
+                pg.click('[data-afg="help"]')
+                pg.click('[data-afg="report"]')
+                pg.wait_for_selector('[data-report-text]')
+                reports = lambda: [e for e in self.S.app.assist.tel.pending() if e['type'] == 'fb.problem']
+                before = {e['id'] for e in reports()}
+                pg.fill('[data-report-text]', typed)
+                pg.click('[data-report-check]')
+                pg.wait_for_selector('[data-report-review]', state='visible')
+                review = pg.inner_text('[data-report-review]')
+                for label in labels[:3]:
+                    self.assertIn(label, review)
+                page_label = pg.evaluate("(() => { const d = [...document.querySelectorAll('[data-report-facts] dd')]; return d[4].textContent; })()")
+                self.assertEqual(page_label, labels[3])
+                sent = pg.text_content('[data-report-sent-text]')
+                self.assertEqual(sent, 'Sale screen freezes password=[SECRET] phone [PHONE]')
+                from version import VERSION
+                self.assertIn(VERSION, review)
+                self.assertTrue(pg.locator('[data-report-redacted]').is_visible())
+                self.assertEqual(pg.locator('.report-not-sent li').count(), 4)
+                self.assertNotIn('fixture-only', review)
+                self.assertNotIn('01000000000', review)
+                # the raw payload is there but folded away until asked for
+                self.assertFalse(pg.locator('[data-report-raw]').is_visible())
+                self.assertNotIn('"type"', review)
+                pg.click('[data-report-tech] summary')
+                self.assertTrue(pg.locator('[data-report-raw]').is_visible())
+                self.assertEqual(json.loads(pg.text_content('[data-report-raw]'))['data']['text'], sent)
+                self.assertIn(labels[4], pg.inner_text('[data-report-tech] summary'))
+                self.assertLessEqual(pg.evaluate('document.documentElement.scrollWidth'), 390)
+                # Cancel closes and queues nothing
+                pg.click('[data-report-cancel]')
+                pg.wait_for_selector('[data-report-text]', state='detached')
+                self.assertEqual({e['id'] for e in reports()}, before)
+                self.assertEqual(self.errors, [])
+                pg.context.close()
 
 
 _ = PW

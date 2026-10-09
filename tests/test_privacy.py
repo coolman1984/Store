@@ -158,6 +158,10 @@ class Privacy(unittest.TestCase):
         self.assertEqual(st, 200, preview)
         self.assertEqual(preview['event']['data']['text'],
                          'Sale screen freezes password=[SECRET] phone [PHONE]')
+        # the plain-language review shows the program version; it is outside the signed event
+        from version import VERSION
+        self.assertEqual(preview['version'], VERSION)
+        self.assertNotIn('version', preview['event']['data'])
         confirmed = dict(data, confirm=preview['digest'])
         st, _, _ = self.cash.post('/api/telemetry/feedback', confirmed)
         self.assertEqual(st, 400)

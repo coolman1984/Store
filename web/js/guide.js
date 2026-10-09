@@ -190,6 +190,39 @@ export async function maybeConsent() {
   return answer;
 }
 
+/** Plain-language summary of exactly what the preview will store. The raw payload stays behind a toggle. */
+async function showReview(box, preview, typed) {
+  const data = (preview.event && preview.event.data) || {};
+  const l = lang();
+  let texts = {};
+  try { texts = (await loadFiles())[l] || {}; } catch { texts = {}; }
+  const none = t('privacy.reviewNone');
+  const pageName = data.page ? (t('nav.' + data.page) !== 'nav.' + data.page ? t('nav.' + data.page) : data.page) : none;
+  const problem = data.problem ? (texts['problem.' + data.problem + '.see'] || data.problem) : none;
+  const lesson = data.guide ? (texts['guide.' + data.guide + '.title'] || data.guide) : none;
+  const rows = [
+    [t('privacy.reviewText'), data.text || ''],
+    [t('privacy.reviewVersion'), preview.version || ''],
+    [t('privacy.reviewProblem'), problem],
+    [t('privacy.reviewLesson'), lesson],
+    [t('privacy.reviewPage'), pageName],
+    [t('privacy.reviewDevice'), data.diagnostics ? t('privacy.reviewDeviceYes') : t('privacy.reviewDeviceNo')],
+    [t('privacy.reviewIds'), t('privacy.reviewIdsText')],
+  ];
+  const facts = $('[data-report-facts]', box);
+  facts.replaceChildren();
+  rows.forEach(([label, value], i) => {
+    const dt = document.createElement('dt'); dt.textContent = label;
+    const dd = document.createElement('dd'); dd.textContent = value;
+    if (i === 0) { dd.dir = 'auto'; dd.dataset.reportSentText = ''; }
+    facts.append(dt, dd);
+  });
+  $('[data-report-redacted]', box).hidden = (data.text || '') === typed;
+  $('[data-report-raw]', box).textContent = JSON.stringify(preview.event, null, 2);
+  $('[data-report-tech]', box).open = false;
+  $('[data-report-review]', box).hidden = false;
+}
+
 async function reportProblem(ctx = {}) {
   if (!guideLive) return;
   await refreshConsent();
@@ -198,8 +231,21 @@ async function reportProblem(ctx = {}) {
       <div class="field"><label for="report-text">${t('privacy.reportText')}</label>
       <textarea class="input" id="report-text" data-report-text dir="auto" rows="4" maxlength="2000"></textarea></div>
       <label class="check"><input type="checkbox" data-report-diag>${t('privacy.reportDiagnostics')}</label>
-      <pre class="report-preview" data-report-preview dir="ltr" hidden></pre>`}`,
-  foot: telemetryAllowed ? html`<button class="btn" data-report-check>${t('privacy.reportPreview')}</button>
+      <section class="report-review" data-report-review hidden aria-live="polite">
+        <h3>${t('privacy.reviewSent')}</h3>
+        <dl class="report-facts" data-report-facts></dl>
+        <p class="report-redacted" data-report-redacted hidden>${t('privacy.reviewRedacted')}</p>
+        <h3>${t('privacy.reviewNotSent')}</h3>
+        <ul class="report-not-sent">
+          <li>${t('privacy.notSent.passwords')}</li><li>${t('privacy.notSent.people')}</li>
+          <li>${t('privacy.notSent.money')}</li><li>${t('privacy.notSent.screen')}</li>
+        </ul>
+        <p class="muted">${t('privacy.reviewWhen')}</p>
+        <details class="report-tech" data-report-tech><summary>${t('privacy.reviewTech')}</summary>
+          <pre class="report-preview" data-report-raw dir="ltr"></pre></details>
+      </section>`}`,
+  foot: telemetryAllowed ? html`<button class="btn" data-report-cancel>${t('act.cancel')}</button>
+    <button class="btn" data-report-check>${t('privacy.reportPreview')}</button>
     <button class="btn accent" data-report-send disabled>${t('privacy.reportSend')}</button>` : null,
   mount(box, close) {
     box.classList.add('report-dialog');
@@ -210,8 +256,9 @@ async function reportProblem(ctx = {}) {
     let revision = 0;
     const invalidate = () => {
       revision++;
-      preview = null; $('[data-report-send]', box).disabled = true; $('[data-report-preview]', box).hidden = true;
+      preview = null; $('[data-report-send]', box).disabled = true; $('[data-report-review]', box).hidden = true;
     };
+    $('[data-report-cancel]', box).addEventListener('click', () => close());
     $('[data-report-text]', box).addEventListener('input', invalidate);
     $('[data-report-diag]', box).addEventListener('change', invalidate);
     $('[data-report-check]', box).addEventListener('click', async (e) => {
@@ -225,8 +272,12 @@ async function reportProblem(ctx = {}) {
       const result = await run(api.post('/api/telemetry/feedback/preview', body), null, e.currentTarget);
       if (!result || requested !== revision || current !== generation || !box.isConnected) return;
       preview = result;
-      const node = $('[data-report-preview]', box);
-      node.textContent = JSON.stringify(preview.event, null, 2); node.hidden = false;
+      await showReview(box, preview, text);
+      if (requested !== revision || current !== generation || !box.isConnected) {
+        // edited while the summary was being built: never leave a stale summary or an enabled send
+        if (preview === null || preview === result) { preview = null; $('[data-report-review]', box).hidden = true; }
+        return;
+      }
       $('[data-report-send]', box).disabled = false;
     });
     $('[data-report-send]', box).addEventListener('click', async (e) => {
