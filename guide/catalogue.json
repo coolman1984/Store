@@ -1065,6 +1065,12 @@
       "roles": []
     },
     {
+      "id": "practice-shop",
+      "page": "help",
+      "errors": ["err.practiceOnly", "err.practicePort", "err.trainingUsers"],
+      "roles": []
+    },
+    {
       "id": "licence-locked",
       "page": "settings",
       "errors": [

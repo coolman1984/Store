@@ -17,7 +17,8 @@ KEYS = ['product_id', 'location_id', 'from_location_id', 'to_location_id', 'sale
         'refund_method', 'condition', 'cash_received', 'account', 'category', 'group', 'unit', 'warranty_months', 'credit_limit',
         'effective', 'price_kind', 'value', 'settings', 'active', 'fractional', 'track_serial', 'shelf', 'review', 'key']
 NESTED = ['lines', 'payments', 'instalment', 'customer', 'delivery', 'guarantor', 'items', 'values', 'prices', 'products']
-SKIP = {'/api/setup', '/api/backup/now', '/api/logout', '/api/password', '/api/backup/restore', '/api/licence/activate', '/api/login', '/api/user/save'}
+SKIP = {'/api/setup', '/api/backup/now', '/api/logout', '/api/password', '/api/backup/restore', '/api/licence/activate', '/api/login', '/api/user/save',
+        '/api/practice/open'}  # starts a real second program: tested with real processes in test_training
 
 
 def bodies(junk):

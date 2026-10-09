@@ -39,10 +39,12 @@ import core  # noqa: E402
 import ids  # noqa: E402
 import licence  # noqa: E402
 import money as cash  # noqa: E402
+import practice as practice_mod  # noqa: E402
 import reports  # noqa: E402
 import sales  # noqa: E402
 import stock  # noqa: E402
 import support  # noqa: E402
+import training  # noqa: E402
 import trial  # noqa: E402
 from auth import AuthError, Forbidden  # noqa: E402
 from core import Ctx, Problem  # noqa: E402
@@ -63,7 +65,7 @@ TYPES = {'.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf
          '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon'}
 # writes allowed while the licence does not give full access: reading, keeping data safe, and getting a new code
 OPEN_WRITES = {'/api/setup', '/api/login', '/api/logout', '/api/password', '/api/recover', '/api/licence/activate', '/api/backup/now',
-               '/api/shift/close', '/api/watch/review', '/api/support/save', '/api/support/ping',
+               '/api/shift/close', '/api/watch/review', '/api/support/save', '/api/support/ping', '/api/practice/open',
                '/api/guide/progress', '/api/consent/decide', '/api/telemetry/events',
                '/api/telemetry/feedback', '/api/telemetry/feedback/preview'}
 DRAIN_LIMIT = 8 * 1048576  # a too-large body up to this size is read and dropped before the answer
@@ -103,6 +105,7 @@ class App:
         self.db = Database(os.path.join(self.data_dir, 'store.db'), self.backup_dir)
         self.org_id = self._meta_id('org_id')
         self.branch_id = self._meta_id('branch_id')
+        practice_mod.guard(self.db, practice, home)  # a made-up shop never opens real data, and the real shop never opens made-up data
         self.auth = auth_mod.Auth(self.db, self.org_id, self.practice)
         self.assist = assist.Assist(self)
         self._static = {}
@@ -186,6 +189,31 @@ class App:
                 self.auth = auth_mod.Auth(self.db, self.org_id, self.practice)
                 if getattr(self, 'assist', None):
                     self.assist.rebind()
+
+    def reset_practice(self):
+        """Practice shop only: throw the made-up shop away (database, backups) and build a fresh one with the same accounts.
+        Refused anywhere else, and in any folder that is not marked as a practice folder, so it can never touch a real shop."""
+        if not self.practice or practice_mod.kind_of(self.db) != 'practice' or not os.path.exists(os.path.join(self.home, practice_mod.MARKER)):
+            raise Problem('err.practiceOnly', 'This is available in the practice shop only.', 403)
+        import sample
+        target = self.db.path
+        with self.db.lock:
+            self.db.conn.close()
+            for suffix in ('', '-wal', '-shm'):
+                try:
+                    os.remove(target + suffix)
+                except FileNotFoundError:
+                    pass
+            shutil.rmtree(self.backup_dir, ignore_errors=True)
+            os.makedirs(self.backup_dir, exist_ok=True)
+            fresh = Database(target, self.backup_dir)
+            self.db.conn = fresh.conn
+        self.org_id = self._meta_id('org_id')
+        self.branch_id = self._meta_id('branch_id')
+        self.auth = auth_mod.Auth(self.db, self.org_id, self.practice)
+        self.assist.rebind()
+        self.failed_ips = {}
+        sample.load(self)
 
     def static(self, rel, gz):
         """Static file bytes (+ gzip copy) cached in memory, with an ETag from the content."""
@@ -553,6 +581,12 @@ class Handler(BaseHTTPRequestHandler):
                  'locations': db.all('SELECT * FROM locations ORDER BY active DESC, kind DESC, name')}
         elif path == '/api/licence':
             d = {**APP.licence(), 'vendor_telegram': vendor_telegram(APP.cfg.get('vendor_telegram'))}
+        elif path == '/api/practice':  # the real shop asks whether the practice shop runs; the practice shop just says it is the one
+            d = {'state': 'here', 'url': ''} if APP.practice else practice_mod.status(APP)
+        elif path == '/api/training':  # the three exercises and where this person stands (practice shop only)
+            if not APP.practice:
+                raise Problem('err.practiceOnly', 'Training is available in the practice shop only.', 403)
+            d = training.view(APP)
         elif path == '/api/licence/request':  # where the request for a code stands (the poll token never leaves the server)
             ctx.need('settings.edit')
             d = trial.public(APP)
@@ -653,6 +687,19 @@ class Handler(BaseHTTPRequestHandler):
             with APP.db.tx():
                 trial.begin(APP, ctx, data.get('kind'), str(data.get('ref') or ''))
             return self.send(200, trial.step(APP))
+        if path == '/api/practice/open':  # starts the practice shop (its own folder and port) for the person who asked; touches no shop data
+            if APP.practice:
+                return self.send(200, {'state': 'here', 'url': ''})
+            out = practice_mod.launch(APP)
+            with APP.db.tx():
+                ctx.audit('practice.open', 'practice', '', {'state': out['state']})
+            return self.send(200, out)
+        if path == '/api/practice/reset':  # practice shop only: the made-up shop is rebuilt; everyone signs in again
+            ctx.need('settings.edit')
+            APP.reset_practice()
+            log.info('practice shop rebuilt on request')
+            return self.send(200, {'ok': True, 'login': True},
+                             headers={'Set-Cookie': f'{cookie_name()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
         if path == '/api/support/ping':  # network call: never while the database is locked for a write
             ctx.need('settings.edit')
             return self.send(200, support.send(APP))
@@ -693,6 +740,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def write(self, path, ctx, u, data):
         db = APP.db
+        if path == '/api/training/start':  # sets an exercise up with made-up rows (practice shop only), or sets it up again
+            return training.start(APP, ctx, data.get('lesson'), data.get('restart') is True)
         if path == '/api/password':
             APP.auth.verify(u['username'], data.get('old'))
             APP.auth.update(u['id'], {'password': data.get('new')})
@@ -889,8 +938,10 @@ def _is_private_ip(host):
 
 
 def default_home(practice):
-    if os.environ.get('STORE_HOME'):
-        return os.environ['STORE_HOME']
+    if practice and os.environ.get('STORE_PRACTICE_HOME'):
+        return os.environ['STORE_PRACTICE_HOME']
+    if os.environ.get('STORE_HOME'):  # the practice shop sits beside it, never inside it and never on it
+        return practice_mod.home_for(os.environ['STORE_HOME']) if practice else os.environ['STORE_HOME']
     if os.name == 'nt' and os.environ.get('PROGRAMDATA') and FROZEN:
         base = os.path.join(os.environ['PROGRAMDATA'], 'Al-Store')
     else:
@@ -907,9 +958,11 @@ def build(home, practice=False, port=None, host=None):
     return APP
 
 
-def serve(app, open_browser=None):
+def serve(app, open_browser=None, parent=None):
     httpd = ThreadingHTTPServer((app.cfg['host'], int(app.cfg['port'])), Handler)
     httpd.daemon_threads = True
+    if parent and app.practice:  # started by the real shop: ends with it
+        practice_mod.follow(parent, httpd.shutdown)
 
     def keep_backing_up():
         while True:
@@ -976,6 +1029,7 @@ def main(argv=None):
     parser.add_argument('--port', type=int)
     parser.add_argument('--host')
     parser.add_argument('--no-browser', action='store_true')
+    parser.add_argument('--parent', type=int, help=argparse.SUPPRESS)  # the real shop that started this practice shop
     parser.add_argument('--version', action='store_true')
     args = parser.parse_args(argv)
     if args.version:
@@ -990,7 +1044,10 @@ def main(argv=None):
     except NewerData:
         say('هذه البيانات من نسخة أحدث من البرنامج. ثبّت النسخة الأحدث.')
         return 2
-    serve(app, False if args.no_browser else None)
+    except practice_mod.WrongShop as e:
+        say(e.words())
+        return 3
+    serve(app, False if args.no_browser else None, args.parent)
     return 0
 
 

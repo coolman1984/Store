@@ -19,7 +19,8 @@ import ids
 
 # read routes that need no ticks: they are about the signed-in person themself, or are scoped to what they did
 OWN = {'/api/me', '/api/home', '/api/lookups', '/api/sales', '/api/shift', '/api/shifts', '/api/licence', '/api/guide/state',
-       '/api/consent/status', '/api/consent/prompt', '/api/telemetry/sent', '/api/boot'}
+       '/api/consent/status', '/api/consent/prompt', '/api/telemetry/sent', '/api/boot',
+       '/api/practice', '/api/training'}  # the last two: about the practice shop only; the real shop refuses /api/training itself
 
 
 class Matrix(unittest.TestCase):

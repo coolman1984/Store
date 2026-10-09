@@ -249,6 +249,140 @@ class TwoShopsOneBrowser(Browser):
 
 
 @SKIP
+class TrainingByClicking(Browser):
+    """The three practice-shop exercises done with real clicks, by the account each one names. After the steps the exercise says "done" only
+    because the shop's own books are right (a damaged return approved by a manager, a closed shift with no difference, a settled count)."""
+
+    def lesson_data(self, pg, name):
+        lessons = pg.evaluate("fetch('/api/training').then((r) => r.json())")['lessons']
+        return next(x for x in lessons if x['id'] == name)
+
+    def start(self, pg, name):
+        self.go(pg, 'help')
+        pg.wait_for_selector(f'[data-lesson="{name}"]')
+        pg.click(f'[data-start="{name}"]')
+        pg.wait_for_selector(f'[data-lesson="{name}"] [data-check]')
+        self.assertEqual(pg.get_attribute(f'[data-lesson="{name}"] [data-state]', 'data-state'), 'open')
+
+    def check(self, pg, name):
+        self.go(pg, 'help')
+        pg.wait_for_selector(f'[data-lesson="{name}"] [data-check]')
+        pg.click(f'[data-lesson="{name}"] [data-check]')
+        pg.wait_for_selector(f'[data-lesson="{name}"] [data-state="done"]')
+        self.assertEqual(len(pg.query_selector_all(f'[data-lesson="{name}"] .train-checks li.ok')), len(pg.query_selector_all(f'[data-lesson="{name}"] .train-checks li')))
+
+    def test_a_defective_fridge_comes_back(self):
+        pg = self.open('cashier')
+        self.start(pg, 'return')
+        number = self.lesson_data(pg, 'return')['data']['number']
+        self.assertIn(number, pg.inner_text('[data-lesson="return"]'))  # the story names the invoice
+        self.go(pg, 'sales?q=' + number)
+        pg.click('tr[data-id]')
+        pg.wait_for_selector('[data-return]')
+        pg.click('[data-return]')
+        pg.fill('[data-rq]', '1')
+        pg.select_option('[data-rc]', 'damaged')
+        pg.fill('#r-why', 'الباب مش بيقفل')
+        pg.click('.dialog [data-ok]')
+        pg.wait_for_selector('#ap-u')
+        pg.fill('#ap-u', 'manager')
+        pg.fill('#ap-p', 'practice-1234')
+        pg.locator('.dialog [data-ok]').last.click()
+        pg.wait_for_selector('.toast')
+        self.check(pg, 'return')
+        self.assertEqual(self.errors, [])
+
+    def test_the_drawer_is_short_by_a_forgotten_expense(self):
+        pg = self.open('cashier')
+        self.start(pg, 'drawer')
+        physical = self.lesson_data(pg, 'drawer')['data']['physical'] / 100
+        self.go(pg, 'cash')
+        pg.click('[data-expense]')
+        pg.fill('#ea', '15')
+        pg.click('[data-seg="cat"] [data-v="hospitality"]')
+        pg.fill('#en', 'شاي وقهوة')
+        pg.click('.dialog [data-ok]')
+        pg.wait_for_selector('.toast')
+        pg.wait_for_selector('.dialog', state='detached')
+        pg.click('#page [data-close]')
+        pg.fill('#cc', f'{physical:g}')
+        pg.locator('.dialog [data-ok]').last.click()
+        pg.wait_for_selector('.done-mark')
+        self.check(pg, 'drawer')
+        self.assertEqual(self.errors, [])
+
+    def test_the_shelf_holds_two_fans_fewer_than_the_books(self):
+        pg = self.open('store')
+        self.start(pg, 'count')
+        d = self.lesson_data(pg, 'count')['data']
+        self.go(pg, 'stock?tab=count')
+        pg.select_option('#cl', label=d['place'])
+        pg.click('[data-start]')
+        pg.wait_for_selector(f'[data-cnt="{d["product_id"]}"]')
+        pg.fill(f'[data-cnt="{d["product_id"]}"]', f'{d["physical"]:g}')
+        pg.press(f'[data-cnt="{d["product_id"]}"]', 'Tab')
+        pg.wait_for_selector(f'tr:has([data-cnt="{d["product_id"]}"]) .badge.bad')
+        pg.click('[data-close-count]')
+        pg.fill('#why', 'ناقص من الرف')
+        pg.locator('.dialog [data-ok]').last.click()
+        pg.wait_for_selector('.toast')
+        self.check(pg, 'count')
+        self.assertEqual(self.errors, [])
+
+    def test_a_restart_sets_the_problem_up_again_and_the_owner_can_rebuild_everything(self):
+        pg = self.open('owner')
+        self.start(pg, 'drawer')
+        first = self.lesson_data(pg, 'drawer')['data']['shift_id']
+        pg.click('[data-restart="drawer"]')
+        pg.click('.dialog [data-ok]')
+        self.until(pg, "document.querySelector('[data-lesson=\"drawer\"] .small.muted')?.textContent.includes('2')")
+        self.assertNotEqual(self.lesson_data(pg, 'drawer')['data']['shift_id'], first)
+        pg.click('[data-reset]')
+        pg.click('.dialog [data-ok]')
+        pg.wait_for_selector('#auth-form')  # everyone signs in again
+        pg.fill('#username', 'owner')
+        pg.fill('#password', 'practice-1234')
+        pg.click('button[type=submit]')
+        pg.wait_for_selector('.shell')
+        self.go(pg, 'help')
+        pg.wait_for_selector('[data-start="drawer"]')  # nothing was started in the fresh shop
+        self.assertEqual(self.errors, [])
+
+
+@SKIP
+class OpeningThePracticeShop(Browser):
+    """From the real shop's Help page, one button starts the practice shop and offers its link."""
+    practice = False
+
+    def test_the_button_starts_it_and_offers_the_link(self):
+        import shutil
+        import practice as practice_mod
+        from harness import free_port
+        port = free_port()
+        self.S.app.cfg['practice_port'] = port
+        mine = self.S.app.home + '-practice'
+        try:
+            pg = self.open(OWNER[0], OWNER[1])
+            self.go(pg, 'help')
+            pg.wait_for_selector('[data-open-practice]')
+            self.assertEqual(pg.query_selector_all('[data-lesson]'), [])  # the exercises live in the practice shop only
+            pg.click('[data-open-practice]')
+            pg.wait_for_selector(f'a[href="http://127.0.0.1:{port}/"]', timeout=60000)
+            popup = [p for p in pg.context.pages if p is not pg]
+            if popup:
+                popup[0].wait_for_selector('#auth-form', timeout=30000)
+                self.assertIn('تدريب', popup[0].inner_text('body'))
+            self.assertEqual(self.S.app.db.value('SELECT COUNT(*) FROM sales'), 0)
+            self.assertEqual(self.errors, [])
+        finally:
+            if practice_mod._child is not None:
+                practice_mod._child.terminate()
+                practice_mod._child.wait(15)
+                practice_mod._child = None
+            shutil.rmtree(mine, ignore_errors=True)
+
+
+@SKIP
 class LeavingWhileLoading(Browser):
     """Going to another page while the Today numbers are still on their way must not break anything (found by CI on 2026-10-09: the
     late answer looked for a box that was no longer on the screen and raised an error)."""

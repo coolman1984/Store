@@ -27,6 +27,7 @@
 - [x] Support heartbeat to the Vendor Control Center (opt-in, exact fields; Settings → Support)
 - [x] Barcode on the receipt + sticker labels (per copy or per serial) — Code 128, decoded by a real scanner library in the check
 
+- [x] 1.7.0 practice shop opened from Help + three hands-on exercises checked from the books + rebuild; practice and real folders can never be mixed (`server/practice.py`, `server/training.py`, `tests/test_training.py`)
 - [x] 1.6.0 ask for the trial from the licence screen; the signed code switches the program on by itself (Telegram to the owner, owner-approved policy in the Licence Studio); independent review fixes: read leaks, refund by tender, practice cookie, header triggers
 
 ## Next (in order) — full list and reasons in docs/03-ready-to-sell.md

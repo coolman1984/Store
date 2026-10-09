@@ -348,3 +348,8 @@ html[data-print="r80"] { --page: 80mm; } html[data-print="r58"] { --page: 58mm; 
   .top { padding-inline: var(--s-2); gap: var(--s-1); }
   .top-end { gap: var(--s-1); }
 }
+
+/* practice shop exercises */
+.train-checks { list-style: none; margin: var(--s-3) 0; padding: 0; display: grid; gap: var(--s-2); }
+.train-checks li { display: flex; align-items: center; gap: var(--s-2); color: var(--ink-3); }
+.train-checks li.ok { color: var(--ok); }
