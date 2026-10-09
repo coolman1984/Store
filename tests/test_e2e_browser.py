@@ -249,6 +249,23 @@ class TwoShopsOneBrowser(Browser):
 
 
 @SKIP
+class LeavingWhileLoading(Browser):
+    """Going to another page while the Today numbers are still on their way must not break anything (found by CI on 2026-10-09: the
+    late answer looked for a box that was no longer on the screen and raised an error)."""
+
+    def test_leaving_today_before_its_numbers_arrive_is_quiet(self):
+        pg = self.open('owner')
+        self.go(pg, 'customers')
+        pg.route('**/api/home**', lambda r: (pg.wait_for_timeout(1200), r.continue_()))
+        pg.evaluate("location.hash = '#/home'")
+        pg.wait_for_timeout(200)
+        pg.evaluate("location.hash = '#/sales'")
+        pg.wait_for_timeout(2200)
+        self.assertIn('المبيعات', pg.inner_text('#page h1'))
+        self.assertEqual(self.errors, [])
+
+
+@SKIP
 class PeopleAndProfiles(Browser):
     """The owner checks who can do what, makes a profile and takes a page away from the cashier; the cashier no longer
     sees it in the menu and gets the "not allowed" card when typing its address (the server refuses its data too)."""

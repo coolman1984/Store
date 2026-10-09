@@ -41,7 +41,8 @@ export default async function view(page) {
     ${can('stock.receive') ? html`<a class="btn" href="#/receive">${icon('truck')}${t('nav.receive')}</a>` : ''}</div></div>
     <div id="home-body">${skeleton(6)}</div>`);
   let d;
-  try { d = await api.get('/api/home'); } catch (e) { put($('#home-body', page), html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); return; }
+  try { d = await api.get('/api/home'); } catch (e) { const gone = $('#home-body', page); if (gone) put(gone, html`<div class="card">${empty('alert', t('err.title'), errorText(e))}</div>`); return; }
+  if (!$('#home-body', page)) return;  // the person already went to another page while the numbers were coming
   const s = d.summary, y = d.yesterday;
   const trend = s && y && y.net ? Math.round(((s.net - y.net) / Math.abs(y.net)) * 100) : null;
   const body = [];
