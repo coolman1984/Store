@@ -7,6 +7,8 @@ on:
   push:
     branches: [main, 'ccr-**', 'claude/**']
     tags: ['v*']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read  # builds and uploads an artifact only; nothing is published from here
