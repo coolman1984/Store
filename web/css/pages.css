@@ -348,6 +348,14 @@ html[data-print="r80"] { --page: 80mm; } html[data-print="r58"] { --page: 58mm; 
   .top { padding-inline: var(--s-2); gap: var(--s-1); }
   .top-end { gap: var(--s-1); }
 }
+/* The factory's smallest screen is 320px (design-factory/DESIGN.md): there the bar overflowed by 10-21px on every page. The mark is
+   already on the splash and in the rail, so the bar keeps its actions: search becomes a button of its own width, the label goes. */
+@media (max-width: 340px) {
+  .top .mobile-mark { display: none; }
+  .top .search-pill { flex: 0 0 auto; padding-inline: var(--s-3); }
+  .top .search-pill > span.grow { display: none; }
+  .btn { white-space: normal; max-inline-size: 100%; padding-inline: var(--s-4); line-height: 1.3; } /* a long label wraps instead of leaving its card */
+}
 
 /* practice shop exercises */
 .train-checks { list-style: none; margin: var(--s-3) 0; padding: 0; display: grid; gap: var(--s-2); }

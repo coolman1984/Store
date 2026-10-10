@@ -1,21 +1,19 @@
-# Mizan (ميزان) — design system v2 and redesign record
+# Al-Store (الستور) — design system v2 and redesign record
 
 Source standard: `Apps-Factory/design-factory/DESIGN.md` v2 (2026-10-08) and `DESIGN_CONSTITUTION.md`. This file supersedes the
 specification-only draft on branch `feat/store-world-class-design-spec-20261008`: everything that draft asked for is now built.
 
 ## 1. Brand
 
-**Name: ميزان · Mizan** ("the scale"). Chosen over the alternatives because it says the product's promise in one word a shop
-owner already uses: the drawer balances, stock balances, customer and supplier books balance. It is short, easy in Arabic and
-English, and works as a verb-free noun on a receipt, an installer and a shop sign.
+**Name: الستور · Al-Store.** From 2026-10-08 to 2026-10-10 the display name was «ميزان · Mizan». It is **withdrawn**: `Accounting-sys`
+is the owner's accounting product and is already called Mizan, so two products under one name would confuse customers, licences,
+support and any future link between them (found by the review of the factory's PR #9). The Store goes back to the name its
+installer, data folder, repository and licence product id already use. This is a working resolution, not a brand decision: any new
+brand name is the owner's choice after a trademark and domain search (EG, SA, AE); «قسطاس · Qistas» was noted earlier as a candidate and is not decided.
 
-- **Legal status: provisional.** Not trademark- or domain-cleared. Known risk: *Meezan Bank* (Pakistan) and several small
-  "Mizan" accounting tools exist; a class 9/42 search in Egypt, KSA and UAE is needed before selling under this name.
-  Backup candidate if it fails: **قسطاس · Qistas** (Qur'anic word for an exact balance; rarer in commerce).
-- **What changed in the product:** only the *display* name (`app.name` in both dictionaries), the mark, the colours, the
-  favicon, the Windows icon, the manifest and the splash. The program id `al-store`, licence codes, the data folder
-  `%ProgramData%\Al-Store`, the installer file name and the server's `version.PRODUCT` are **unchanged**, so existing shops,
-  licences and backups keep working. Renaming those waits for legal clearance.
+- **What changed in the product:** only the *display* name (`app.name` in both dictionaries), the web manifest, the page title, the splash label and the logo
+  files. The mark, the colours, the favicon and the Windows icon are the same: the visual identity does not depend on the name. The program id `al-store`,
+  licence codes, the data folder `%ProgramData%\Al-Store`, the installer file name and the server's `version.PRODUCT` never changed.
 - **Mark:** two equal bars (books that balance) resting on a fulcrum (the scale). Drawn on a 48-unit grid; one geometry in
   `web/js/brand.js`, `web/index.html` (splash), `web/img/icon.svg` and `tools/make_icon.py` — a test keeps them identical.
   It stays legible at 16 px (checked as a Windows icon at 16/32/48/256).

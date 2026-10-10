@@ -144,7 +144,7 @@ def contrast(a, b):
 
 
 class DesignSystem(unittest.TestCase):
-    """Mizan design system v2: the tokens keep WCAG AA contrast in both themes, the mark is one drawing everywhere."""
+    """Al-Store design system v2 (the scale mark, navy/ivory/copper): the tokens keep WCAG AA contrast in both themes, the mark is one drawing everywhere."""
 
     @classmethod
     def setUpClass(cls):
@@ -172,6 +172,19 @@ class DesignSystem(unittest.TestCase):
                 self.assertIn(part, text, rel)
         icon = read(os.path.join(ROOT, 'tools', 'make_icon.py'))
         self.assertIn('(24 * u, 26 * u), (32 * u, 36 * u), (16 * u, 36 * u)', icon)
+
+    def test_the_product_is_called_al_store_and_never_mizan(self):
+        """«Mizan» is the owner's accounting product (factory decision of 2026-10-10): nothing a shop sees may carry it."""
+        for rel in ('index.html', 'manifest.webmanifest', 'i18n/ar.js', 'i18n/en.js', 'js/brand.js', 'js/app.js'):
+            text = read(os.path.join(WEB, rel))
+            self.assertNotRegex(text, r'ميزان|Mizan|MIZAN', rel)
+        ar, en = read(os.path.join(WEB, 'i18n', 'ar.js')), read(os.path.join(WEB, 'i18n', 'en.js'))
+        self.assertIn("'app.name': 'الستور'", ar)
+        self.assertIn("'app.name': 'Al-Store'", en)
+        brand = os.path.join(ROOT, 'docs', 'brand')
+        self.assertFalse([f for f in os.listdir(brand) if 'mizan' in f.lower()], 'logo files carry the new name')
+        for f in os.listdir(brand):
+            self.assertNotRegex(read(os.path.join(brand, f)), r'Mizan|ميزان', f)
 
     def test_no_leftover_of_the_old_identity(self):
         for path in JS + CSS:

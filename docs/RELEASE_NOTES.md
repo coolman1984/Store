@@ -1,5 +1,12 @@
 # Release notes
 
+## 1.9.0
+- **The program is called «الستور» (Al-Store) again.** For two days its screens, tab title and logo said «ميزان / Mizan», which is the name of your accounting program. The look (the scale mark, navy, ivory, copper) is the same; only the name changed. Nothing about licences, data folders or installers changed.
+- **Works on the smallest phones (320 px).** The top bar was wider than the screen on every page, and one long button on the backup page left its card. Both fixed, and a test now checks every page at 320 px in both languages.
+- **A fourth practice exercise, for the owner:** «خصم كبير محتاج تبص عليه». The practice shop sets up a 12% discount that a manager approved; the owner finds it in «عين صاحب المحل», marks it seen with a note of his own, and the exercise is checked from the books (it says done only when the note exists). The cashier's and the storekeeper's exercises are unchanged.
+- **Tested, nothing to fix:** the three kinds of licence (14-day trial, 30-day monthly with 3 days of grace, permanent) against codes signed by the factory's own tool: the trial's last day, the monthly's grace and end, a permanent code in the year 2999, a code for another PC, a code with one character changed, a renewal that replaces the old code, a reinstall that needs a new code, a moved clock, and a backup restored after the licence ended. Reading, export, backup and restore work after the end, and restoring never revives an ended licence.
+- **Tested with the support server unreachable:** the shop goes on and says «البيع مش متأثر».
+
 ## 1.8.0
 - **Fixed: the shop could stop answering until the program was restarted.** It happened when another program (a database viewer, a copy tool, an antivirus scan) held the shop's data for a moment. Now the person reads «بيانات المحل مشغولة دلوقتي، استنى لحظة وجرّب تاني» within two seconds, reading pages keeps working, and the next press works.
 - **Faster for a big shop:** the Customers page opened in 3 seconds with 4,000 customers and years of sales; it now opens at once. The safe's balance, a shift's summary and today's returns are faster too.

@@ -1,6 +1,6 @@
 // العربية — لغة البرنامج الأساسية. كلام بسيط وواضح يفهمه أي حد في المحل. كل مفتاح لازم يكون موجود كمان في en.js.
 export default {
-  'app.name': 'ميزان', 'app.nameAlt': 'MIZAN', 'app.tag': 'حسابات محلك موزونة', 'app.practice': 'محل تدريب', 'app.practiceBar': 'ده محل تجريبي ببيانات وهمية. اتعلّم براحتك، ومفيش أي حاجة هنا بتأثر على محلك الحقيقي.',
+  'app.name': 'الستور', 'app.nameAlt': 'AL-STORE', 'app.tag': 'حسابات محلك مظبوطة', 'app.practice': 'محل تدريب', 'app.practiceBar': 'ده محل تجريبي ببيانات وهمية. اتعلّم براحتك، ومفيش أي حاجة هنا بتأثر على محلك الحقيقي.',
   cur: 'ج.م', saved: 'اتحفظ ✓',
   'time.now': 'دلوقتي', 'time.min': 'من {n} دقيقة', 'time.hour': 'من {n} ساعة', 'time.day': 'من {n} يوم',
 
@@ -288,7 +288,7 @@ export default {
   'backup.yourPassword': 'اكتب كلمة السر بتاعتك للتأكيد', 'backup.done': 'النسخة اتعملت ✓', 'backup.restored': 'اتسترجعت. البرنامج هيفتح من تاني.',
   'pref.title': 'إعدادات الجهاز ده بس', 'pref.hint': 'مش بتأثر على باقي الأجهزة.', 'pref.lang': 'اللغة', 'pref.theme': 'الشكل', 'pref.auto': 'تلقائي', 'pref.day': 'فاتح',
   'pref.night': 'غامق', 'pref.contrast': 'تباين عالي', 'pref.size': 'حجم الكلام', 'pref.motion': 'الحركة', 'pref.motionOff': 'من غير حركة', 'pref.sound': 'صوت الباركود',
-  'pref.on': 'شغال', 'pref.off': 'مقفول', 'about.version': 'ميزان نسخة {v}',
+  'pref.on': 'شغال', 'pref.off': 'مقفول', 'about.version': 'الستور نسخة {v}',
 
   'print.notReceipt': 'مش فاتورة حقيقية', 'print.taxNo': 'رقم ضريبي', 'print.invoice': 'فاتورة', 'print.cashier': 'الكاشير', 'print.plan': 'خطة التقسيط',
   'print.planLine': '{n} قسط × {m}، أولهم {d}', 'print.warranty': 'الضمان', 'print.until': 'لحد',

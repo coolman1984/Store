@@ -1,4 +1,4 @@
-"""Draws the Mizan mark (the same shape as web/img/icon.svg) into a Windows .ico. Build-time only: needs Pillow.
+"""Draws the Al-Store mark (the same shape as web/img/icon.svg) into a Windows .ico. Build-time only: needs Pillow.
 
     python tools/make_icon.py build/store.ico
 """

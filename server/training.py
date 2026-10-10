@@ -1,4 +1,4 @@
-"""Hands-on training inside the practice shop: three everyday problems, each set up fresh with made-up goods and money, and checked
+"""Hands-on training inside the practice shop: four everyday problems, each set up fresh with made-up goods and money, and checked
 from the shop's own books.
 
 A lesson never reads what the person clicked. It reads what the books now say (a return row, a closed shift, a settled count) with
@@ -6,12 +6,14 @@ the same tables the reports use, so "done" means the shop really ended up right,
 restarting a lesson only ADDS new made-up rows (a new sale, a new shift, new stock): nothing is edited or deleted (the ledger
 tables refuse that), and it only ever runs in the practice shop (`App.practice`; the real shop answers 403 to every call here).
 
-The three problems:
+The four problems:
 - `return`: a customer brings back a fridge whose door does not shut. The cashier takes it back as defective, a manager approves,
   the cash goes back from the drawer.
 - `drawer`: the drawer is 15 pounds short. The cause is a tea-and-coffee payment nobody wrote down. Record it, then close the shift
   with the real count: the difference is zero.
 - `count`: the shelf holds two fans fewer than the books say. Count it, close the count with a reason, the books follow the shelf.
+- `discount` (the owner's): a cashier gave a 12% discount a manager approved. The owner finds it in the Owner's eye and marks it
+  seen with a note of his own. Nothing in the ledger changes; the lesson reads the review row.
 
 The full reset (throw the practice shop away and rebuild it) is `App.reset_practice`.
 """
@@ -24,11 +26,12 @@ import sample
 import stock
 from core import Problem
 
-LESSONS = ('return', 'drawer', 'count')
-ACCOUNT = {'return': 'cashier', 'drawer': 'cashier', 'count': 'store'}  # whom the person signs in as for this lesson
+LESSONS = ('return', 'drawer', 'count', 'discount')
+ACCOUNT = {'return': 'cashier', 'drawer': 'cashier', 'count': 'store', 'discount': 'owner'}  # whom the person signs in as for this lesson
 APPROVER = 'manager'
 MISSING_CASH = 1500    # 15 pounds in piasters
 MISSING_PIECES = 2
+DISCOUNT_PCT = 12      # above the cashier's 5% and inside the manager's 15%: a manager must approve it, and the Owner's eye lists it from 10%
 KEY = 'training'
 
 PRODUCT_FRIDGE = 'ثلاجة ديفروست 14 قدم'
@@ -160,7 +163,25 @@ def _prepare_count(app):
             'expected': onhand, 'physical': onhand - MISSING_PIECES, 'missing': MISSING_PIECES}
 
 
-PREPARE = {'return': _prepare_return, 'drawer': _prepare_drawer, 'count': _prepare_count}
+def _prepare_discount(app):
+    db = app.db
+    cctx = _ctx(app, 'cashier')
+    _shift(app, cctx)
+    product = _product(db, PRODUCT_FAN, serial=False)
+    shop = _place(db, 'shop')
+    if stock.on_hand(db, product['id'], shop) < 3:
+        _stock_up(app, product['id'], shop, 10)
+    lines = [{'product_id': product['id'], 'qty': 1}]
+    subtotal = sales.quote(cctx, {'lines': lines})['subtotal']
+    discount = (subtotal * DISCOUNT_PCT // 100 // 100) * 100
+    cctx.approver = _user(app, APPROVER)   # the manager signed it off at the counter; the owner has not seen it yet
+    sale = sales.sell(cctx, {'idem_key': ids.uuid7(), 'lines': lines, 'discount': discount,
+                             'payments': [{'method': 'cash', 'amount': subtotal - discount}]})
+    return {'sale_id': sale['id'], 'number': sale['number'], 'product': product['name'], 'given': discount,
+            'pct': round(discount * 100 / subtotal), 'approver': APPROVER}
+
+
+PREPARE = {'return': _prepare_return, 'drawer': _prepare_drawer, 'count': _prepare_count, 'discount': _prepare_discount}
 
 
 # ------------------------------------------------------------------ reading the books
@@ -191,7 +212,12 @@ def _checks_count(db, d):
     return [('counted', bool(line and line['counted'] == d['physical'])), ('closed', closed), ('settled', closed and moved == -d['missing'])]
 
 
-CHECK = {'return': _checks_return, 'drawer': _checks_drawer, 'count': _checks_count}
+def _checks_discount(db, d):
+    r = db.one('SELECT note FROM watch_reviews WHERE item = ?', 'disc:' + d['sale_id'])
+    return [('seen', bool(r)), ('noted', bool(r and r['note'].strip() not in ('', '✓')))]
+
+
+CHECK = {'return': _checks_return, 'drawer': _checks_drawer, 'count': _checks_count, 'discount': _checks_discount}
 
 
 def view(app):

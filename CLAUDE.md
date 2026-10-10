@@ -24,5 +24,5 @@ then `docs/02-product-spec.md` here, then `TASKS.md` (where to continue) and `DE
 `server/app.py` HTTP + security · `auth.py` people/permissions · `catalog.py` products/prices · `stock.py` places/serials/receiving/
 transfers/counts · `sales.py` counter/returns/warranty · `money.py` shifts/drawer/safe/customers/instalments/suppliers ·
 `reports.py` reports/advisor/owner's eye · `licence.py` + vendored `afcodes.py`/`ed25519.py` · vendored `afaccess.py` (factory access gate, `tests/test_access.py`) · `backup.py` · `sample.py` practice shop.
-Design: `docs/DESIGN.md` (Mizan design system v2 — tokens only, rules §6) · `web/js/brand.js` the mark.
+Design: `docs/DESIGN.md` (design system v2 — tokens only, rules §6; the product is Al-Store / الستور, «Mizan» is withdrawn) · `web/js/brand.js` the mark.
 `web/js/app.js` shell/router/palette · `ui.js` safe HTML, dialogs, approvals · `motion.js` · `views/*.js` one file per page.

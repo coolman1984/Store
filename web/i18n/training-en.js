@@ -37,4 +37,15 @@ export default {
     checks: { counted: 'Counted {physical}', closed: 'The count was closed', settled: 'The balance was settled (minus {missing})' },
     tip: 'A count never erases anything: it adds an adjustment with its reason, and the owner can see it.',
   },
+  discount: {
+    icon: 'eye', title: 'A big discount to look at',
+    story: 'Today the cashier gave {pct}% off ({given}) on invoice {number} ({product}). A manager ({approver}) approved it at the counter. As the owner, you decide whether it was fine.',
+    steps: [
+      'Sign in as {user}, password {password}.',
+      "Open Owner's eye. The discount on invoice {number} is listed there with who gave it and who approved it.",
+      'Click Seen and write your note: why it was fine, or what you will say to them.',
+      'Come back here and click Check my work.'],
+    checks: { seen: "The discount was marked as seen in the Owner's eye", noted: 'You wrote your own note (not just a tick)' },
+    tip: 'Marking something as seen never changes the money. It only records that you looked, and what you thought.',
+  },
 };

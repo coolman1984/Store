@@ -1,4 +1,4 @@
-"""Writes the Mizan logo files (docs/brand/*.svg) with the words drawn as outlines, so they look the same on any computer.
+"""Writes the Al-Store logo files (docs/brand/*.svg) with the words drawn as outlines, so they look the same on any computer.
 Build-time only: needs fonttools, brotli and uharfbuzz (pip install fonttools brotli uharfbuzz). The app itself draws the
 mark from web/js/brand.js and the words with the bundled fonts; these files are for print, the installer and the website.
 
@@ -51,23 +51,23 @@ def words(file, text, weight, size, direction, track=0.0):
 
 def lockup(tone):
     tile, beam, ink = (NAVY, IVORY, INK_DARK) if tone == 'light' else (IVORY, NAVY, '#ffffff')
-    ar, ar_w = words('alexandria-arabic-wght-normal.woff2', 'ميزان', 700, 40, 'rtl')
-    la, la_w = words('readex-pro-latin-wght-normal.woff2', 'MIZAN', 500, 11, 'ltr', track=3.2)
+    ar, ar_w = words('alexandria-arabic-wght-normal.woff2', 'الستور', 700, 40, 'rtl')
+    la, la_w = words('readex-pro-latin-wght-normal.woff2', 'AL-STORE', 500, 11, 'ltr', track=3.2)
     gap = 14
     width = 56 + gap + max(ar_w, la_w) + 2
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:.0f} 62" role="img" aria-label="ميزان Mizan">'
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:.0f} 62" role="img" aria-label="الستور Al-Store">'
             f'<g transform="translate(0 7)">{MARK.format(tile=tile, beam=beam, pan=COPPER)}</g>'
             f'<path transform="translate({56 + gap:.1f} 33)" fill="{ink}" d="{ar}"/>'
-            f'<path transform="translate({56 + gap + ar_w - la_w:.1f} 59)" fill="{COPPER}" d="{la}"/></svg>')  # under the word, aligned to where Arabic starts
+            f'<path transform="translate({56 + gap + max(0.0, ar_w - la_w):.1f} 59)" fill="{COPPER}" d="{la}"/></svg>')  # under the word, aligned to where Arabic starts
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
     files = {
-        'mizan-mark.svg': f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">{MARK.format(tile=NAVY, beam=IVORY, pan=COPPER)}</svg>',
-        'mizan-mark-on-dark.svg': f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">{MARK.format(tile=IVORY, beam=NAVY, pan=COPPER)}</svg>',
-        'mizan-logo-on-light.svg': lockup('light'),
-        'mizan-logo-on-dark.svg': lockup('dark'),
+        'store-mark.svg': f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">{MARK.format(tile=NAVY, beam=IVORY, pan=COPPER)}</svg>',
+        'store-mark-on-dark.svg': f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">{MARK.format(tile=IVORY, beam=NAVY, pan=COPPER)}</svg>',
+        'store-logo-on-light.svg': lockup('light'),
+        'store-logo-on-dark.svg': lockup('dark'),
     }
     for name, svg in files.items():
         with open(os.path.join(OUT, name), 'w', encoding='utf-8') as f:

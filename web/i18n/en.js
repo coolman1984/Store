@@ -1,6 +1,6 @@
 // English. Every key here exists in ar.js too (tests/test_frontend.py checks both ways).
 export default {
-  'app.name': 'Mizan', 'app.nameAlt': 'ميزان', 'app.tag': 'Retail books in balance', 'app.practice': 'Practice shop', 'app.practiceBar': 'A practice shop with made-up data. Learn freely: nothing here touches your real shop.',
+  'app.name': 'Al-Store', 'app.nameAlt': 'الستور', 'app.tag': 'Retail books in balance', 'app.practice': 'Practice shop', 'app.practiceBar': 'A practice shop with made-up data. Learn freely: nothing here touches your real shop.',
   cur: 'EGP', saved: 'Saved ✓',
   'time.now': 'just now', 'time.min': '{n} min ago', 'time.hour': '{n} h ago', 'time.day': '{n} days ago',
 
@@ -288,7 +288,7 @@ export default {
   'backup.yourPassword': 'Type your password to confirm', 'backup.done': 'Backup made ✓', 'backup.restored': 'Restored. The program reopens.',
   'pref.title': 'Settings of this device only', 'pref.hint': 'They do not change other devices.', 'pref.lang': 'Language', 'pref.theme': 'Look', 'pref.auto': 'Automatic', 'pref.day': 'Light',
   'pref.night': 'Dark', 'pref.contrast': 'High contrast', 'pref.size': 'Text size', 'pref.motion': 'Motion', 'pref.motionOff': 'No motion', 'pref.sound': 'Scan sound',
-  'pref.on': 'On', 'pref.off': 'Off', 'about.version': 'Mizan version {v}',
+  'pref.on': 'On', 'pref.off': 'Off', 'about.version': 'Al-Store version {v}',
 
   'print.notReceipt': 'not a real receipt', 'print.taxNo': 'Tax no.', 'print.invoice': 'Invoice', 'print.cashier': 'Cashier', 'print.plan': 'Instalment plan',
   'print.planLine': '{n} instalments × {m}, first on {d}', 'print.warranty': 'Warranty', 'print.until': 'until',
