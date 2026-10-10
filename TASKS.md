@@ -32,6 +32,7 @@
 
 - [x] 1.8.0 independent audit round: random shop days with the books checked after every step, a real-browser sweep of every page/role/language/size, probes of the write routes and the database layer; 10 defects fixed (see DEVELOPMENT_HISTORY); the owner's Telegram buttons on the licence screen
 
+- [x] 1.9.1 the trial's length is the company's per-product setting (labels no longer say 14; trials of 7, 30 and 60 days tested against signed codes)
 - [x] 1.9.0 the name الستور again (Mizan withdrawn), the 320 px phone, a fourth practice exercise for the owner (the Owner's eye), licence-kind tests against codes signed by the factory's own tool (`tests/test_licence_types.py`), a network-failure browser test (factory UX-04)
 
 ### The learn-by-doing roadmap of 2026-10-09 (the old PR #13, which only held a plan): where it stands

@@ -1,5 +1,9 @@
 # Release notes
 
+## 1.9.1
+- **The trial's length is the company's to set for each product.** The screens no longer promise «14 يوم»: the button says «اطلب تجربة», and the real length arrives inside the code (14 days unless the company set another for Al-Store). The shop reads only the last day written in the code, as before: nothing about the trial's length is assumed, and a code already on a PC is never changed by what the company sets later. A trial of 7, 30 and 60 days is tested against codes signed by the factory's own tool (last day, no grace, tied to the PC).
+- Nothing else changes. The licence code format is the same.
+
 ## 1.9.0
 - **The program is called «الستور» (Al-Store) again.** For two days its screens, tab title and logo said «ميزان / Mizan», which is the name of your accounting program. The look (the scale mark, navy, ivory, copper) is the same; only the name changed. Nothing about licences, data folders or installers changed.
 - **Works on the smallest phones (320 px).** The top bar was wider than the screen on every page, and one long button on the backup page left its card. Both fixed, and a test now checks every page at 320 px in both languages.
