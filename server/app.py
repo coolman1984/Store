@@ -599,7 +599,7 @@ class Handler(BaseHTTPRequestHandler):
             d = {**APP.licence(), 'vendor_telegram': vendor_telegram(APP.cfg.get('vendor_telegram'))}
         elif path == '/api/practice':  # the real shop asks whether the practice shop runs; the practice shop just says it is the one
             d = {'state': 'here', 'url': ''} if APP.practice else practice_mod.status(APP) if self.local() else {'state': 'remote', 'url': ''}
-        elif path == '/api/training':  # the three exercises and where this person stands (practice shop only)
+        elif path == '/api/training':  # the four exercises and where this person stands (practice shop only)
             if not APP.practice:
                 raise Problem('err.practiceOnly', 'Training is available in the practice shop only.', 403)
             d = training.view(APP)

@@ -42,7 +42,7 @@ function realBox(host) {
 function vars(l, v) {
   const d = l.data || {};
   const count = l.id === 'count';
-  return { user: l.account, password: v.password, approver: v.approver, customer: d.customer, number: d.number, product: d.product, place: d.place, pct: d.pct,
+  return { user: l.account, password: v.password, approver: v.approver, customer: d.customer, number: d.number, product: d.product, place: d.place, pct: d.pct, approver_name: d.approver_name,
     given: money(d.given || 0),
     total: money(d.total || 0), expected: count ? num(d.expected) : money(d.expected || 0), physical: count ? num(d.physical) : money(d.physical || 0),
     missing: count ? num(d.missing) : money(d.missing || 0) };

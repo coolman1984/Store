@@ -39,7 +39,7 @@ export default {
   },
   discount: {
     icon: 'eye', title: 'A big discount to look at',
-    story: 'Today the cashier gave {pct}% off ({given}) on invoice {number} ({product}). A manager ({approver}) approved it at the counter. As the owner, you decide whether it was fine.',
+    story: 'Today the cashier gave {pct}% off ({given}) on invoice {number} ({product}). A manager ({approver_name}) approved it at the counter. As the owner, you decide whether it was fine.',
     steps: [
       'Sign in as {user}, password {password}.',
       "Open Owner's eye. The discount on invoice {number} is listed there with who gave it and who approved it.",

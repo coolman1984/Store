@@ -178,7 +178,7 @@ def _prepare_discount(app):
     sale = sales.sell(cctx, {'idem_key': ids.uuid7(), 'lines': lines, 'discount': discount,
                              'payments': [{'method': 'cash', 'amount': subtotal - discount}]})
     return {'sale_id': sale['id'], 'number': sale['number'], 'product': product['name'], 'given': discount,
-            'pct': round(discount * 100 / subtotal), 'approver': APPROVER}
+            'pct': round(discount * 100 / subtotal), 'approver': APPROVER, 'approver_name': _user(app, APPROVER)['full_name']}
 
 
 PREPARE = {'return': _prepare_return, 'drawer': _prepare_drawer, 'count': _prepare_count, 'discount': _prepare_discount}

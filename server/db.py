@@ -200,8 +200,10 @@ def _speed(conn):
     for sql in SPEED_INDEXES:
         try:
             conn.execute(sql)
-        except sqlite3.OperationalError:  # the file is busy or read-only just now: the indexes only make pages faster, the next start makes them
-            pass
+        except sqlite3.OperationalError as e:  # the file is busy or read-only just now: the indexes only make pages faster, the next start makes them
+            if not any(w in str(e).lower() for w in ('lock', 'busy', 'readonly', 'read-only')):
+                import logging  # anything else (a misspelt column, a missing table) is a bug, not a busy file: it must leave a line
+                logging.getLogger('store').warning('could not make the index (%s): %s', sql.split(' ON ')[0], e)
 
 
 class NewerData(Exception):

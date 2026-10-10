@@ -26,6 +26,36 @@ class Holder:
         self.conn.close()
 
 
+class OnlyABusyFileMarksTheShopBusy(unittest.TestCase):
+    """Review of PR #21: any OperationalError on the «last seen» write was taken for «another program holds the file»: a full or failing disk then made
+    the shop refuse every write with a message about another program, and the real fault left no trace."""
+
+    def test_a_disk_error_on_last_seen_is_not_a_busy_file(self):
+        s = Shop()
+        auth = s.app.auth
+        token = auth.start_session(s.users['owner'], '127.0.0.1')
+        real = s.db.run
+
+        def failing(message):
+            def run(sql, *a, **k):
+                if 'last_seen' in sql and sql.lstrip().upper().startswith('UPDATE'):
+                    raise sqlite3.OperationalError(message)
+                return real(sql, *a, **k)
+            return run
+        s.db.run = failing('disk I/O error')
+        try:
+            self.assertIsNotNone(auth.session(token))
+        finally:
+            s.db.run = real
+        self.assertFalse(s.db.busy(), 'a disk error is not a busy file')
+        s.db.run = failing('database is locked')
+        try:
+            self.assertIsNotNone(auth.session(token))
+        finally:
+            s.db.run = real
+        self.assertTrue(s.db.busy(), 'a locked file still is')
+
+
 class FailedBeginGivesTheLockBack(unittest.TestCase):
     def test_a_transaction_that_cannot_start_does_not_freeze_the_shop(self):
         s = Shop()
