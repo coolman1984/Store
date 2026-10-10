@@ -169,7 +169,7 @@ def _prepare_discount(app):
     db = app.db
     mctx = _ctx(app, APPROVER)             # the manager sells on his own shift: the cashier's drawer (another lesson) is not touched
     _shift(app, mctx)
-    product = _product(db, PRODUCT_FAN, serial=False)
+    product = _product(db, CHEAP[0], serial=False)   # not the fan: the count lesson counts the fan on the same shelf and must keep its figures
     shop = _place(db, 'shop')
     if stock.on_hand(db, product['id'], shop) < 3:
         _stock_up(app, product['id'], shop, 10)

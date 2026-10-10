@@ -49,7 +49,7 @@ import training  # noqa: E402
 import trial  # noqa: E402
 from auth import AuthError, Forbidden  # noqa: E402
 from core import Ctx, Problem  # noqa: E402
-from db import Database, NewerData  # noqa: E402
+from db import Database, NewerData, is_busy_error  # noqa: E402
 from version import FROZEN, PRODUCT, PRODUCT_AR, ROOT, VERSION  # noqa: E402
 
 WEB = os.path.join(ROOT, 'web')
@@ -377,7 +377,7 @@ class Handler(BaseHTTPRequestHandler):
         except (ConnectionError, BrokenPipeError):
             pass
         except sqlite3.OperationalError as e:
-            if 'locked' not in str(e).lower() and 'busy' not in str(e).lower():
+            if not is_busy_error(e):
                 return self.bug(e)
             # another program holds the shop's data file for a moment: a calm "try again", not a bug and not a freeze
             log.warning('DATA BUSY %s: %s', self.path, e)

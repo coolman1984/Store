@@ -188,6 +188,9 @@ def review(ctx, key, note):
     ctx.need('watch.view')
     key = text(key, 'item', 120, True)
     note = text(note, 'note', 300) or '✓'
+    old = ctx.db.one('SELECT by_user FROM watch_reviews WHERE item = ?', key)
+    if old and old['by_user'] != ctx.uid:  # whoever marked it keeps it: only the person who manages people (the owner) changes someone else's note
+        ctx.need('users.manage')
     ctx.db.run('INSERT INTO watch_reviews(item, note, at, by_user) VALUES (?, ?, ?, ?) ON CONFLICT(item) DO UPDATE SET '
                'note = excluded.note, at = excluded.at, by_user = excluded.by_user', key, note, ids.iso(), ctx.uid)
     ctx.audit('watch.review', 'watch', key, {'note': note})

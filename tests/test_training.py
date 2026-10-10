@@ -400,6 +400,32 @@ class Exercises(unittest.TestCase):
         x = lesson(self.app, 'discount')
         self.assertEqual(({c['key']: c['ok'] for c in x['checks']}, x['state']), ({'seen': True, 'noted': True}, 'done'))
 
+    def test_the_discount_exercise_leaves_the_shelf_count_lesson_as_it_was(self):
+        """Review of PR #21: both lessons sold or counted the same fan on the same shelf, so starting the discount after the count made the count's
+        variance -1 instead of -2 and its «settled» check could never turn green."""
+        self.start('count')
+        d = lesson(self.app, 'count')['data']
+        before = stock.on_hand(self.app.db, d['product_id'], d['location_id'])
+        self.start('discount')
+        self.assertEqual(stock.on_hand(self.app.db, d['product_id'], d['location_id']), before, 'the discount did not touch the counted product')
+        cid = tx(self.app, lambda ctx: stock.start_count(ctx, d['location_id'], ''), 'store')
+        tx(self.app, lambda ctx: stock.count_line(ctx, cid, d['product_id'], d['physical']), 'store')
+        tx(self.app, lambda ctx: stock.close_count(ctx, cid, 'ناقص من الرف'), 'store')
+        self.assertEqual(lesson(self.app, 'count')['state'], 'done')
+
+    def test_someone_elses_review_is_changed_only_by_the_owner(self):
+        import reports
+        from auth import Forbidden
+        self.start('discount')
+        key = 'disc:' + lesson(self.app, 'discount')['data']['sale_id']
+        tx(self.app, lambda ctx: reports.review(ctx, key, 'تمام'), 'owner')
+        with self.assertRaises(Forbidden):
+            tx(self.app, lambda ctx: reports.review(ctx, key, 'غيّرت رأيي'), 'manager')
+        self.assertEqual(self.app.db.value('SELECT note FROM watch_reviews WHERE item = ?', key), 'تمام')
+        tx(self.app, lambda ctx: reports.review(ctx, key, 'ملاحظة المدير'), 'owner')          # the owner may, and may change his own again
+        tx(self.app, lambda ctx: reports.review(ctx, key + 'x', 'ملاحظة المدير'), 'manager')  # a manager may review what nobody has seen
+        self.assertEqual(self.app.db.value('SELECT note FROM watch_reviews WHERE item = ?', key), 'ملاحظة المدير')
+
     def test_a_manager_marking_it_seen_does_not_finish_the_owners_exercise(self):
         """Review of PR #21: the manager has the same permission, and the check ignored who wrote the review."""
         import reports

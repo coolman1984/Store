@@ -198,8 +198,10 @@ SPEED_INDEXES = (
 
 
 def is_busy_error(e):
-    """Is this OperationalError «another program holds the file just now» (locked, busy, a read-only recovery) and not a failing disk or a bug?"""
-    return any(w in str(e).lower() for w in ('lock', 'busy', 'readonly', 'read-only'))
+    """Is this OperationalError «another program holds the file just now» (SQLite's «database is locked» / «table is locked» / «busy») and not a
+    failing disk, a read-only file or a bug? The one rule for the transaction, the HTTP handler and the session code."""
+    text = str(e).lower()
+    return 'is locked' in text or 'busy' in text
 
 
 def _speed(conn):
@@ -207,7 +209,7 @@ def _speed(conn):
         try:
             conn.execute(sql)
         except sqlite3.OperationalError as e:  # the file is busy or read-only just now: the indexes only make pages faster, the next start makes them
-            if not is_busy_error(e):  # anything else (a misspelt column, a missing table) is a bug, not a busy file: it must leave a line
+            if not (is_busy_error(e) or 'readonly' in str(e).lower()):  # a read-only file just skips them; anything else (a misspelt column, a missing table) is a bug: it must leave a line
                 logging.getLogger('store').warning('could not make the index (%s): %s', sql.split(' ON ')[0], e)
 
 
@@ -332,7 +334,7 @@ class _Tx:
             # Not entered: __exit__ will not run, so the lock must be given back here. Another program holding the file (a database viewer, a
             # backup or antivirus scan) made this fail once and the lock stayed owned by a finished request: every later request waited for ever.
             self.db.lock.release()
-            if isinstance(e, sqlite3.OperationalError) and 'locked' in str(e).lower():
+            if isinstance(e, sqlite3.OperationalError) and is_busy_error(e):
                 self.db.mark_busy()
             raise
         return self.db

@@ -26,6 +26,16 @@ class Holder:
         self.conn.close()
 
 
+class OneRuleForABusyFile(unittest.TestCase):
+    def test_only_sqlites_locked_and_busy_messages_are_a_busy_file(self):
+        """Review of PR #21: three places had three rules («lock», «locked», «locked or busy»); a read-only file or a column named lock_x was taken for a busy file."""
+        from db import is_busy_error
+        for text in ('database is locked', 'database table is locked', 'database is busy', 'DATABASE IS LOCKED'):
+            self.assertTrue(is_busy_error(sqlite3.OperationalError(text)), text)
+        for text in ('attempt to write a readonly database', 'disk I/O error', 'database or disk is full', 'no such column: lock_state', 'unable to open database file'):
+            self.assertFalse(is_busy_error(sqlite3.OperationalError(text)), text)
+
+
 class OnlyABusyFileMarksTheShopBusy(unittest.TestCase):
     """Review of PR #21: any OperationalError on the «last seen» write was taken for «another program holds the file»: a full or failing disk then made
     the shop refuse every write with a message about another program, and the real fault left no trace."""

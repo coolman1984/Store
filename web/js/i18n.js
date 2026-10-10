@@ -14,7 +14,13 @@ export function format(name, fn) { FORMATS[name] = fn; }
 export function t(key, vars) {
   const d = DICTS[lang()];
   let s = d[key] ?? en[key] ?? key;
-  if (vars) s = s.replace(/\{(\w+)(?::(\w+))?\}/g, (m, k, f) => (vars[k] === undefined || vars[k] === null ? m : f && FORMATS[f] ? FORMATS[f](vars[k]) : vars[k]));
+  if (vars) s = s.replace(/\{(\w+)(?::(\w+))?\}/g, (m, k, f) => {
+    if (vars[k] === undefined || vars[k] === null) return m;
+    if (!f) return vars[k];
+    if (FORMATS[f]) return FORMATS[f](vars[k]);
+    console.warn('unknown format «' + f + '» in ' + key); // a mistyped or not yet registered formatter must not print raw piasters as if they were right
+    return m;
+  });
   return s;
 }
 
