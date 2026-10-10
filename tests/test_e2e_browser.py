@@ -375,11 +375,9 @@ class TrainingByClicking(Browser):
         pg.wait_for_timeout(300)
         self.assertEqual(pg.get_attribute('[data-lesson="discount"] [data-state]', 'data-state'), 'open')
         self.assertEqual(len(pg.query_selector_all('[data-lesson="discount"] .train-checks li.ok')), 1)
-        pg.click('[data-lesson="discount"] [data-restart]')                    # start over: a new discount to look at
-        pg.click('.dialog [data-ok]')
-        pg.wait_for_selector(f'[data-lesson="discount"] [data-state="open"]')
-        d = self.lesson_data(pg, 'discount')['data']
-        self.go(pg, 'watch')
+        self.go(pg, 'watch')                                                   # the item is hidden now that it was seen: show the seen ones and edit the note
+        pg.check('#w-all')
+        pg.wait_for_selector(f'[data-seen="disc:{d["sale_id"]}"][data-note]')
         pg.click(f'[data-seen="disc:{d["sale_id"]}"]')
         pg.wait_for_selector('#wn')
         pg.fill('#wn', 'كلمت الكاشير وتمام')

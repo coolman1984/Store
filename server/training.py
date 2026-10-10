@@ -12,8 +12,9 @@ The four problems:
 - `drawer`: the drawer is 15 pounds short. The cause is a tea-and-coffee payment nobody wrote down. Record it, then close the shift
   with the real count: the difference is zero.
 - `count`: the shelf holds two fans fewer than the books say. Count it, close the count with a reason, the books follow the shelf.
-- `discount` (the owner's): a cashier gave a 12% discount a manager approved. The owner finds it in the Owner's eye and marks it
-  seen with a note of his own. Nothing in the ledger changes; the lesson reads the review row.
+- `discount` (the owner's): the manager gave a 12% discount. The owner finds it in the Owner's eye (the figures in the story are read
+  back from there) and marks it seen with a note of his own. It is sold on the manager's own shift so the cashier's drawer lesson
+  keeps its figures. Nothing in the ledger changes; the lesson reads the review row.
 
 The full reset (throw the practice shop away and rebuild it) is `App.reset_practice`.
 """
@@ -31,7 +32,7 @@ ACCOUNT = {'return': 'cashier', 'drawer': 'cashier', 'count': 'store', 'discount
 APPROVER = 'manager'
 MISSING_CASH = 1500    # 15 pounds in piasters
 MISSING_PIECES = 2
-DISCOUNT_PCT = 12      # above the cashier's 5% and inside the manager's 15%: a manager must approve it, and the Owner's eye lists it from 10%
+DISCOUNT_PCT = 12      # inside the manager's 15%, above the 10% from which the Owner's eye lists a discount
 KEY = 'training'
 
 PRODUCT_FRIDGE = 'ثلاجة ديفروست 14 قدم'
@@ -164,21 +165,24 @@ def _prepare_count(app):
 
 
 def _prepare_discount(app):
+    import reports
     db = app.db
-    cctx = _ctx(app, 'cashier')
-    _shift(app, cctx)
+    mctx = _ctx(app, APPROVER)             # the manager sells on his own shift: the cashier's drawer (another lesson) is not touched
+    _shift(app, mctx)
     product = _product(db, PRODUCT_FAN, serial=False)
     shop = _place(db, 'shop')
     if stock.on_hand(db, product['id'], shop) < 3:
         _stock_up(app, product['id'], shop, 10)
     lines = [{'product_id': product['id'], 'qty': 1}]
-    subtotal = sales.quote(cctx, {'lines': lines})['subtotal']
+    subtotal = sales.quote(mctx, {'lines': lines})['subtotal']
     discount = (subtotal * DISCOUNT_PCT // 100 // 100) * 100
-    cctx.approver = _user(app, APPROVER)   # the manager signed it off at the counter; the owner has not seen it yet
-    sale = sales.sell(cctx, {'idem_key': ids.uuid7(), 'lines': lines, 'discount': discount,
+    sale = sales.sell(mctx, {'idem_key': ids.uuid7(), 'lines': lines, 'discount': discount,
                              'payments': [{'method': 'cash', 'amount': subtotal - discount}]})
-    return {'sale_id': sale['id'], 'number': sale['number'], 'product': product['name'], 'given': discount,
-            'pct': round(discount * 100 / subtotal), 'approver': APPROVER, 'approver_name': _user(app, APPROVER)['full_name']}
+    item = next((i for i in reports.watch(db, 1) if i['key'] == 'disc:' + sale['id']), None)
+    if not item:  # the exercise sends the owner to the Owner's eye: if it is not listed there, do not hand out a lesson that cannot be done
+        raise Problem('err.trainingUsers', 'The practice discount did not show in the Owner\'s eye. Rebuild the practice shop from the Help page.', 409)
+    return {'sale_id': sale['id'], 'number': sale['number'], 'product': product['name'], 'given': item['amount'], 'pct': round(item['detail']['pct']),
+            'who': mctx.user['full_name']}
 
 
 PREPARE = {'return': _prepare_return, 'drawer': _prepare_drawer, 'count': _prepare_count, 'discount': _prepare_discount}

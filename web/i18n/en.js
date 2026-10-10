@@ -232,7 +232,7 @@ export default {
   'exp.rent': 'Rent', 'exp.electricity': 'Electricity', 'exp.salaries': 'Salaries', 'exp.transport': 'Transport & delivery', 'exp.maintenance': 'Maintenance', 'exp.hospitality': 'Hospitality', 'exp.other': 'Other',
 
   'watch.sub': 'Everything worth a look: discounts, returns, drawer differences, expenses and prices.', 'watch.showSeen': 'Show what I have seen', 'watch.none': 'Nothing to worry about',
-  'watch.noneHint': 'Big discounts, returns or differences appear here as they happen.', 'watch.serious': 'Serious', 'watch.total': 'All', 'watch.seen': 'Seen', 'watch.note': 'Your note',
+  'watch.noneHint': 'Big discounts, returns or differences appear here as they happen.', 'watch.serious': 'Serious', 'watch.total': 'All', 'watch.seen': 'Seen', 'watch.editNote': 'Edit note', 'watch.note': 'Your note',
   'watch.noteHint': 'e.g. talked to them, all fine', 'watch.seenBy': 'Seen: {note}',
   'watch.k.discount': '{pct}% discount on invoice {number}', 'watch.k.under_cost': 'Invoice {number} sold under cost', 'watch.k.after_hours': 'Sale at {hour}:00, outside opening hours',
   'watch.k.return': 'Return {number} from invoice {sale}', 'watch.k.drawer_short': 'Drawer short in shift {number}', 'watch.k.drawer_over': 'Drawer over in shift {number}',

@@ -26,10 +26,11 @@ export default async function view(page, params) {
           <div class="small muted">${date(i.at, true)}${i.who ? ' · ' + i.who : ''}${i.detail.reason ? ' · ' + i.detail.reason : ''}${i.detail.note ? ' · ' + i.detail.note : ''}${i.detail.approver ? ' · ' + t('sales.approvedBy', { n: i.detail.approver }) : ''}
           ${i.reviewed ? html` · <span class="badge ok">${t('watch.seenBy', { note: i.reviewed.note })}</span>` : ''}</div></div>
           <div class="row">${i.amount ? html`<b class="money num">${money(i.amount)}</b>` : ''}${i.ref?.sale ? html`<button class="btn sm ghost" data-sale="${i.ref.sale}" aria-label="${t('sales.openInvoice')}">${icon('receipt')}</button>` : ''}
-          ${i.reviewed ? '' : html`<button class="btn sm" data-seen="${i.key}">${icon('check')}${t('watch.seen')}</button>`}</div></div>`)}</div>`);
+          ${i.reviewed ? html`<button class="btn sm ghost" data-seen="${i.key}" data-note="${i.reviewed.note}">${icon('edit')}${t('watch.editNote')}</button>`
+            : html`<button class="btn sm" data-seen="${i.key}" data-note="">${icon('check')}${t('watch.seen')}</button>`}</div></div>`)}</div>`);
       $$('[data-sale]', box).forEach((b) => b.addEventListener('click', () => saleFile(b.dataset.sale)));
       $$('[data-seen]', box).forEach((b) => b.addEventListener('click', () => open({
-        title: t('watch.seen'), body: html`<div class="field"><label for="wn">${t('watch.note')}</label><input id="wn" class="input" placeholder="${t('watch.noteHint')}" autofocus></div>`,
+        title: t('watch.seen'), body: html`<div class="field"><label for="wn">${t('watch.note')}</label><input id="wn" class="input" value="${b.dataset.note === '✓' ? '' : b.dataset.note}" placeholder="${t('watch.noteHint')}" autofocus></div>`,
         foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok>${t('act.save')}</button>`,
         mount(dlg, close) { $('[data-ok]', dlg).addEventListener('click', async (e) => {
           if (await run(api.post('/api/watch/review', { key: b.dataset.seen, note: $('#wn', dlg).value }), null, e.currentTarget)) { close(); load(); }

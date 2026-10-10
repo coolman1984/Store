@@ -232,7 +232,7 @@ export default {
   'exp.rent': 'إيجار', 'exp.electricity': 'كهربا', 'exp.salaries': 'مرتبات', 'exp.transport': 'نقل وتوصيل', 'exp.maintenance': 'صيانة', 'exp.hospitality': 'ضيافة', 'exp.other': 'تاني',
 
   'watch.sub': 'كل حاجة تستاهل نظرة: الخصومات، والمرتجعات، وفروق الدرج، والمصاريف، والأسعار.', 'watch.showSeen': 'ورّيني اللي شفته', 'watch.none': 'مفيش حاجة تقلق',
-  'watch.noneHint': 'أول ما يحصل خصم كبير أو مرتجع أو فرق هيظهر هنا.', 'watch.serious': 'مهم', 'watch.total': 'الكل', 'watch.seen': 'شفته', 'watch.note': 'ملاحظتك',
+  'watch.noneHint': 'أول ما يحصل خصم كبير أو مرتجع أو فرق هيظهر هنا.', 'watch.serious': 'مهم', 'watch.total': 'الكل', 'watch.seen': 'شفته', 'watch.editNote': 'عدّل الملاحظة', 'watch.note': 'ملاحظتك',
   'watch.noteHint': 'مثلًا: كلمته، والموضوع تمام', 'watch.seenBy': 'اتشاف: {note}',
   'watch.k.discount': 'خصم {pct}٪ على فاتورة {number}', 'watch.k.under_cost': 'فاتورة {number} اتباعت بأقل من التكلفة', 'watch.k.after_hours': 'بيع الساعة {hour} برة مواعيد المحل',
   'watch.k.return': 'مرتجع {number} من فاتورة {sale}', 'watch.k.drawer_short': 'عجز في درج وردية {number}', 'watch.k.drawer_over': 'زيادة في درج وردية {number}',

@@ -7,6 +7,7 @@ Rules the schema enforces on purpose:
 - Every row has a UUIDv7 id and org/branch scope, so a later multi-PC or multi-branch tier never rewrites data.
 - The ledger tables refuse UPDATE and DELETE with triggers, so even a bug cannot rewrite money history.
 """
+import logging
 import os
 import sqlite3
 import threading
@@ -196,13 +197,17 @@ SPEED_INDEXES = (
 )
 
 
+def is_busy_error(e):
+    """Is this OperationalError «another program holds the file just now» (locked, busy, a read-only recovery) and not a failing disk or a bug?"""
+    return any(w in str(e).lower() for w in ('lock', 'busy', 'readonly', 'read-only'))
+
+
 def _speed(conn):
     for sql in SPEED_INDEXES:
         try:
             conn.execute(sql)
         except sqlite3.OperationalError as e:  # the file is busy or read-only just now: the indexes only make pages faster, the next start makes them
-            if not any(w in str(e).lower() for w in ('lock', 'busy', 'readonly', 'read-only')):
-                import logging  # anything else (a misspelt column, a missing table) is a bug, not a busy file: it must leave a line
+            if not is_busy_error(e):  # anything else (a misspelt column, a missing table) is a bug, not a busy file: it must leave a line
                 logging.getLogger('store').warning('could not make the index (%s): %s', sql.split(' ON ')[0], e)
 
 

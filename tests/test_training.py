@@ -359,20 +359,33 @@ class Exercises(unittest.TestCase):
         self.assertEqual(lesson(self.app, 'count')['attempt'], 2)
         tx(self.app, lambda ctx: stock.start_count(ctx, d['location_id'], ''), 'store')   # a new sheet can be started
 
-    def test_the_owners_exercise_is_a_discount_the_cashier_gave_and_a_manager_approved(self):
+    def test_the_owners_exercise_is_a_discount_the_manager_gave_on_his_own_shift(self):
         import reports
         self.start('discount')
         x = lesson(self.app, 'discount')
         d = x['data']
         self.assertEqual((x['account'], x['state']), ('owner', 'open'))
-        sale = self.app.db.one('SELECT s.*, u.username AS by, a.username AS approver FROM sales s JOIN users u ON u.id = s.by_user '
-                               'LEFT JOIN users a ON a.id = s.approved_by WHERE s.id = ?', d['sale_id'])
-        self.assertEqual((sale['by'], sale['approver']), ('cashier', 'manager'), 'a cashier sold it and a manager approved it')
+        sale = self.app.db.one('SELECT s.*, u.username AS by FROM sales s JOIN users u ON u.id = s.by_user WHERE s.id = ?', d['sale_id'])
+        self.assertEqual(sale['by'], 'manager')
         self.assertEqual(sale['discount'], d['given'])
-        self.assertGreaterEqual(d['pct'], 10)
-        self.assertLessEqual(d['pct'], 15)
         listed = [i for i in reports.watch(self.app.db, 1) if i['key'] == 'disc:' + d['sale_id']]
         self.assertEqual(len(listed), 1, "the Owner's eye shows it, which is where the exercise sends the owner")
+        self.assertEqual((listed[0]['amount'], round(listed[0]['detail']['pct'])), (d['given'], d['pct']), "the story's figures are the Owner's eye's own")
+        self.assertGreaterEqual(d['pct'], 10)
+
+    def test_the_discount_exercise_leaves_the_cashiers_drawer_lesson_as_it_was(self):
+        """Review of PR #21: the discount was sold into the cashier's open shift, so a drawer lesson started before it could no longer be finished
+        (its stored figures went stale)."""
+        self.start('drawer')
+        before = lesson(self.app, 'drawer')['data']
+        shift = self.app.db.value('SELECT id FROM shifts WHERE id = ?', before['shift_id'])
+        expected = cash.drawer_expected(self.app.db, shift)
+        self.start('discount')
+        self.assertEqual(cash.drawer_expected(self.app.db, shift), expected, "the drawer of the drawer lesson did not move")
+        self.assertEqual(before['expected'], expected)
+        tx(self.app, lambda ctx: cash.expense(ctx, {'idem_key': 'tea-9', 'category': 'hospitality', 'amount': training.MISSING_CASH, 'note': 'شاي وقهوة'}), 'cashier')
+        tx(self.app, lambda ctx: cash.close_shift(ctx, shift, before['physical'], ''), 'cashier')
+        self.assertEqual(lesson(self.app, 'drawer')['state'], 'done')
 
     def test_the_discount_is_done_only_when_seen_with_a_note_of_the_owners_own(self):
         import reports

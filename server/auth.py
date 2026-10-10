@@ -21,6 +21,7 @@ from datetime import timedelta
 
 import afaccess
 import ids
+from db import is_busy_error
 
 ITERATIONS = 310_000
 IDLE_MINUTES = 30
@@ -453,7 +454,7 @@ class Auth:
             try:
                 self.db.run('UPDATE sessions SET last_seen = ? WHERE token_hash = ?', ids.iso(now), row['token_hash'])
             except sqlite3.OperationalError as e:
-                if 'lock' in str(e).lower() or 'busy' in str(e).lower():
+                if is_busy_error(e):
                     self.db.mark_busy()
                 else:  # a full or failing disk is not «another program has the file»: say what it is, and do not refuse the shop's writes for it
                     logging.getLogger('store').warning('could not save «last seen»: %s', e)

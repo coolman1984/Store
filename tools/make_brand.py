@@ -57,7 +57,7 @@ def lockup(tone):
     width = 56 + gap + max(ar_w, la_w) + 2
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:.0f} 62" role="img" aria-label="الستور Al-Store">'
             f'<g transform="translate(0 7)">{MARK.format(tile=tile, beam=beam, pan=COPPER)}</g>'
-            f'<path transform="translate({56 + gap:.1f} 33)" fill="{ink}" d="{ar}"/>'
+            f'<path transform="translate({56 + gap + max(0.0, la_w - ar_w):.1f} 33)" fill="{ink}" d="{ar}"/>'
             f'<path transform="translate({56 + gap + max(0.0, ar_w - la_w):.1f} 59)" fill="{COPPER}" d="{la}"/></svg>')  # under the word, aligned to where Arabic starts
 
 
