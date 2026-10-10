@@ -37,6 +37,17 @@ class CodespacesPreviewHosts(unittest.TestCase):
             self.assertFalse(store.Handler.host_ok(SimpleNamespace(headers={'Host': host})))
             self.assertTrue(store.Handler.host_ok(SimpleNamespace(headers={'Host': 'localhost:8096'})))
 
+    def test_cloud_session_cookies_require_https_without_changing_local_cookies(self):
+        fake = SimpleNamespace(practice=True, cfg={'port': 8097})
+        with patch.object(store, 'APP', fake):
+            with patch.dict(os.environ, {'ALSTORE_CODESPACES_PREVIEW': '1'}):
+                self.assertIn('; Secure', store.cookie_flags())
+            with patch.dict(os.environ, {'ALSTORE_CODESPACES_PREVIEW': ''}):
+                self.assertNotIn('; Secure', store.cookie_flags())
+        with patch.object(store, 'APP', SimpleNamespace(practice=False, cfg={'port': 8097})):
+            with patch.dict(os.environ, {'ALSTORE_CODESPACES_PREVIEW': '1'}):
+                self.assertNotIn('; Secure', store.cookie_flags())
+
     def test_malformed_codespace_name_is_rejected(self):
         fake = SimpleNamespace(practice=True, cfg={'port': 8097})
         for name in ('', '../leak', 'bad.example.com', 'bad space'):
