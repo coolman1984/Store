@@ -1,7 +1,7 @@
 # Development history (newest first)
 
 ## 2026-10-10 — readiness review after 1.9.1 (docs only)
-**Why (owner request, phase 5):** `docs/03-ready-to-sell.md` still said 32 core controls and 30 of 32 verified. The factory's gate now has 34 core controls (UX-04 and UX-09 became core) and says **NO-GO**.
+**Why (owner request, phase 5):** `docs/03-ready-to-sell.md` still said 32 core controls and 30 of 32 verified. The factory's gate has 34 core controls (UX-04 and UX-09 became core in factory catalogue 1.11.0, Apps-Factory PR #42, CHANGELOG 0.15.0) and says **NO-GO**. Evidence: `python scripts/factory.py check examples/al-store-product.json --release` in Apps-Factory at `main` 7bc2134 on 2026-10-10 printed `NO-GO` with exactly these open items: `off_device_cloud_restore`, field acceptance, `clean_device_restore`, `core_user_acceptance`, and the proofs UX-04, DATA-05, UX-09, A11Y-01.
 **What changed:** section 1 of the readiness plan now states the gate's real answer (30 of 34 verified; UX-04, UX-09, DATA-05, A11Y-01 need a person or a customer's PC; three field proofs open, one of them, the encrypted cloud restore of the Solo tier, is not built) and lists, per item, **why a machine cannot prove it** and what must happen (a clean Windows PC, receipt printers 80 and 58 mm, an hour with a real cashier, a keyboard walk-through, two weeks at the first shop, the relay and Telegram on the real internet, the first real code with a non-default trial length).
 **Not done on purpose:** nothing was marked verified; no price, term or support promise was written.
 

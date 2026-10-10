@@ -32,6 +32,7 @@
 
 - [x] 1.8.0 independent audit round: random shop days with the books checked after every step, a real-browser sweep of every page/role/language/size, probes of the write routes and the database layer; 10 defects fixed (see DEVELOPMENT_HISTORY); the owner's Telegram buttons on the licence screen
 
+- [ ] **Open before an official release (the gate says NO-GO, 2026-10-10):** UX-04 real-browser journey with the network cut · UX-09 screenshot set judged by a person · DATA-05 and `clean_device_restore` on a second clean PC · A11Y-01 keyboard walk-through · `core_user_acceptance` (two weeks at the first shop) · `off_device_cloud_restore` (the Solo tier's encrypted cloud restore is **not built**: next engineering task) · receipt printers 80 and 58 mm. Details: `docs/03-ready-to-sell.md`.
 - [x] 1.9.1 the trial's length is the company's per-product setting (labels no longer say 14; trials of 7, 30 and 60 days tested against signed codes)
 - [x] 1.9.0 the name الستور again (Mizan withdrawn), the 320 px phone, a fourth practice exercise for the owner (the Owner's eye), licence-kind tests against codes signed by the factory's own tool (`tests/test_licence_types.py`), a network-failure browser test (factory UX-04)
 
