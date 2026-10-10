@@ -59,6 +59,21 @@ PRACTICE_COOKIE = 'store_practice_session'  # cookies are per host, not per port
 
 def cookie_name():
     return PRACTICE_COOKIE if APP is not None and APP.practice else COOKIE
+
+def _codespaces_preview_host(host):
+    """Allow only THIS private Codespace forwarding URL, and only for synthetic practice mode.
+
+    The launcher opts in explicitly; the ordinary shop never accepts a GitHub public hostname.
+    GitHub itself authenticates requests to private forwarded ports.
+    """
+    if APP is None or not APP.practice or os.environ.get('ALSTORE_CODESPACES_PREVIEW') != '1':
+        return False
+    name = os.environ.get('CODESPACE_NAME', '').lower()
+    if not name or any(c not in 'abcdefghijklmnopqrstuvwxyz0123456789-' for c in name):
+        return False
+    return host == f'{name}-{int(APP.cfg["port"])}.app.github.dev'
+
+
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
        "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
 TYPES = {'.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8',
@@ -276,7 +291,7 @@ class Handler(BaseHTTPRequestHandler):
         """DNS-rebinding guard: only names that really mean this PC."""
         host = (self.headers.get('Host') or '').rsplit(':', 1)[0].strip('[]').lower()
         allowed = {'localhost', '127.0.0.1', '::1', socket.gethostname().lower()} | set(_lan_ips())
-        return host in allowed or host.endswith('.local') or _is_private_ip(host)
+        return host in allowed or host.endswith('.local') or _is_private_ip(host) or _codespaces_preview_host(host)
 
     def origin_ok(self):
         origin = self.headers.get('Origin')
