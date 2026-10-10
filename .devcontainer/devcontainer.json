@@ -7,8 +7,7 @@
   "portsAttributes": {
     "8097": {
       "label": "Al-Store practice (private)",
-      "onAutoForward": "openBrowser",
-      "visibility": "private"
+      "onAutoForward": "openBrowser"
     }
   },
   "postStartCommand": "bash .devcontainer/start-preview.sh",
