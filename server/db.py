@@ -10,6 +10,7 @@ Rules the schema enforces on purpose:
 import os
 import sqlite3
 import threading
+import time
 
 import afconsent
 import afguide
@@ -180,8 +181,35 @@ def _guards(conn):
                      f"BEGIN SELECT RAISE(ABORT, 'append-only: {table}'); END")
 
 
+# Indexes added after 1.0, made every time the database opens (like the guards: a shop that upgrades has them without a migration, and an older
+# program still opens the data). Found with 4,000 customers and 20,000 sales: the customers page took 3 s (a full read of the sales for every
+# customer), the Today page 1.3 s. Each one answers a page's question without reading a whole table.
+SPEED_INDEXES = (
+    'CREATE INDEX IF NOT EXISTS sales_customer ON sales(customer_id, at)',      # a customer's sales and "last sale" in the list
+    'CREATE INDEX IF NOT EXISTS sales_shift ON sales(shift_id)',                # a shift's sales count and total
+    'CREATE INDEX IF NOT EXISTS returns_at ON returns(at)',                     # today's and the period's returns
+    'CREATE INDEX IF NOT EXISTS returns_sale ON returns(sale_id)',              # the returns of a sale
+    'CREATE INDEX IF NOT EXISTS cash_account ON cash_moves(account, amount)',   # the safe's balance without reading every move
+    'CREATE INDEX IF NOT EXISTS cash_ref ON cash_moves(kind, ref_id)',          # the cash that belongs to a collection or a sale
+    'CREATE INDEX IF NOT EXISTS ar_at ON ar_entries(at)',                       # the owner's eye: reversals this week
+    'CREATE INDEX IF NOT EXISTS tenders_method ON tenders(method, provider)',   # what the finance companies still owe
+)
+
+
+def _speed(conn):
+    for sql in SPEED_INDEXES:
+        try:
+            conn.execute(sql)
+        except sqlite3.OperationalError:  # the file is busy or read-only just now: the indexes only make pages faster, the next start makes them
+            pass
+
+
 class NewerData(Exception):
     """The data was written by a newer version of the program: refuse to open instead of damaging it."""
+
+
+BUSY_WAIT_MS = 2000   # how long ONE request waits for another program that holds the file
+BUSY_WINDOW = 3.0     # seconds after a busy failure during which new writes fail at once instead of each waiting its own turn
 
 
 class Database:
@@ -194,11 +222,12 @@ class Database:
         self.conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
         self.conn.row_factory = sqlite3.Row
         self.lock = threading.RLock()
+        self.busy_until = 0.0
         c = self.conn
         c.execute('PRAGMA journal_mode=WAL')
         c.execute('PRAGMA synchronous=FULL')  # a power cut never loses a sale that was confirmed on screen
         c.execute('PRAGMA foreign_keys=ON')
-        c.execute('PRAGMA busy_timeout=5000')
+        c.execute(f'PRAGMA busy_timeout={BUSY_WAIT_MS}')
         self.migrate(fresh, backup_dir)
 
     def version(self):
@@ -227,6 +256,7 @@ class Database:
                     self.conn.execute('ROLLBACK')
                     raise
         _guards(self.conn)
+        _speed(self.conn)
 
     # -- helpers used by every module. Every call holds the lock: one shared connection must never mix a
     #    statement of another thread into an open transaction.
@@ -263,6 +293,14 @@ class Database:
     def tx(self):
         return _Tx(self)
 
+    def busy(self):
+        """Another program held the file a moment ago: a request that would only wait its turn (each for the whole wait, one after the other,
+        so five devices would freeze the shop for a minute) is refused at once with the calm «busy» answer."""
+        return time.monotonic() < self.busy_until
+
+    def mark_busy(self):
+        self.busy_until = time.monotonic() + BUSY_WINDOW
+
     def close(self):
         with self.lock:
             self.conn.close()
@@ -275,13 +313,39 @@ class _Tx:
         self.db = db
 
     def __enter__(self):
+        if self.db.busy():
+            raise sqlite3.OperationalError('database is locked')
         self.db.lock.acquire()
-        self.db.conn.execute('BEGIN IMMEDIATE')
+        if self.db.busy():  # the request in front of this one has just found the file held: do not wait the same wait again (and do not extend the window)
+            self.db.lock.release()
+            raise sqlite3.OperationalError('database is locked')
+        try:
+            self.db.conn.execute('BEGIN IMMEDIATE')
+        except BaseException as e:
+            # Not entered: __exit__ will not run, so the lock must be given back here. Another program holding the file (a database viewer, a
+            # backup or antivirus scan) made this fail once and the lock stayed owned by a finished request: every later request waited for ever.
+            self.db.lock.release()
+            if isinstance(e, sqlite3.OperationalError) and 'locked' in str(e).lower():
+                self.db.mark_busy()
+            raise
         return self.db
+
+    def _rollback(self):
+        try:
+            self.db.conn.execute('ROLLBACK')
+        except sqlite3.Error:
+            pass  # nothing to undo, or it cannot be done: the error the caller is about to see is the one that matters
 
     def __exit__(self, kind, value, tb):
         try:
-            self.db.conn.execute('ROLLBACK' if kind else 'COMMIT')
+            if kind:
+                self._rollback()
+            else:
+                try:
+                    self.db.conn.execute('COMMIT')
+                except BaseException:
+                    self._rollback()  # a COMMIT that failed (busy, disk full) must not leave the transaction open on the shared connection
+                    raise
         finally:
             self.db.lock.release()
         return False

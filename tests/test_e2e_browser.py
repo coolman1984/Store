@@ -163,6 +163,34 @@ class CoreJourney(Browser):
         self.assertIn('Sell', pg.inner_text('.rail'))
         self.assertEqual(self.errors, [])
 
+    def test_error_texts_show_money_in_pounds_not_piasters(self):
+        """The server counts in piasters. «This is more than what is owed (300000)» told a person 100 times too much; the text now formats it."""
+        pg = self.open('manager')
+        for lang in ('en', 'ar'):
+            said = pg.evaluate("""async (lang) => { const i = await import('/js/i18n.js'); await import('/js/ui.js'); i.setLang(lang);
+              return [i.t('err.payMoreThanOwed', {owed: 300000}), i.t('err.payMoreThanPlan', {left: 125050}), i.t('err.notEnough', {have: 2, name: 'Fan', place: 'Shop'})]; }""", lang)
+            self.assertIn('3,000', said[0], said)
+            self.assertIn('1,250.50', said[1], said)
+            self.assertNotIn('300000', said[0] + said[1])
+            self.assertIn('2', said[2])
+        self.assertEqual(self.errors, [])
+
+    def test_a_person_who_cannot_see_costs_is_not_sent_to_the_stock_value_tab(self):
+        """Opening #/stock?tab=value by hand as a cashier asked the server for the value (refused with a 403 in the console). The page does not ask now."""
+        pg = self.open('cashier')
+        asked = []
+        pg.on('request', lambda r: asked.append(r.url) if '/api/stock/value' in r.url else None)
+        pg.goto(self.S.base + '/#/stock?tab=value')
+        pg.wait_for_selector('#page')
+        pg.wait_for_timeout(700)
+        self.assertEqual(asked, [])
+        self.assertEqual(self.errors, [])
+        pg2 = self.open('owner')
+        pg2.goto(self.S.base + '/#/stock?tab=value')
+        pg2.wait_for_selector('#page')
+        self.until(pg2, "!!document.querySelector('#page .kpi, #page .card')")
+        self.assertEqual(self.errors, [])
+
     def test_command_palette_finds_a_product(self):
         pg = self.open()
         pg.keyboard.press('Control+k')
@@ -701,6 +729,26 @@ class GuideCoach(Browser):
         self.assertIsNotNone(again, advanced)
         self.assertEqual(again.group(1), found.group(1), advanced)
         self.assertEqual(self.errors, [])
+
+    def test_no_stray_null_in_the_coach_or_in_settings_privacy(self):
+        """Found by looking at the real screens: the coach printed «nullnull» on every step and Settings -> Privacy printed «nullnull» for a person who
+        cannot change settings (replaceChildren turns a null child into the word). Both languages, the cashier (the role that saw it) and the owner."""
+        import re
+        stray = re.compile(r'(?<![A-Za-z])(?:null|undefined|NaN)+(?![A-Za-z])|\[object ')  # (+: a run like «nullnull» too; a \b boundary misses it)
+        for user in ('cashier', 'owner'):
+            for lang in ('ar', 'en'):
+                with self.subTest(user=user, lang=lang):
+                    pg = self.open(user, prefs={'lang': lang})
+                    pg.goto(self.S.base + '/#/settings?tab=privacy')
+                    pg.wait_for_selector('#privacy-box [data-afc="state"]')
+                    self.assertNotRegex(pg.inner_text('#page'), stray)
+                    pg.click('[data-afg="help"]')
+                    pg.wait_for_selector('[data-guide-id] [data-afg="start"]')
+                    self.assertNotRegex(pg.inner_text('[data-afg="panel"], .afg-panel'), stray)
+                    pg.click('[data-guide-id] [data-afg="start"]')
+                    pg.wait_for_selector('[data-afg="coach"] [data-afg="step"]')
+                    self.assertNotRegex(pg.inner_text('[data-afg="coach"]'), stray)
+                    self.assertEqual(self.errors, [])
 
     def test_consent_card_is_nonmodal_and_a_shop_dialog_stays_clickable(self):
         pg = self.open('owner', width=360, height=844)

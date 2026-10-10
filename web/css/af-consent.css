@@ -1,4 +1,4 @@
-/* Vendored from Apps-Factory packages/af-consent 0.1.0 - do not edit here. */
+/* Vendored from Apps-Factory packages/af-consent 0.1.1 - do not edit here. */
 /* Update with: python scripts/vendor_consent.py <product repo> (from the Apps-Factory checkout) */
 /* af-consent 0.1.0 */
 .afc-scrim { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: center; background: var(--overlay-scrim, rgba(10,15,25,.45)); }

@@ -277,6 +277,13 @@ class Exercises(unittest.TestCase):
     def test_return_by_a_manager_alone_skips_the_approval_lesson(self):
         self.start('return')
         d = lesson(self.app, 'return')['data']
+        # The refund comes out of the manager's own drawer, and what that drawer holds depends on the hour the practice shop was built (before
+        # 10:05 the manager's shift is only the float of a small made-up return). This test is about approvals, not about cash: fund it first.
+        mgr = self.app.db.one("SELECT id FROM users WHERE username = 'manager'")
+        old = cash.open_shift_of(self.app.db, mgr['id'])
+        if old:
+            tx(self.app, lambda ctx: cash.close_shift(ctx, old['id'], cash.drawer_expected(self.app.db, old['id']), ''), 'manager')
+        tx(self.app, lambda ctx: cash.open_shift(ctx, d['total'] + 100000), 'manager')
         sale = sales.sale_view(self.app.db, d['sale_id'], True)
         tx(self.app, lambda ctx: sales.take_return(ctx, {'idem_key': 'mgr-1', 'sale_id': d['sale_id'], 'reason': 'عيب في الباب', 'refund_method': 'cash',
                                                          'lines': [{'sale_line_id': sale['lines'][0]['id'], 'qty': 1, 'condition': 'damaged'}]}), 'manager')

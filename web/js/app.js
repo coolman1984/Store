@@ -254,7 +254,7 @@ async function requestArea(box, lic, onDone) {
     let line = '';
     if (!q.available) line = html`<div class="tip">${icon('info')}<div>${t('lic.req.off')}</div></div>`;
     else if (q.status === 'sending') line = html`<div class="lic-line busy">${icon('clock')}<span>${t('lic.req.sending')}</span></div>`;
-    else if (q.status === 'waiting' && !q.error) line = html`<div class="lic-line busy">${icon('clock')}<span>${t('lic.req.waiting')}</span></div>`;
+    else if (q.status === 'waiting' && !q.error) line = html`<div class="lic-line busy">${icon('clock')}<span>${t(q.stage === 'approved' ? 'lic.req.approved' : 'lic.req.waiting')}</span></div>`;
     else if (wait) line = html`<div class="lic-line warn">${icon('alert')}<span>${t('lic.req.offline', { when: q.next_try ? time(q.next_try) : '' })}</span></div>`;
     else if (q.status === 'failed') line = html`<div class="lic-line warn">${icon('alert')}<span>${t('lic.req.codeBad', { r: q.reason || q.error || '' })}</span></div>`;
     else if (q.status === 'refused') line = html`<div class="lic-line bad">${icon('x')}<span>${reasonText(q.reason)}</span></div>`;

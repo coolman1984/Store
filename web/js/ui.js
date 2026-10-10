@@ -1,6 +1,6 @@
 // Building blocks every page uses: safe HTML, icons, money/date format, toasts, dialogs, side panels, sheets,
 // confirmations with a reason, the manager's approval, empty and loading states.
-import { t, lang } from './i18n.js';
+import { t, lang, format } from './i18n.js';
 import { ApiError } from './api.js';
 
 // ---------------------------------------------------------------- safe HTML
@@ -42,6 +42,7 @@ export function money(p, { sign = false, bare = false, whole = false } = {}) {
   return lang() === 'ar' ? `${n} ${t('cur')}` : `${t('cur')} ${n}`;
 }
 export const moneyH = (p, opts) => html`<span class="money num">${money(p, opts)}</span>`;
+format('money', (p) => money(p));  // `{owed:money}` in an error text
 /** "1250.5" or "١٢٥٠" → 125050 piasters, or null */
 export function parseMoney(text) {
   if (text === null || text === undefined) return null;

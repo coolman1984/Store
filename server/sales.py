@@ -390,6 +390,7 @@ def one_credit_kind(by_method):
 
 
 def take_return(ctx, data):
+    ctx.need_any('pos.sell', 'sales.return')  # a manager's password lets a COUNTER person refund; it does not make a person with no counter permission one
     key = text(data.get('idem_key'), 'idem_key', 64, True)
     done = ctx.db.one('SELECT id, number FROM returns WHERE idem_key = ?', key)
     if done:

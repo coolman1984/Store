@@ -15,6 +15,7 @@ import hmac
 import json
 import os
 import secrets
+import sqlite3
 from datetime import timedelta
 
 import afaccess
@@ -447,8 +448,11 @@ class Auth:
         user = self.get(row['user_id'])
         if not user or not user['active']:
             return None
-        if touch:
-            self.db.run('UPDATE sessions SET last_seen = ? WHERE token_hash = ?', ids.iso(now), row['token_hash'])
+        if touch and not self.db.busy():  # "last seen" is a convenience: while another program holds the file it must not make reading wait or fail
+            try:
+                self.db.run('UPDATE sessions SET last_seen = ? WHERE token_hash = ?', ids.iso(now), row['token_hash'])
+            except sqlite3.OperationalError:
+                self.db.mark_busy()
         return user
 
     def end_session(self, token):

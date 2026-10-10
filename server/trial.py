@@ -93,10 +93,12 @@ def public(app):
     base = {'available': bool(relay_url(app)), 'fields': list(SENT_FIELDS)}
     if not st:
         return {**base, 'status': 'none'}
-    keep = ('status', 'kind', 'reason', 'created_at', 'tries', 'next_try', 'error', 'serial')
+    keep = ('status', 'kind', 'reason', 'created_at', 'tries', 'next_try', 'error', 'serial', 'stage')
     out = {**base, **{k: st.get(k) for k in keep}}
     if out['status'] in ACTIVE + ('issued',) and _superseded(app.db, st):
         out.update(status='closed', reason='manual', error='')  # what the next look will record; the screen need not wait for it
+    if out['status'] != 'waiting' or out.get('error'):
+        out['stage'] = ''  # "the company approved" is only a word for a request that is still waiting and reachable (decided last, after every override)
     return out
 
 
@@ -196,6 +198,7 @@ def step(app, now=None, force=False):
             st.update(status='failed', error='relay_off')
             _meta(app.db, st)
             return public(app)
+        st['stage'] = ''  # every look starts without it: only the relay's "pending, approved" answer below puts it back
         try:
             if not st.get('id'):
                 code, d = _call('POST', url + '/licence/request', _body(app, st['kind'], st.get('ref', ''), st['nonce']))
@@ -229,7 +232,8 @@ def step(app, now=None, force=False):
                     st.update(status='activated' if licence.status(app.db)['full'] else 'closed', reason='delivered', error='')
                 else:
                     age = (now - (ids.parse(st['created_at']) or now)).total_seconds()
-                    st.update(status='waiting', error='')
+                    # `stage: approved` = the company's owner agreed and the code is on its way: said on the screen, but never a licence
+                    st.update(status='waiting', error='', stage='approved' if d.get('stage') == 'approved' else '')
                     _soon(st, next(wait for limit, wait in POLL if age < limit))
         except ConnectionError as e:
             _failed(st, 'offline:' + str(e))

@@ -18,6 +18,7 @@ import mimetypes
 import os
 import shutil
 import socket
+import sqlite3
 import sys
 import threading
 import time
@@ -375,14 +376,24 @@ class Handler(BaseHTTPRequestHandler):
             self.send(400, {'error': 'A number or date in the request is not valid.', 'key': 'err.badRequest'})
         except (ConnectionError, BrokenPipeError):
             pass
+        except sqlite3.OperationalError as e:
+            if 'locked' not in str(e).lower() and 'busy' not in str(e).lower():
+                return self.bug(e)
+            # another program holds the shop's data file for a moment: a calm "try again", not a bug and not a freeze
+            log.warning('DATA BUSY %s: %s', self.path, e)
+            self.send(503, {'error': 'The shop data is busy. Try again in a moment.', 'key': 'err.busy'}, headers={'Retry-After': '2'})
         except Exception as e:  # a bug: log the details on this PC, show a calm message
-            log.error('ERROR %s\n%s', self.path, traceback.format_exc())
-            APP.note_error()
-            try:  # type and fingerprint only; never the message. Consent still applies inside capture.
-                APP.assist.capture(e, self.path.split('?', 1)[0])
-            except Exception:
-                log.warning('telemetry capture failed', exc_info=True)
-            self.send(500, {'error': f'Unexpected problem: {e.__class__.__name__}', 'key': 'err.server'})
+            self.bug(e)
+
+    def bug(self, e):
+        """A real bug: the details stay on this PC, the person reads a calm message."""
+        log.error('ERROR %s\n%s', self.path, traceback.format_exc())
+        APP.note_error()
+        try:  # type and fingerprint only; never the message. Consent still applies inside capture.
+            APP.assist.capture(e, self.path.split('?', 1)[0])
+        except Exception:
+            log.warning('telemetry capture failed', exc_info=True)
+        self.send(500, {'error': f'Unexpected problem: {e.__class__.__name__}', 'key': 'err.server'})
 
     # ------------------------------------------------------------ routing
     def do_HEAD(self):
