@@ -1,4 +1,4 @@
-"""The three kinds of licence code (14-day trial, monthly subscription, permanent) from the shop's side, and what never changes whatever the code says:
+"""The three kinds of licence code (trial of any length the company sets, monthly subscription, permanent) from the shop's side, and what never changes whatever the code says:
 the shop's data stays readable, exportable and backed up, and a backup can always be put back.
 
 Part 1 pins the wire format with codes signed by the factory's own module (Apps-Factory packages/af-license) with a fixed test key: if the vendored
@@ -24,6 +24,13 @@ TRIAL = ('0716ZV-HZ041D-P0PV0B-M0085W-BEWDS8-NZ6FT6-00AP8W-6GBSGK-P35QD9-AE1SAT-
          'SZRG80-6MEWYX-SV71X0-6CB685')
 MONTHLY = ('0716ZV-HZ081D-P0PV0B-W0685W-BEWDS8-PBCCPB-Y0AP8Z-1M2CDY-VW29CR-VTNTSK-BFWZR9-SSHZBR-FDHCS4-J7NE12-ZY1Z2A-DCV9TB-PENBQN-3NBV0F-9K863V-'
            'QMRP23-D2HN7M-4ARRSZ-XHCR0W-FEZC84')
+# trials of other lengths (the company may set a trial per product), made the same way: seed bytes(range(32)), starting 2026-01-01, tied to DEVICE
+TRIAL_7 = ('0716ZV-HZ041D-P0PV0B-GG085W-BEWDS8-G00000-00AP8X-WW4Z45-BRBKNJ-A11HZW-FYXRGK-CSJV03-0FW7CD-0BCA73-WSBVXJ-E996VA-C1S4NE-M5NEQ1-JC71RW-3KD7RY-'
+           'Q39WT4-49YYT0-E0JWRQ-P2P38C')
+TRIAL_30 = ('0716ZV-HZ041D-P0PV0B-W0085W-BEWDS8-G00000-00AP8X-7AVVQY-1GR8TZ-27N78P-EC3S98-B2MEVA-1W1W9H-BXWY81-GZ64WV-JW776Q-NWEGQN-RQWJ2X-KWSYYQ-1XYMWS-'
+            'R1JPV4-J602DR-6CJVV6-VQBCR1')
+TRIAL_60 = ('0716ZV-HZ041D-P0PV0C-B0085W-BEWDS8-G00000-00AP8Z-NTM846-QHDMX9-Z14KPV-XS9741-VVTFYG-FQK6CY-2EWKT4-8BCDS0-QCJ5SC-JCVS1E-DZVEKV-A0T228-13BX9Y-'
+            '5ZKT36-XYHJ17-6Z1FK0-GSR706')
 PRO_UNBOUND = ('0716ZV-HZ0C1D-P0PV0H-3G0000-000000-31RN37-M0AP8Y-TW4YM8-QAZHE6-XA54HA-XJFM0J-4T2GRM-1GJAYE-W26EH2-3KKTAA-EMP9CP-EG9C7R-9AWYXQ-AQPZYQ-'
                'BQ1NHF-7TFDKP-9BF2PG-ZFNRRC-54EPGC')
 PERPETUAL = ('0716ZV-HZ0G1D-P0PVZZ-ZG085W-BEWDS8-PXMDVW-Y0AP8Z-D8VZ0G-RTMP75-12R0CV-N7H71H-EKMXAE-CRPTM5-FGSE4T-ETJ4X9-C8V76W-HZKBJ2-R3SGP5-A8HRDH-'
@@ -44,6 +51,17 @@ class WireFormat(unittest.TestCase):
         self.assertEqual(read(TRIAL, d(14)).state, 'expired')                    # a trial has no grace
         self.assertFalse(read(TRIAL, d(14)).full_access)
         self.assertEqual(read(TRIAL, d(-1)).state, 'not_yet_valid')
+
+    def test_a_trial_of_any_length_the_company_sets_ends_on_its_own_last_day_and_stays_tied_to_the_pc(self):
+        """The company can set a trial per product (7, 30, 60 days...). The shop only reads the last day inside the code: nothing is assumed to be 14."""
+        d = lambda n: date(2026, 1, 1) + timedelta(days=n)  # noqa: E731
+        for text, days in ((TRIAL_7, 7), (TRIAL_30, 30), (TRIAL_60, 60)):
+            first, last, after = read(text, d(0)), read(text, d(days - 1)), read(text, d(days))
+            self.assertEqual((first.state, first.terms['days_left'], first.terms['edition']), ('active', days, 'trial'), days)
+            self.assertEqual((last.state, last.terms['days_left']), ('active', 1), days)
+            self.assertEqual((after.state, after.full_access), ('expired', False), days)      # no grace for any trial length
+            self.assertEqual(read(text, d(2), device=OTHER_PC).reason, 'other_device', days)  # and none can be passed to another PC
+        self.assertEqual(read(TRIAL_60, d(14)).state, 'active', 'a 60-day trial is still running when a 14-day one has ended')
 
     def test_monthly_runs_thirty_days_then_three_grace_days_then_read_only(self):
         d = lambda n: date(2026, 1, 1) + timedelta(days=n)  # noqa: E731
@@ -192,3 +210,20 @@ class ShopLifecycle(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class NoLengthOnTheScreens(unittest.TestCase):
+    def test_no_licence_text_promises_a_fixed_trial_length(self):
+        """The company sets a trial per product; the real length arrives inside the code. A hard-coded «14» or «two weeks» on the licence screen
+        would be wrong for a product set to another length (review of the 1.9.1 change: «التجربة أسبوعين» had survived in one string)."""
+        import re
+        root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'web', 'i18n')
+        pair = re.compile(r"'(lic\.[\w.]+)':\s*'((?:[^'\\]|\\.)*)'")
+        forbidden = re.compile(r'\b14\b|١٤|أسبوعين|اسبوعين|two weeks|two-week|fortnight|14-day', re.I)
+        seen = 0
+        for lang in ('ar.js', 'en.js'):
+            with open(os.path.join(root, lang), encoding='utf-8') as f:
+                for key, value in pair.findall(f.read()):
+                    seen += 1
+                    self.assertIsNone(forbidden.search(value), f'{lang} {key}: {value!r}')
+        self.assertGreater(seen, 60, 'the scan really read the licence texts')
