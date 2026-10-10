@@ -534,6 +534,15 @@ class LayoutSweep(Browser):
         self.sweep(320, 640)
         self.sweep(320, 640, 'night', 'en')
 
+    def test_the_search_button_keeps_its_name_when_its_label_is_hidden_at_320(self):
+        """Review of PR #21: at 340 px and below the label is hidden; the button must still have an accessible name in both languages."""
+        for language in ('ar', 'en'):
+            pg = self.open('owner', width=320, height=640, prefs={'lang': language})
+            self.assertEqual(pg.is_visible('.top .search-pill > span.grow'), False)
+            name = pg.get_attribute('[data-cmdk]', 'aria-label')
+            self.assertTrue(name and name.strip(), language)
+            pg.context.close()
+
     def test_tablet_dark(self):
         self.sweep(820, 1180, 'night')
 

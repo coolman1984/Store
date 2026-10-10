@@ -387,6 +387,17 @@ class Exercises(unittest.TestCase):
         x = lesson(self.app, 'discount')
         self.assertEqual(({c['key']: c['ok'] for c in x['checks']}, x['state']), ({'seen': True, 'noted': True}, 'done'))
 
+    def test_a_manager_marking_it_seen_does_not_finish_the_owners_exercise(self):
+        """Review of PR #21: the manager has the same permission, and the check ignored who wrote the review."""
+        import reports
+        self.start('discount')
+        key = 'disc:' + lesson(self.app, 'discount')['data']['sale_id']
+        tx(self.app, lambda ctx: reports.review(ctx, key, 'تمام يا فندم'), 'manager')
+        x = lesson(self.app, 'discount')
+        self.assertEqual(({c['key']: c['ok'] for c in x['checks']}, x['state']), ({'seen': False, 'noted': False}, 'open'))
+        tx(self.app, lambda ctx: reports.review(ctx, key, 'بصّيت بنفسي'), 'owner')
+        self.assertEqual(lesson(self.app, 'discount')['state'], 'done')
+
     def test_seeing_a_different_item_does_not_finish_the_discount(self):
         import reports
         self.start('discount')

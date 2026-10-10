@@ -213,7 +213,8 @@ def _checks_count(db, d):
 
 
 def _checks_discount(db, d):
-    r = db.one('SELECT note FROM watch_reviews WHERE item = ?', 'disc:' + d['sale_id'])
+    r = db.one('SELECT r.note FROM watch_reviews r JOIN users u ON u.id = r.by_user WHERE r.item = ? AND u.username = ?',
+               'disc:' + d['sale_id'], ACCOUNT['discount'])   # the owner's own review: a manager has the same permission and must not finish the owner's exercise
     return [('seen', bool(r)), ('noted', bool(r and r['note'].strip() not in ('', '✓')))]
 
 
