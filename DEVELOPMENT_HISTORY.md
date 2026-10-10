@@ -1,3 +1,10 @@
+## 2026-10-10 — Optional PRIVATE mobile preview via GitHub Codespaces (not deployed)
+
+- Added an opt-in Codespaces config that boots the **real Store practice server** with synthetic, isolated temporary data on port 8097, never on a regular Git push.
+- Only a GitHub-authenticated PRIVATE forwarded port can show the demo. DNS host whitelist accepts the exact `CODESPACE_NAME-8097.app.github.dev` and only in `--practice` mode with explicit runtime flag.
+- Added start/stop scripts, negative tests for host spoofing and real-shop exposure, and usage/cost cautions in `docs/ON_DEMAND_MOBILE_PREVIEW.md`.
+- This is an owner-created Codespace workflow: no cloud server was started, and no public deployment/payment authorized. Full clean-device and cashier checks remain required for sales.
+
 # Development history (newest first)
 
 ## 2026-10-10 — 1.9.0: the name الستور again, the 320 px phone, the owner's practice exercise, licence-kind tests, a network-failure browser test
