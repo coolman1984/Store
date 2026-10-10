@@ -218,12 +218,17 @@ class NoLengthOnTheScreens(unittest.TestCase):
         would be wrong for a product set to another length (review of the 1.9.1 change: «التجربة أسبوعين» had survived in one string)."""
         import re
         root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'web', 'i18n')
-        pair = re.compile(r"'(lic\.[\w.]+)':\s*'((?:[^'\\]|\\.)*)'")
+        key_only = re.compile(r"""['"](lic\.[\w.]+)['"]\s*:""")
+        pair = re.compile(r"""['"](lic\.[\w.]+)['"]\s*:\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")""")   # single- or double-quoted, like the dictionaries
         forbidden = re.compile(r'\b14\b|١٤|أسبوعين|اسبوعين|two weeks|two-week|fortnight|14-day', re.I)
         seen = 0
         for lang in ('ar.js', 'en.js'):
             with open(os.path.join(root, lang), encoding='utf-8') as f:
-                for key, value in pair.findall(f.read()):
-                    seen += 1
-                    self.assertIsNone(forbidden.search(value), f'{lang} {key}: {value!r}')
+                text = f.read()
+            found = pair.findall(text)
+            self.assertEqual(len(found), len(key_only.findall(text)), f'{lang}: a licence text the scan could not read')   # every key is covered, whatever its quotes
+            for key, single, double in found:
+                seen += 1
+                value = single or double
+                self.assertIsNone(forbidden.search(value), f'{lang} {key}: {value!r}')
         self.assertGreater(seen, 60, 'the scan really read the licence texts')
