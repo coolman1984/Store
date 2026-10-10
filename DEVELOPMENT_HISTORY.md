@@ -25,6 +25,8 @@
 
 **Tests:** full suite green (292 + the new files below); new files `test_invariants`, `test_safe_and_plans`, `test_busy_database`, `test_write_denial`, `test_speed`, plus browser tests for the stray-text sweep, money in errors and the stock-value tab.
 
+**UI Lab (factory PERF-01 / A11Y-01) re-run on this version:** all 22 page/size runs within budget on a ×4 slower CPU (first paint 136-220 ms, largest paint ≤ 1.1 s except the products page on a phone 2.4 s, CLS 0.001, 60 fps), axe-core: **0 serious or critical** findings (one moderate: heading order on Sales). Report: `docs/ui-lab/REPORT.md`.
+
 **Lessons:** (1) screenshots read by a person found what 270 green tests did not: look at the screens. (2) A guard test must be run against the old code first; a regex with `\b` passes «nullnull». (3) A lock taken in `__enter__` must be given back if `__enter__` itself fails. (4) Every balance a person can count (safe, drawer) gets the same "never below zero" rule at one place, not one check per route.
 
 ## 2026-10-09 — 1.7.0: the practice shop opens from Help, three exercises checked from the books, and it can never mix with the real shop
