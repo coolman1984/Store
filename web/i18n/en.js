@@ -1,6 +1,6 @@
 // English. Every key here exists in ar.js too (tests/test_frontend.py checks both ways).
 export default {
-  'app.name': 'Mizan', 'app.nameAlt': 'ميزان', 'app.tag': 'Retail books in balance', 'app.practice': 'Practice shop', 'app.practiceBar': 'A practice shop with made-up data. Learn freely: nothing here touches your real shop.',
+  'app.name': 'Al-Store', 'app.nameAlt': 'الستور', 'app.tag': 'Retail books in balance', 'app.practice': 'Practice shop', 'app.practiceBar': 'A practice shop with made-up data. Learn freely: nothing here touches your real shop.',
   cur: 'EGP', saved: 'Saved ✓',
   'time.now': 'just now', 'time.min': '{n} min ago', 'time.hour': '{n} h ago', 'time.day': '{n} days ago',
 
@@ -232,7 +232,7 @@ export default {
   'exp.rent': 'Rent', 'exp.electricity': 'Electricity', 'exp.salaries': 'Salaries', 'exp.transport': 'Transport & delivery', 'exp.maintenance': 'Maintenance', 'exp.hospitality': 'Hospitality', 'exp.other': 'Other',
 
   'watch.sub': 'Everything worth a look: discounts, returns, drawer differences, expenses and prices.', 'watch.showSeen': 'Show what I have seen', 'watch.none': 'Nothing to worry about',
-  'watch.noneHint': 'Big discounts, returns or differences appear here as they happen.', 'watch.serious': 'Serious', 'watch.total': 'All', 'watch.seen': 'Seen', 'watch.note': 'Your note',
+  'watch.noneHint': 'Big discounts, returns or differences appear here as they happen.', 'watch.serious': 'Serious', 'watch.total': 'All', 'watch.seen': 'Seen', 'watch.editNote': 'Edit note', 'watch.note': 'Your note',
   'watch.noteHint': 'e.g. talked to them, all fine', 'watch.seenBy': 'Seen: {note}',
   'watch.k.discount': '{pct}% discount on invoice {number}', 'watch.k.under_cost': 'Invoice {number} sold under cost', 'watch.k.after_hours': 'Sale at {hour}:00, outside opening hours',
   'watch.k.return': 'Return {number} from invoice {sale}', 'watch.k.drawer_short': 'Drawer short in shift {number}', 'watch.k.drawer_over': 'Drawer over in shift {number}',
@@ -288,7 +288,7 @@ export default {
   'backup.yourPassword': 'Type your password to confirm', 'backup.done': 'Backup made ✓', 'backup.restored': 'Restored. The program reopens.',
   'pref.title': 'Settings of this device only', 'pref.hint': 'They do not change other devices.', 'pref.lang': 'Language', 'pref.theme': 'Look', 'pref.auto': 'Automatic', 'pref.day': 'Light',
   'pref.night': 'Dark', 'pref.contrast': 'High contrast', 'pref.size': 'Text size', 'pref.motion': 'Motion', 'pref.motionOff': 'No motion', 'pref.sound': 'Scan sound',
-  'pref.on': 'On', 'pref.off': 'Off', 'about.version': 'Mizan version {v}',
+  'pref.on': 'On', 'pref.off': 'Off', 'about.version': 'Al-Store version {v}',
 
   'print.notReceipt': 'not a real receipt', 'print.taxNo': 'Tax no.', 'print.invoice': 'Invoice', 'print.cashier': 'Cashier', 'print.plan': 'Instalment plan',
   'print.planLine': '{n} instalments × {m}, first on {d}', 'print.warranty': 'Warranty', 'print.until': 'until',

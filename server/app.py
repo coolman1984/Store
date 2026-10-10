@@ -49,7 +49,7 @@ import training  # noqa: E402
 import trial  # noqa: E402
 from auth import AuthError, Forbidden  # noqa: E402
 from core import Ctx, Problem  # noqa: E402
-from db import Database, NewerData  # noqa: E402
+from db import Database, NewerData, is_busy_error  # noqa: E402
 from version import FROZEN, PRODUCT, PRODUCT_AR, ROOT, VERSION  # noqa: E402
 
 WEB = os.path.join(ROOT, 'web')
@@ -377,7 +377,7 @@ class Handler(BaseHTTPRequestHandler):
         except (ConnectionError, BrokenPipeError):
             pass
         except sqlite3.OperationalError as e:
-            if 'locked' not in str(e).lower() and 'busy' not in str(e).lower():
+            if not is_busy_error(e):
                 return self.bug(e)
             # another program holds the shop's data file for a moment: a calm "try again", not a bug and not a freeze
             log.warning('DATA BUSY %s: %s', self.path, e)
@@ -599,7 +599,7 @@ class Handler(BaseHTTPRequestHandler):
             d = {**APP.licence(), 'vendor_telegram': vendor_telegram(APP.cfg.get('vendor_telegram'))}
         elif path == '/api/practice':  # the real shop asks whether the practice shop runs; the practice shop just says it is the one
             d = {'state': 'here', 'url': ''} if APP.practice else practice_mod.status(APP) if self.local() else {'state': 'remote', 'url': ''}
-        elif path == '/api/training':  # the three exercises and where this person stands (practice shop only)
+        elif path == '/api/training':  # the four exercises and where this person stands (practice shop only)
             if not APP.practice:
                 raise Problem('err.practiceOnly', 'Training is available in the practice shop only.', 403)
             d = training.view(APP)

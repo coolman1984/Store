@@ -1,4 +1,4 @@
-"""Hands-on training inside the practice shop: three everyday problems, each set up fresh with made-up goods and money, and checked
+"""Hands-on training inside the practice shop: four everyday problems, each set up fresh with made-up goods and money, and checked
 from the shop's own books.
 
 A lesson never reads what the person clicked. It reads what the books now say (a return row, a closed shift, a settled count) with
@@ -6,12 +6,15 @@ the same tables the reports use, so "done" means the shop really ended up right,
 restarting a lesson only ADDS new made-up rows (a new sale, a new shift, new stock): nothing is edited or deleted (the ledger
 tables refuse that), and it only ever runs in the practice shop (`App.practice`; the real shop answers 403 to every call here).
 
-The three problems:
+The four problems:
 - `return`: a customer brings back a fridge whose door does not shut. The cashier takes it back as defective, a manager approves,
   the cash goes back from the drawer.
 - `drawer`: the drawer is 15 pounds short. The cause is a tea-and-coffee payment nobody wrote down. Record it, then close the shift
   with the real count: the difference is zero.
 - `count`: the shelf holds two fans fewer than the books say. Count it, close the count with a reason, the books follow the shelf.
+- `discount` (the owner's): the manager gave a 12% discount. The owner finds it in the Owner's eye (the figures in the story are read
+  back from there) and marks it seen with a note of his own. It is sold on the manager's own shift so the cashier's drawer lesson
+  keeps its figures. Nothing in the ledger changes; the lesson reads the review row.
 
 The full reset (throw the practice shop away and rebuild it) is `App.reset_practice`.
 """
@@ -24,11 +27,12 @@ import sample
 import stock
 from core import Problem
 
-LESSONS = ('return', 'drawer', 'count')
-ACCOUNT = {'return': 'cashier', 'drawer': 'cashier', 'count': 'store'}  # whom the person signs in as for this lesson
+LESSONS = ('return', 'drawer', 'count', 'discount')
+ACCOUNT = {'return': 'cashier', 'drawer': 'cashier', 'count': 'store', 'discount': 'owner'}  # whom the person signs in as for this lesson
 APPROVER = 'manager'
 MISSING_CASH = 1500    # 15 pounds in piasters
 MISSING_PIECES = 2
+DISCOUNT_PCT = 12      # inside the manager's 15%, above the 10% from which the Owner's eye lists a discount
 KEY = 'training'
 
 PRODUCT_FRIDGE = 'ثلاجة ديفروست 14 قدم'
@@ -160,7 +164,28 @@ def _prepare_count(app):
             'expected': onhand, 'physical': onhand - MISSING_PIECES, 'missing': MISSING_PIECES}
 
 
-PREPARE = {'return': _prepare_return, 'drawer': _prepare_drawer, 'count': _prepare_count}
+def _prepare_discount(app):
+    import reports
+    db = app.db
+    mctx = _ctx(app, APPROVER)             # the manager sells on his own shift: the cashier's drawer (another lesson) is not touched
+    _shift(app, mctx)
+    product = _product(db, CHEAP[0], serial=False)   # not the fan: the count lesson counts the fan on the same shelf and must keep its figures
+    shop = _place(db, 'shop')
+    if stock.on_hand(db, product['id'], shop) < 3:
+        _stock_up(app, product['id'], shop, 10)
+    lines = [{'product_id': product['id'], 'qty': 1}]
+    subtotal = sales.quote(mctx, {'lines': lines})['subtotal']
+    discount = (subtotal * DISCOUNT_PCT // 100 // 100) * 100
+    sale = sales.sell(mctx, {'idem_key': ids.uuid7(), 'lines': lines, 'discount': discount,
+                             'payments': [{'method': 'cash', 'amount': subtotal - discount}]})
+    item = next((i for i in reports.watch(db, 1) if i['key'] == 'disc:' + sale['id']), None)
+    if not item:  # the exercise sends the owner to the Owner's eye: if it is not listed there, do not hand out a lesson that cannot be done
+        raise Problem('err.trainingUsers', 'The practice discount did not show in the Owner\'s eye. Rebuild the practice shop from the Help page.', 409)
+    return {'sale_id': sale['id'], 'number': sale['number'], 'product': product['name'], 'given': item['amount'], 'pct': round(item['detail']['pct']),
+            'who': mctx.user['full_name']}
+
+
+PREPARE = {'return': _prepare_return, 'drawer': _prepare_drawer, 'count': _prepare_count, 'discount': _prepare_discount}
 
 
 # ------------------------------------------------------------------ reading the books
@@ -191,7 +216,13 @@ def _checks_count(db, d):
     return [('counted', bool(line and line['counted'] == d['physical'])), ('closed', closed), ('settled', closed and moved == -d['missing'])]
 
 
-CHECK = {'return': _checks_return, 'drawer': _checks_drawer, 'count': _checks_count}
+def _checks_discount(db, d):
+    r = db.one('SELECT r.note FROM watch_reviews r JOIN users u ON u.id = r.by_user WHERE r.item = ? AND u.username = ?',
+               'disc:' + d['sale_id'], ACCOUNT['discount'])   # the owner's own review: a manager has the same permission and must not finish the owner's exercise
+    return [('seen', bool(r)), ('noted', bool(r and r['note'].strip() not in ('', '✓')))]
+
+
+CHECK = {'return': _checks_return, 'drawer': _checks_drawer, 'count': _checks_count, 'discount': _checks_discount}
 
 
 def view(app):

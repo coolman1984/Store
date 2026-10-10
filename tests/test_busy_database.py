@@ -26,6 +26,46 @@ class Holder:
         self.conn.close()
 
 
+class OneRuleForABusyFile(unittest.TestCase):
+    def test_only_sqlites_locked_and_busy_messages_are_a_busy_file(self):
+        """Review of PR #21: three places had three rules («lock», «locked», «locked or busy»); a read-only file or a column named lock_x was taken for a busy file."""
+        from db import is_busy_error
+        for text in ('database is locked', 'database table is locked', 'database is busy', 'DATABASE IS LOCKED'):
+            self.assertTrue(is_busy_error(sqlite3.OperationalError(text)), text)
+        for text in ('attempt to write a readonly database', 'disk I/O error', 'database or disk is full', 'no such column: lock_state', 'unable to open database file'):
+            self.assertFalse(is_busy_error(sqlite3.OperationalError(text)), text)
+
+
+class OnlyABusyFileMarksTheShopBusy(unittest.TestCase):
+    """Review of PR #21: any OperationalError on the «last seen» write was taken for «another program holds the file»: a full or failing disk then made
+    the shop refuse every write with a message about another program, and the real fault left no trace."""
+
+    def test_a_disk_error_on_last_seen_is_not_a_busy_file(self):
+        s = Shop()
+        auth = s.app.auth
+        token = auth.start_session(s.users['owner'], '127.0.0.1')
+        real = s.db.run
+
+        def failing(message):
+            def run(sql, *a, **k):
+                if 'last_seen' in sql and sql.lstrip().upper().startswith('UPDATE'):
+                    raise sqlite3.OperationalError(message)
+                return real(sql, *a, **k)
+            return run
+        s.db.run = failing('disk I/O error')
+        try:
+            self.assertIsNotNone(auth.session(token))
+        finally:
+            s.db.run = real
+        self.assertFalse(s.db.busy(), 'a disk error is not a busy file')
+        s.db.run = failing('database is locked')
+        try:
+            self.assertIsNotNone(auth.session(token))
+        finally:
+            s.db.run = real
+        self.assertTrue(s.db.busy(), 'a locked file still is')
+
+
 class FailedBeginGivesTheLockBack(unittest.TestCase):
     def test_a_transaction_that_cannot_start_does_not_freeze_the_shop(self):
         s = Shop()

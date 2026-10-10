@@ -225,7 +225,7 @@ class Exercises(unittest.TestCase):
     def start(self, name, restart=False):
         return tx(self.app, lambda ctx: training.start(self.app, ctx, name, restart))
 
-    def test_all_three_start_fresh_and_nothing_is_done_yet(self):
+    def test_all_four_start_fresh_and_nothing_is_done_yet(self):
         for name in training.LESSONS:
             self.start(name)
         for x in training.view(self.app)['lessons']:
@@ -359,6 +359,102 @@ class Exercises(unittest.TestCase):
         self.assertEqual(lesson(self.app, 'count')['attempt'], 2)
         tx(self.app, lambda ctx: stock.start_count(ctx, d['location_id'], ''), 'store')   # a new sheet can be started
 
+    def test_the_owners_exercise_is_a_discount_the_manager_gave_on_his_own_shift(self):
+        import reports
+        self.start('discount')
+        x = lesson(self.app, 'discount')
+        d = x['data']
+        self.assertEqual((x['account'], x['state']), ('owner', 'open'))
+        sale = self.app.db.one('SELECT s.*, u.username AS by FROM sales s JOIN users u ON u.id = s.by_user WHERE s.id = ?', d['sale_id'])
+        self.assertEqual(sale['by'], 'manager')
+        self.assertEqual(sale['discount'], d['given'])
+        listed = [i for i in reports.watch(self.app.db, 1) if i['key'] == 'disc:' + d['sale_id']]
+        self.assertEqual(len(listed), 1, "the Owner's eye shows it, which is where the exercise sends the owner")
+        self.assertEqual((listed[0]['amount'], round(listed[0]['detail']['pct'])), (d['given'], d['pct']), "the story's figures are the Owner's eye's own")
+        self.assertGreaterEqual(d['pct'], 10)
+
+    def test_the_discount_exercise_leaves_the_cashiers_drawer_lesson_as_it_was(self):
+        """Review of PR #21: the discount was sold into the cashier's open shift, so a drawer lesson started before it could no longer be finished
+        (its stored figures went stale)."""
+        self.start('drawer')
+        before = lesson(self.app, 'drawer')['data']
+        shift = self.app.db.value('SELECT id FROM shifts WHERE id = ?', before['shift_id'])
+        expected = cash.drawer_expected(self.app.db, shift)
+        self.start('discount')
+        self.assertEqual(cash.drawer_expected(self.app.db, shift), expected, "the drawer of the drawer lesson did not move")
+        self.assertEqual(before['expected'], expected)
+        tx(self.app, lambda ctx: cash.expense(ctx, {'idem_key': 'tea-9', 'category': 'hospitality', 'amount': training.MISSING_CASH, 'note': 'شاي وقهوة'}), 'cashier')
+        tx(self.app, lambda ctx: cash.close_shift(ctx, shift, before['physical'], ''), 'cashier')
+        self.assertEqual(lesson(self.app, 'drawer')['state'], 'done')
+
+    def test_the_discount_is_done_only_when_seen_with_a_note_of_the_owners_own(self):
+        import reports
+        self.start('discount')
+        d = lesson(self.app, 'discount')['data']
+        key = 'disc:' + d['sale_id']
+        self.assertEqual({c['key']: c['ok'] for c in lesson(self.app, 'discount')['checks']}, {'seen': False, 'noted': False})
+        tx(self.app, lambda ctx: reports.review(ctx, key, ''))          # a bare tick
+        x = lesson(self.app, 'discount')
+        self.assertEqual(({c['key']: c['ok'] for c in x['checks']}, x['state']), ({'seen': True, 'noted': False}, 'open'))
+        tx(self.app, lambda ctx: reports.review(ctx, key, 'كلّمت الكاشير والموضوع تمام'))
+        x = lesson(self.app, 'discount')
+        self.assertEqual(({c['key']: c['ok'] for c in x['checks']}, x['state']), ({'seen': True, 'noted': True}, 'done'))
+
+    def test_the_discount_exercise_leaves_the_shelf_count_lesson_as_it_was(self):
+        """Review of PR #21: both lessons sold or counted the same fan on the same shelf, so starting the discount after the count made the count's
+        variance -1 instead of -2 and its «settled» check could never turn green."""
+        self.start('count')
+        d = lesson(self.app, 'count')['data']
+        before = stock.on_hand(self.app.db, d['product_id'], d['location_id'])
+        self.start('discount')
+        self.assertEqual(stock.on_hand(self.app.db, d['product_id'], d['location_id']), before, 'the discount did not touch the counted product')
+        cid = tx(self.app, lambda ctx: stock.start_count(ctx, d['location_id'], ''), 'store')
+        tx(self.app, lambda ctx: stock.count_line(ctx, cid, d['product_id'], d['physical']), 'store')
+        tx(self.app, lambda ctx: stock.close_count(ctx, cid, 'ناقص من الرف'), 'store')
+        self.assertEqual(lesson(self.app, 'count')['state'], 'done')
+
+    def test_someone_elses_review_is_changed_only_by_the_owner(self):
+        import reports
+        from auth import Forbidden
+        self.start('discount')
+        key = 'disc:' + lesson(self.app, 'discount')['data']['sale_id']
+        tx(self.app, lambda ctx: reports.review(ctx, key, 'تمام'), 'owner')
+        with self.assertRaises(Forbidden):
+            tx(self.app, lambda ctx: reports.review(ctx, key, 'غيّرت رأيي'), 'manager')
+        self.assertEqual(self.app.db.value('SELECT note FROM watch_reviews WHERE item = ?', key), 'تمام')
+        tx(self.app, lambda ctx: reports.review(ctx, key, 'ملاحظة المدير'), 'owner')          # the owner may, and may change his own again
+        tx(self.app, lambda ctx: reports.review(ctx, key + 'x', 'ملاحظة المدير'), 'manager')  # a manager may review what nobody has seen
+        self.assertEqual(self.app.db.value('SELECT note FROM watch_reviews WHERE item = ?', key), 'ملاحظة المدير')
+
+    def test_a_manager_marking_it_seen_does_not_finish_the_owners_exercise(self):
+        """Review of PR #21: the manager has the same permission, and the check ignored who wrote the review."""
+        import reports
+        self.start('discount')
+        key = 'disc:' + lesson(self.app, 'discount')['data']['sale_id']
+        tx(self.app, lambda ctx: reports.review(ctx, key, 'تمام يا فندم'), 'manager')
+        x = lesson(self.app, 'discount')
+        self.assertEqual(({c['key']: c['ok'] for c in x['checks']}, x['state']), ({'seen': False, 'noted': False}, 'open'))
+        tx(self.app, lambda ctx: reports.review(ctx, key, 'بصّيت بنفسي'), 'owner')
+        self.assertEqual(lesson(self.app, 'discount')['state'], 'done')
+
+    def test_seeing_a_different_item_does_not_finish_the_discount(self):
+        import reports
+        self.start('discount')
+        other = self.app.db.value("SELECT id FROM sales WHERE id != ? ORDER BY at DESC LIMIT 1", lesson(self.app, 'discount')['data']['sale_id'])
+        tx(self.app, lambda ctx: reports.review(ctx, 'disc:' + other, 'تمام'))
+        self.assertEqual(lesson(self.app, 'discount')['state'], 'open')
+
+    def test_the_discount_restarts_with_a_new_sale_and_leaves_the_old_review_alone(self):
+        import reports
+        self.start('discount')
+        first = lesson(self.app, 'discount')['data']['sale_id']
+        tx(self.app, lambda ctx: reports.review(ctx, 'disc:' + first, 'تمام'))
+        self.start('discount', restart=True)
+        x = lesson(self.app, 'discount')
+        self.assertNotEqual(x['data']['sale_id'], first)
+        self.assertEqual((x['state'], x['attempt']), ('open', 2), 'the earlier review does not count for the new problem')
+        self.assertEqual(self.app.db.value('SELECT COUNT(*) FROM watch_reviews WHERE item = ?', 'disc:' + first), 1)
+
     def test_the_exercises_only_ever_add_rows(self):
         before = {t: self.app.db.value(f'SELECT COUNT(*) FROM {t}') for t in ('sales', 'stock_moves', 'cash_moves', 'returns', 'audit')}
         for name in training.LESSONS:
@@ -454,7 +550,7 @@ class RebuildAndLaunch(unittest.TestCase):
             self.assertEqual(self.call(port, 'GET', '/api/me', cookie=cookie)[0], 401, 'the old session is gone')
             st, d, cookie = self.call(port, 'POST', '/api/login', {'username': 'owner', 'password': sample.DEMO_PASSWORD})
             self.assertEqual(st, 200, 'the same accounts exist in the fresh shop')
-            self.assertEqual([x['state'] for x in self.call(port, 'GET', '/api/training', cookie=cookie)[1]['lessons']], ['new'] * 3)
+            self.assertEqual([x['state'] for x in self.call(port, 'GET', '/api/training', cookie=cookie)[1]['lessons']], ['new'] * len(training.LESSONS))
             self.assertGreater(len(self.call(port, 'GET', '/api/products', cookie=cookie)[1]['items']), 10, 'a fresh made-up shop with its goods')
             self.assertTrue(os.path.exists(os.path.join(home, practice.MARKER)))
             rows = self.call(port, 'GET', '/api/audit?limit=20', cookie=cookie)[1]

@@ -342,7 +342,7 @@ function renderShell() {
     <div class="main">
       <header class="top">
         <span class="mobile-mark">${mark('light', t('app.name'))}</span>
-        <button class="search-pill" data-cmdk>${icon('search')}<span class="grow">${t('cmdk.placeholder')}</span><span class="kbd hide-phone">Ctrl K</span></button>
+        <button class="search-pill" data-cmdk aria-label="${t('cmdk.placeholder')}">${icon('search')}<span class="grow">${t('cmdk.placeholder')}</span><span class="kbd hide-phone">Ctrl K</span></button>
         <div class="top-end"><span data-guide-slot></span><span id="shift-chip"></span>
         <button class="icon-btn" data-theme-toggle aria-label="${t('pref.theme')}">${icon(document.documentElement.dataset.theme === 'night' ? 'sun' : 'moon')}</button>
         <button class="icon-btn" data-lang aria-label="${t('pref.lang')}"><span class="small">${lang() === 'ar' ? 'EN' : 'ع'}</span></button></div>

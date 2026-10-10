@@ -357,6 +357,35 @@ class TrainingByClicking(Browser):
         self.check(pg, 'count')
         self.assertEqual(self.errors, [])
 
+    def test_the_owner_looks_at_a_big_discount_in_the_owners_eye(self):
+        pg = self.open('owner')
+        self.start(pg, 'discount')
+        d = self.lesson_data(pg, 'discount')['data']
+        self.assertIn(d['number'], pg.inner_text('[data-lesson="discount"]'))   # the story names the invoice
+        self.go(pg, 'watch')
+        pg.wait_for_selector(f'[data-seen="disc:{d["sale_id"]}"]')
+        self.assertIn(d['number'], pg.inner_text('#page'))                     # the discount is listed there, with its invoice
+        pg.click(f'[data-seen="disc:{d["sale_id"]}"]')
+        pg.wait_for_selector('#wn')
+        pg.click('.dialog [data-ok]')                                          # a bare tick first: seen, but not yet with a note of his own
+        pg.wait_for_selector('.dialog', state='detached')
+        self.go(pg, 'help')
+        pg.wait_for_selector('[data-lesson="discount"] [data-check]')
+        pg.click('[data-lesson="discount"] [data-check]')
+        pg.wait_for_timeout(300)
+        self.assertEqual(pg.get_attribute('[data-lesson="discount"] [data-state]', 'data-state'), 'open')
+        self.assertEqual(len(pg.query_selector_all('[data-lesson="discount"] .train-checks li.ok')), 1)
+        self.go(pg, 'watch')                                                   # the item is hidden now that it was seen: show the seen ones and edit the note
+        pg.check('#w-all')
+        pg.wait_for_selector(f'[data-seen="disc:{d["sale_id"]}"][data-note]')
+        pg.click(f'[data-seen="disc:{d["sale_id"]}"]')
+        pg.wait_for_selector('#wn')
+        pg.fill('#wn', 'كلمت الكاشير وتمام')
+        pg.click('.dialog [data-ok]')
+        pg.wait_for_selector('.dialog', state='detached')
+        self.check(pg, 'discount')
+        self.assertEqual(self.errors, [])
+
     def test_a_restart_sets_the_problem_up_again_and_the_owner_can_rebuild_everything(self):
         pg = self.open('owner')
         self.start(pg, 'drawer')
@@ -497,6 +526,20 @@ class LayoutSweep(Browser):
 
     def test_phone(self):
         self.sweep(360, 780)
+
+    def test_narrowest_phone_320_in_both_languages(self):
+        """The factory's smallest screen (design-factory/DESIGN.md): the top bar was 10-21 px wider than a 320 px phone on every page."""
+        self.sweep(320, 640)
+        self.sweep(320, 640, 'night', 'en')
+
+    def test_the_search_button_keeps_its_name_when_its_label_is_hidden_at_320(self):
+        """Review of PR #21: at 340 px and below the label is hidden; the button must still have an accessible name in both languages."""
+        for language in ('ar', 'en'):
+            pg = self.open('owner', width=320, height=640, prefs={'lang': language})
+            self.assertEqual(pg.is_visible('.top .search-pill > span.grow'), False)
+            name = pg.get_attribute('[data-cmdk]', 'aria-label')
+            self.assertTrue(name and name.strip(), language)
+            pg.context.close()
 
     def test_tablet_dark(self):
         self.sweep(820, 1180, 'night')
@@ -644,6 +687,46 @@ class AskingTheCompanyTryNow(Browser):
         self.until(pg, "document.querySelector('.banner.licence.bad') === null && document.querySelector('.lic.good') !== null", 4)
         self.assertEqual(self.S.app.licence()['state'], 'trial')
         self.assertEqual([e for e in self.errors if '400' not in e], [])
+
+
+@SKIP
+class StandaloneNetworkFailure(Browser):
+    """Factory UX-04 for the `standalone` tier: the company's server is unreachable (nothing listens on its address) and the shop goes on:
+    a calm, labelled state with the sentence «selling is not affected», no error page, no console error, nothing spilling out of a phone
+    screen, and the shop's own work (a new product) is saved and shown while the failure stands."""
+    practice = False
+
+    def test_the_support_server_is_unreachable_and_the_shop_goes_on(self):
+        import socket
+        import support
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1', 0))
+            dead = probe.getsockname()[1]            # a port nothing listens on: the connection is refused
+        support.save(self.S.app.home, True, f'http://127.0.0.1:{dead}', '0123456789abcdef0123')
+        for language, width in (('ar', 390), ('en', 320)):
+            with self.subTest(language=language):
+                pg = self.open(OWNER[0], OWNER[1], width=width, height=800, prefs={'lang': language})
+                try:
+                    pg.wait_for_selector('[data-afc="decline"]', timeout=3000)
+                    pg.click('[data-afc="decline"]')
+                    pg.wait_for_selector('[data-afc="card"]', state='detached')
+                except Exception:
+                    pass
+                self.go(pg, 'settings?tab=support')
+                pg.click('[data-ping]')
+                pg.wait_for_selector('.tip.warn')
+                shown = pg.inner_text('.tip.warn')
+                self.assertTrue('البيع مش متأثر' in shown or 'not affected' in shown.lower(), shown)
+                self.assertEqual(pg.evaluate(OVERFLOW), [], 'the failure state fits the screen')
+                name = f'Kept while offline {language}'
+                self.assertEqual(self.S.app.licence()['full'], True)
+                c = self.S.client()
+                c.login()
+                self.assertEqual(c.post('/api/product/save', {'name': name, 'retail': 100})[0], 200)
+                self.go(pg, 'products?q=' + name.replace(' ', '%20'))
+                self.assertIn(name, pg.inner_text('#page'))
+                self.assertEqual(self.errors, [])
+                pg.context.close()
 
 
 @SKIP

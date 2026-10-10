@@ -1,5 +1,5 @@
 // Learning by doing. In the real shop: one button opens the practice shop (made-up data, its own folder and port). In the practice shop:
-// three exercises, each set up fresh, then checked from the shop's own books; and the whole made-up shop can be rebuilt.
+// four exercises (cashier, storekeeper, owner), each set up fresh, then checked from the shop's own books; and the whole made-up shop can be rebuilt.
 import { api } from '../api.js';
 import { S, can, refreshShift } from '../app.js';
 import { t, lang } from '../i18n.js';
@@ -42,7 +42,8 @@ function realBox(host) {
 function vars(l, v) {
   const d = l.data || {};
   const count = l.id === 'count';
-  return { user: l.account, password: v.password, approver: v.approver, customer: d.customer, number: d.number, product: d.product, place: d.place,
+  return { user: l.account, password: v.password, approver: v.approver, customer: d.customer, number: d.number, product: d.product, place: d.place, pct: d.pct, who: d.who,
+    given: money(d.given || 0),
     total: money(d.total || 0), expected: count ? num(d.expected) : money(d.expected || 0), physical: count ? num(d.physical) : money(d.physical || 0),
     missing: count ? num(d.missing) : money(d.missing || 0) };
 }
