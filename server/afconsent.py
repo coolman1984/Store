@@ -1,4 +1,4 @@
-# Vendored from Apps-Factory packages/af-consent 0.1.0 - do not edit here.
+# Vendored from Apps-Factory packages/af-consent 0.1.1 - do not edit here.
 # Update with: python scripts/vendor_consent.py <product repo> (from the Apps-Factory checkout)
 """af-consent: the factory's consent records (standard library only, one file, vendorable).
 
@@ -20,7 +20,7 @@ Every decision is kept (append-only) with the time, the exact text id the person
 """
 from datetime import datetime, timezone
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 FALLBACK_VENDOR = 'coolman1984'
 SCOPES = {'install', 'person'}

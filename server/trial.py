@@ -93,8 +93,10 @@ def public(app):
     base = {'available': bool(relay_url(app)), 'fields': list(SENT_FIELDS)}
     if not st:
         return {**base, 'status': 'none'}
-    keep = ('status', 'kind', 'reason', 'created_at', 'tries', 'next_try', 'error', 'serial')
+    keep = ('status', 'kind', 'reason', 'created_at', 'tries', 'next_try', 'error', 'serial', 'stage')
     out = {**base, **{k: st.get(k) for k in keep}}
+    if out['status'] != 'waiting' or out.get('error'):
+        out['stage'] = ''  # "the company approved" is only a word for a request that is still waiting and reachable
     if out['status'] in ACTIVE + ('issued',) and _superseded(app.db, st):
         out.update(status='closed', reason='manual', error='')  # what the next look will record; the screen need not wait for it
     return out
@@ -206,30 +208,31 @@ def step(app, now=None, force=False):
                 elif d.get('replay') and not d.get('poll_token'):
                     # the answer to our first try was lost and the request is already there: we cannot read it without the token
                     # (a replay never learns it). A new nonce makes a new request; the relay hands over a waiting code or refuses a used trial.
-                    st['nonce'] = str(uuid.uuid4())
+                    st.update(nonce=str(uuid.uuid4()), stage='')
                     _soon(st, 5)
                 else:
-                    st.update(id=d.get('id'), poll_token=d.get('poll_token'), status='waiting', error='', tries=0, reason=d.get('reason', ''))
+                    st.update(id=d.get('id'), poll_token=d.get('poll_token'), status='waiting', error='', tries=0, reason=d.get('reason', ''), stage='')
                     if d.get('status') == 'refused':
                         st.update(status='refused', reason=d.get('reason', 'refused'))
                     _soon(st, 5)
             else:
                 code, d = _call('GET', url + '/licence/status?id=' + st['id'], token=st['poll_token'])
                 if code == 401:
-                    st.update(status='failed', error='token', id=None, poll_token=None, nonce=str(uuid.uuid4()))
+                    st.update(status='failed', error='token', id=None, poll_token=None, nonce=str(uuid.uuid4()), stage='')
                 elif code != 200:
                     _failed(st, f'http_{code}')
                 elif d.get('status') == 'issued':
                     _activate(app, st, url, d.get('code'))
                 elif d.get('status') == 'refused':
-                    st.update(status='refused', reason=d.get('reason') or 'refused', error='')
+                    st.update(status='refused', reason=d.get('reason') or 'refused', error='', stage='')
                 elif d.get('status') in ('expired',):
-                    st.update(status='closed', reason='expired', error='')
+                    st.update(status='closed', reason='expired', error='', stage='')
                 elif d.get('status') == 'delivered':
                     st.update(status='activated' if licence.status(app.db)['full'] else 'closed', reason='delivered', error='')
                 else:
                     age = (now - (ids.parse(st['created_at']) or now)).total_seconds()
-                    st.update(status='waiting', error='')
+                    # `stage: approved` = the company's owner agreed and the code is on its way: said on the screen, but never a licence
+                    st.update(status='waiting', error='', stage='approved' if d.get('stage') == 'approved' else '')
                     _soon(st, next(wait for limit, wait in POLL if age < limit))
         except ConnectionError as e:
             _failed(st, 'offline:' + str(e))

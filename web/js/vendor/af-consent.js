@@ -1,6 +1,6 @@
-/* Vendored from Apps-Factory packages/af-consent 0.1.0 - do not edit here. */
+/* Vendored from Apps-Factory packages/af-consent 0.1.1 - do not edit here. */
 /* Update with: python scripts/vendor_consent.py <product repo> (from the Apps-Factory checkout) */
-/* af-consent 0.1.0: the first sign-in consent card and the «الخصوصية والمساعدة» settings block.
+/* af-consent 0.1.1: the first sign-in consent card and the «الخصوصية والمساعدة» settings block.
    No dependencies, textContent only. The server owns the record (af_consent.py); this only asks and shows.
 
      const p = await fetch('/api/consent/prompt').then(r => r.json());     // af_consent.prompt(lang, vendor)
@@ -56,15 +56,16 @@
     const s = opts.status || {};
     const on = !!s.tracking;
     const installOk = s.install && s.install.decision === 'agree';
-    container.replaceChildren(el(doc, 'h3', {text: W.title}),
+    // `replaceChildren(a, null, b)` prints the null as the word "null" (Settings -> Privacy showed «nullnull»): only real nodes go in
+    container.replaceChildren(...[el(doc, 'h3', {text: W.title}),
       el(doc, 'p', {'data-afc': 'state', text: installOk ? (on ? W.on : W.off) : W.install}),
       s.person ? el(doc, 'p', {class: 'afc-more', text: s.person.label + ' · ' + s.person.at}) : null,
       installOk ? el(doc, 'button', {type: 'button', class: 'afc-btn', 'data-afc': on ? 'withdraw' : 'agree-now',
         on: {click: () => opts.decide(on ? 'withdraw' : 'agree')}, text: on ? W.withdraw : W.agreeNow}) : null,
       opts.showSent ? el(doc, 'button', {type: 'button', class: 'afc-btn afc-quiet', 'data-afc': 'sent', on: {click: opts.showSent}, text: W.sent}) : null,
-      el(doc, 'p', {class: 'afc-more', text: W.feedback}));
+      el(doc, 'p', {class: 'afc-more', text: W.feedback})].filter(Boolean));
     container.setAttribute('lang', lang);
     container.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
   }
-  return {version: '0.1.0', ask, settings, WORDS};
+  return {version: '0.1.1', ask, settings, WORDS};
 });

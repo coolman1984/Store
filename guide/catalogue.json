@@ -1109,6 +1109,12 @@
       "roles": []
     },
     {
+      "id": "data-busy",
+      "page": "help",
+      "errors": ["err.busy"],
+      "roles": []
+    },
+    {
       "id": "setup-done",
       "page": "setup",
       "errors": [
@@ -1261,6 +1267,7 @@
         "err.phoneTaken",
         "err.nationalId",
         "err.payMoreThanOwed",
+        "err.payMoreThanPlan",
         "err.months",
         "err.firstDue"
       ],

@@ -180,6 +180,26 @@ def _guards(conn):
                      f"BEGIN SELECT RAISE(ABORT, 'append-only: {table}'); END")
 
 
+# Indexes added after 1.0, made every time the database opens (like the guards: a shop that upgrades has them without a migration, and an older
+# program still opens the data). Found with 4,000 customers and 20,000 sales: the customers page took 3 s (a full read of the sales for every
+# customer), the Today page 1.3 s. Each one answers a page's question without reading a whole table.
+SPEED_INDEXES = (
+    'CREATE INDEX IF NOT EXISTS sales_customer ON sales(customer_id, at)',      # a customer's sales and "last sale" in the list
+    'CREATE INDEX IF NOT EXISTS sales_shift ON sales(shift_id)',                # a shift's sales count and total
+    'CREATE INDEX IF NOT EXISTS returns_at ON returns(at)',                     # today's and the period's returns
+    'CREATE INDEX IF NOT EXISTS returns_sale ON returns(sale_id)',              # the returns of a sale
+    'CREATE INDEX IF NOT EXISTS cash_account ON cash_moves(account, amount)',   # the safe's balance without reading every move
+    'CREATE INDEX IF NOT EXISTS cash_ref ON cash_moves(kind, ref_id)',          # the cash that belongs to a collection or a sale
+    'CREATE INDEX IF NOT EXISTS ar_at ON ar_entries(at)',                       # the owner's eye: reversals this week
+    'CREATE INDEX IF NOT EXISTS tenders_method ON tenders(method, provider)',   # what the finance companies still owe
+)
+
+
+def _speed(conn):
+    for sql in SPEED_INDEXES:
+        conn.execute(sql)
+
+
 class NewerData(Exception):
     """The data was written by a newer version of the program: refuse to open instead of damaging it."""
 
@@ -227,6 +247,7 @@ class Database:
                     self.conn.execute('ROLLBACK')
                     raise
         _guards(self.conn)
+        _speed(self.conn)
 
     # -- helpers used by every module. Every call holds the lock: one shared connection must never mix a
     #    statement of another thread into an open transaction.
@@ -276,7 +297,13 @@ class _Tx:
 
     def __enter__(self):
         self.db.lock.acquire()
-        self.db.conn.execute('BEGIN IMMEDIATE')
+        try:
+            self.db.conn.execute('BEGIN IMMEDIATE')
+        except BaseException:
+            # Not entered: __exit__ will not run, so the lock must be given back here. Another program holding the file (a database viewer, a
+            # backup or antivirus scan) made this fail once and the lock stayed taken by a finished request: every later request waited for ever.
+            self.db.lock.release()
+            raise
         return self.db
 
     def __exit__(self, kind, value, tb):

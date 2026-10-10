@@ -1,5 +1,32 @@
 # Development history (newest first)
 
+## 2026-10-10 — 1.8.0: an independent audit round (random shop days, a real browser, a look at the screens) and the owner's Telegram buttons
+**Why (owner request):** before the first paying customer, someone other than the author must try to break the program, and earlier fixes must not be taken on trust.
+
+**How (nothing here was found by an old test):**
+1. `tests/test_invariants.py`: random shop days (sales of every kind, returns, instalments, collections and their undoing, expenses, the safe, shifts, transfers, supplier payments, counts) with the books checked after EVERY step: no negative safe or drawer, no lost serial, no overpaid supplier or plan, and each ledger equal to the documents it comes from. 24 seeds × 160 steps were also run by hand while building it.
+2. A browser sweep of every page as every role, in both languages, at phone, tablet and PC size, then **looking at the screenshots**.
+3. Probes with a failure in mind: an empty body posted to all 48 write routes as a person with no permission; the database layer read for what happens when one step fails.
+
+**Defects found, root cause, fix (each has a test that fails on 1.7.0):**
+- **«nullnull» printed in the guide's coach on EVERY step, and in Settings → Privacy for a person who cannot change settings.** `replaceChildren(a, null, b)` turns the null into the word (same cause as the «الدليلnull» of 1.4.0). The guide walker never read the coach text, and my first regex (`\bnull\b`) did not match «nullnull» either: a test must be shown to fail before it counts. Fixed in the factory (af-guide 0.1.3, af-consent 0.1.1) and vendored; the walker and a browser test now read the text.
+- **The shop could freeze for ever.** `db.tx()` took the global lock and then ran `BEGIN IMMEDIATE`; when that failed once (another program holding the file: a database viewer, a copy tool, an antivirus scan) the lock stayed owned by a finished request and every later request waited until the program was restarted. The lock is given back now, and the person reads «بيانات المحل مشغولة، جرّب تاني» (HTTP 503, own guide entry) instead of «unexpected problem».
+- **The safe could go below zero**: an expense from it, a supplier payment (its default source), a purchase paid from it, the undoing of a deposit that had been spent, or the undoing of a cash collection whose money had gone to the safe and been spent. One rule now (`need_in_safe`), the wording says the way out (the drawer, or a deposit first).
+- **A payment tagged to an instalment plan could pay more than the plan owed** (the plan's rest turned negative). Limited to what the plan still owes (`err.payMoreThanPlan`).
+- **«This is more than what is owed (300000)»** showed piasters as if they were pounds, 100 times too much, for customers, suppliers and finance companies. The text now formats money (`{owed:money}`).
+- **A return could be taken by a person with no counter permission** when a manager typed a password; two other write routes (undoing a cash entry, closing a shift) answered 400/404 before checking permission. All 48 write routes now answer a person with no ticks with 403 (`tests/test_write_denial.py`).
+- **The Customers page took 3 seconds with 4,000 customers and 20,000 sales (and Today 1.3 s)**: no index answered «the last sale of this customer», so every customer read every sale (work grew with customers × sales). Measured with a made-up shop of 1,500 products, 4,000 customers and 20,000 sales: customers list 3,092 ms → 2.3 ms. Eight indexes (`SPEED_INDEXES`, made every time the database opens, so no schema change and an older program still opens the data); the safe's balance, a shift's summary, today's returns, the Owner's eye and the finance companies' balance use them too. `tests/test_speed.py` reads the query plans. Left alone: the Owner's eye reads one query per sale of the last 7 days (about 50 ms for a normal week; it only reached 0.9 s because the test put 20,000 sales in one week).
+- A cashier who opened `#/stock?tab=value` by hand made the page ask for the stock value (refused 403, an error in the console). The page does not ask any more.
+- `test_return_by_a_manager_alone…` failed before 10:05 in the morning: the practice shop's manager drawer depends on the hour it was built (a time-bomb in the test, not in the product). The test funds the drawer itself.
+
+**Looked at and left alone, on purpose:** non-serial stock may go below zero (the Owner's eye reports "sold beyond stock"); the 26 px name links in the late-instalments list on a phone pass WCAG AA (24 px), 44 px would be AAA.
+
+**Activation (with Apps-Factory 0.14.0):** the owner's «✅ موافق / ❌ رفض» buttons on Telegram. The licence screen now says «الشركة وافقت على طلبك والكود بيتجهّز» while the company's PC signs (never "active": the program stays as locked as before until the signed code arrives and checks out). The word goes away when the relay stops saying it and a brand-new request never inherits an old approval.
+
+**Tests:** full suite green (292 + the new files below); new files `test_invariants`, `test_safe_and_plans`, `test_busy_database`, `test_write_denial`, `test_speed`, plus browser tests for the stray-text sweep, money in errors and the stock-value tab.
+
+**Lessons:** (1) screenshots read by a person found what 270 green tests did not: look at the screens. (2) A guard test must be run against the old code first; a regex with `\b` passes «nullnull». (3) A lock taken in `__enter__` must be given back if `__enter__` itself fails. (4) Every balance a person can count (safe, drawer) gets the same "never below zero" rule at one place, not one check per route.
+
 ## 2026-10-09 — 1.7.0: the practice shop opens from Help, three exercises checked from the books, and it can never mix with the real shop
 **Why (owner request, 2026-10-09):** a new cashier or owner should learn by doing, inside the guide, on made-up data; three real problems to solve; a way to reset the made-up data; and nothing of the real shop may be touched. The practice shop already existed (`--practice`, port 8097, `sample.py`) but was only started by a separate `.bat` and nothing proved it was separate.
 

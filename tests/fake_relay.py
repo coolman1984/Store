@@ -61,7 +61,7 @@ class FakeRelay:
                     r = relay.own(self.headers, self.path.split('id=')[-1])
                     if not r:
                         return self.send(401, {'error': 'unauthorised'})
-                    out = {'status': r['status'], 'reason': r['reason']}
+                    out = {'status': r['status'], 'reason': r['reason'], **({'stage': r['stage']} if r.get('stage') and r['status'] == 'pending' else {})}
                     if r['status'] == 'issued':
                         out['code'] = r['code']
                     return self.send(200, out)

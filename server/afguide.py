@@ -1,4 +1,4 @@
-# Vendored from Apps-Factory packages/af-guide 0.1.2 - do not edit here.
+# Vendored from Apps-Factory packages/af-guide 0.1.3 - do not edit here.
 # Update with: python scripts/vendor_guide.py <product repo> (from the Apps-Factory checkout)
 """af-guide: the factory's in-app guide engine (standard library only, one file, vendorable).
 
@@ -25,7 +25,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 FORMAT = 1
 
 ID_RE = re.compile(r'^[a-z][a-z0-9]*(-[a-z0-9]+)*$')

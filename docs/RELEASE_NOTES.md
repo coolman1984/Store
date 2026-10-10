@@ -1,5 +1,16 @@
 # Release notes
 
+## 1.8.0
+- **Fixed: the shop could stop answering until the program was restarted.** It happened when another program (a database viewer, a copy tool, an antivirus scan) held the shop's data for a moment. Now the person reads «بيانات المحل مشغولة دلوقتي، استنى لحظة وجرّب تاني» and the next press works.
+- **Faster for a big shop:** the Customers page opened in 3 seconds with 4,000 customers and years of sales; it now opens at once. The safe's balance, a shift's summary and today's returns are faster too.
+- **Fixed: the safe could show a negative amount.** Paying a supplier, an expense or a purchase from the safe is refused when the safe does not hold the money, and so is undoing a deposit or a collection that was already spent. The message says what to do: use the drawer, or record a deposit first.
+- **Fixed: an instalment could be paid more than it owed.** A payment for a plan is limited to what is left on that plan.
+- **Fixed: «This is more than what is owed (300000)»** is now written in pounds.
+- **Fixed: the word «null» appeared in the guide's steps and in Settings → Privacy.**
+- **Safer:** a person with no permissions can no longer take a return even when a manager types a password; every write is refused with «not allowed» before anything else is checked.
+- **When the company agrees to your trial request, the screen says so** («الشركة وافقت على طلبك والكود بيتجهّز») while the code is prepared on the company's PC, then switches on by itself.
+- Needs the company's relay with the owner's buttons switched on (Apps-Factory 0.14.0); without it nothing changes.
+
 ## 1.7.0
 - **Practice with no fear, inside the program.** «المساعدة» now has a button that opens the practice shop (a made-up appliance shop with three weeks of history) beside the real one: its own folder, its own port, its own sign-in. Nothing from the real shop is copied into it and nothing from it can reach the real shop.
 - **Three real problems to solve there**, each set up fresh with made-up goods and money: a fridge that comes back faulty (return as damaged, a manager approves, cash goes back); a drawer that is 15 pounds short (the forgotten tea-and-coffee expense, then close the shift with a zero difference); a shelf count that is two fans short (count, close with a reason, the books follow the shelf). «اتأكد من شغلي» reads the shop's own books and shows, check by check, what is right and what is still missing. «ابدأ من الأول» sets the same problem up again, and the owner can erase the whole practice shop and build a fresh one.

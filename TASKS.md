@@ -30,6 +30,8 @@
 - [x] 1.7.0 practice shop opened from Help + three hands-on exercises checked from the books + rebuild; practice and real folders can never be mixed (`server/practice.py`, `server/training.py`, `tests/test_training.py`)
 - [x] 1.6.0 ask for the trial from the licence screen; the signed code switches the program on by itself (Telegram to the owner, owner-approved policy in the Licence Studio); independent review fixes: read leaks, refund by tender, practice cookie, header triggers
 
+- [x] 1.8.0 independent audit round: random shop days with the books checked after every step, a real-browser sweep of every page/role/language/size, probes of the write routes and the database layer; 10 defects fixed (see DEVELOPMENT_HISTORY); the owner's Telegram buttons on the licence screen
+
 ## Next (in order) — full list and reasons in docs/03-ready-to-sell.md
 - [ ] Vendor licence key from Licence Studio → public key in `licence_keys.txt`, build the pilot copy (owner)
 - [ ] Prices for the monthly and permanent codes, and who pays for support → DECISIONS.md (owner)
