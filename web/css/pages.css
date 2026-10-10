@@ -354,6 +354,9 @@ html[data-print="r80"] { --page: 80mm; } html[data-print="r58"] { --page: 58mm; 
   .top .mobile-mark { display: none; }
   .top .search-pill { flex: 0 0 auto; padding-inline: var(--s-3); }
   .top .search-pill > span.grow { display: none; }
+  .two > *, .stack > *, .grid > * { min-inline-size: 0; } /* a grid cell may shrink below its widest word instead of pushing the whole column out of its card */
+  .device { min-inline-size: 0; max-inline-size: 100%; }
+  .device code { font-size: 1.25rem; letter-spacing: .06em; padding-inline: var(--s-3); max-inline-size: 100%; overflow-wrap: anywhere; } /* the device code is the widest word of the licence page */
   .btn:not(.sm):not(.icon-btn) { white-space: normal; max-inline-size: 100%; padding-inline: var(--s-4); line-height: 1.3; } /* a long label wraps instead of leaving its card (compact and icon buttons keep their size) */
 }
 
