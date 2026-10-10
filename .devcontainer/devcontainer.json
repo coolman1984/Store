@@ -1,6 +1,6 @@
 {
   "name": "Al-Store - private mobile practice preview",
-  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
   "forwardPorts": [
     8097
   ],
