@@ -121,6 +121,16 @@ class Asking(unittest.TestCase):
         self.assertEqual(self.step()['status'], 'waiting')   # the new request (a new nonce) is made on the next look
         self.assertEqual(self.state()['stage'], '', 'a brand-new request was approved by nobody')
 
+    def test_a_code_typed_by_hand_closes_the_request_and_the_approved_word_goes_with_it(self):
+        """Review: public() blanked the word before the «superseded» override changed the status, so a closed request could still say «approved»."""
+        self.assertEqual(self.ask()[1]['status'], 'waiting')
+        self.relay.last()['stage'] = 'approved'
+        self.assertEqual(self.step()['stage'], 'approved')
+        typed = code_for(self.device, days=365, edition='standard')
+        self.assertEqual(self.owner.post('/api/licence/activate', {'code': typed})[0], 200)
+        st = self.state()
+        self.assertEqual((st['status'], st['reason'], st['stage']), ('closed', 'manual', ''))
+
     def test_the_relay_is_not_set_up_so_only_the_manual_way_is_offered(self):
         os.environ.pop('STORE_LICENCE_RELAY')
         self.assertEqual(self.state()['available'], False)

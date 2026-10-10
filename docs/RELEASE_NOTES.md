@@ -1,9 +1,9 @@
 # Release notes
 
 ## 1.8.0
-- **Fixed: the shop could stop answering until the program was restarted.** It happened when another program (a database viewer, a copy tool, an antivirus scan) held the shop's data for a moment. Now the person reads «بيانات المحل مشغولة دلوقتي، استنى لحظة وجرّب تاني» and the next press works.
+- **Fixed: the shop could stop answering until the program was restarted.** It happened when another program (a database viewer, a copy tool, an antivirus scan) held the shop's data for a moment. Now the person reads «بيانات المحل مشغولة دلوقتي، استنى لحظة وجرّب تاني» within two seconds, reading pages keeps working, and the next press works.
 - **Faster for a big shop:** the Customers page opened in 3 seconds with 4,000 customers and years of sales; it now opens at once. The safe's balance, a shift's summary and today's returns are faster too.
-- **Fixed: the safe could show a negative amount.** Paying a supplier, an expense or a purchase from the safe is refused when the safe does not hold the money, and so is undoing a deposit or a collection that was already spent. The message says what to do: use the drawer, or record a deposit first.
+- **Fixed: the safe could show a negative amount.** Paying a supplier, an expense or a purchase from the safe is refused when the safe does not hold the money, and so is undoing a deposit or a collection that was already spent (from the safe or from the drawer). Undoing an expense of a closed shift now needs the safe's permission, as a deposit does. The message says what to do: use the drawer, or record a deposit first.
 - **Fixed: an instalment could be paid more than it owed.** A payment for a plan is limited to what is left on that plan.
 - **Fixed: «This is more than what is owed (300000)»** is now written in pounds.
 - **Fixed: the word «null» appeared in the guide's steps and in Settings → Privacy.**

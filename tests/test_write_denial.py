@@ -26,7 +26,9 @@ class WritesDenyByDefault(unittest.TestCase):
         assert st == 200, d
         with open(os.path.join(os.path.dirname(__file__), '..', 'server', 'app.py'), encoding='utf-8') as f:
             src = f.read()
-        cls.routes = sorted(set(re.findall(r"path == '(/api/[a-z/_\-]+)'", src[src.index('def api_post'):])) - SKIP_FOR_THE_PROBE)
+        # every /api/... name written inside api_post (as `path == ...`, inside a tuple, or in a startswith), not only the `path ==` form
+        body = src[src.index('def api_post'):]
+        cls.routes = sorted(set(re.findall(r"'(/api/[a-z/_\-]+)'", body)) - SKIP_FOR_THE_PROBE)
 
     @classmethod
     def tearDownClass(cls):

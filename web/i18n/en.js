@@ -348,7 +348,7 @@ export default {
   'err.creditMix': 'Choose one way of selling on credit: the customer\'s account or shop instalments, not both on one sale.',
   'err.phoneTaken': 'A customer with this mobile exists. Search for them.', 'err.priceKind': 'Unknown price kind.', 'err.qty': 'The quantity must be more than zero.',
   'err.qtyWhole': 'This product is sold in whole units.', 'err.reason': 'Write the reason (3 letters or more).', 'err.required': 'This field is required.',
-  'err.returnTooMuch': '{name}: only {left} can still be returned.', 'err.roundTo': 'Unknown rounding.', 'err.safeShort': 'The safe does not have this amount. Choose the drawer, or record a deposit into the safe first.', 'err.samePlace': 'Choose two different places.',
+  'err.returnTooMuch': '{name}: only {left} can still be returned.', 'err.roundTo': 'Unknown rounding.', 'err.safeShort': 'The safe does not have this amount. Record a deposit into the safe first, then try again.', 'err.safeShortPay': 'The safe does not have this amount. Choose the drawer, or record a deposit into the safe first.', 'err.samePlace': 'Choose two different places.',
   'err.selfApproval': 'Another person must approve.', 'err.serialCount': '{name}: one serial for each piece ({n}).', 'err.serialFraction': 'A product with serials is sold in whole pieces.',
   'err.serialInStock': 'Serial {serial} is already in stock.', 'err.serialNeeded': '{name}: choose the serial of the piece sold.', 'err.serialNotHere': 'Serial {serial} is in another place. Move it to the shop first.',
   'err.serialNotInStock': 'Serial {serial} is not in stock.', 'err.serialTwice': 'The same serial is written twice.', 'err.setupDone': 'The shop is already set up.',

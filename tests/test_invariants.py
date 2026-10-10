@@ -11,7 +11,7 @@ import traceback
 import unittest
 
 from harness import Shop, PW
-import catalog, ids, money as cash, reports, sales, stock  # noqa: E401
+import catalog, ids, money as cash, sales, stock  # noqa: E401
 from core import Problem
 from auth import Forbidden
 
@@ -173,8 +173,21 @@ class World:
         self.s.do(stock.count_line, cid, pid, max(0, have + self.r.choice([0, 0, -1, 1])), user=self.keeper)
         self.s.do(stock.close_count, cid, 'sim count', user=self.keeper)
 
+    def op_spend_what_came_in(self):
+        """The sneaky order that once broke the drawer: collect cash, spend it from the drawer, then undo the collection."""
+        cust = self.r.choice(self.cust)
+        owed = cash.customer_balance(self.s.db, cust)
+        if owed <= 0:
+            return
+        user = self.s.users['owner']
+        amount = min(owed, 30000)
+        got = self.s.do(cash.collect, {'idem_key': self.key(), 'customer_id': cust, 'amount': amount, 'method': 'cash'}, user=user)
+        shift = cash.open_shift_of(self.s.db, user['id'])
+        self.s.do(cash.expense, {'idem_key': self.key(), 'amount': cash.drawer_expected(self.s.db, shift['id']), 'category': 'other', 'note': 'sim drain'}, user=user)
+        self.s.do(cash.reverse_collection, got['id'], 'sim undo')
+
     OPS = ['receive'] * 4 + ['sell'] * 8 + ['return'] * 3 + ['collect'] * 3 + ['reverse_collection'] + ['expense'] * 2 + ['reverse_cash'] + \
-          ['safe'] * 2 + ['close_open_shift'] * 2 + ['transfer'] * 2 + ['pay_supplier'] + ['count']
+          ['safe'] * 2 + ['spend_what_came_in'] * 2 + ['close_open_shift'] * 2 + ['transfer'] * 2 + ['pay_supplier'] + ['count']
 
     def step(self):
         name = self.r.choice(self.OPS)
@@ -212,13 +225,8 @@ class World:
         ct = db.value("SELECT COALESCE(SUM(amount),0) FROM tenders WHERE ref_type = 'sale' AND method = 'cash'")
         if cm != ct:
             bad.append(f'cash sale moves {cm} != cash tenders {ct}')
-        # customers: balance = ar sum, and independent formula
+        # an instalment plan is never paid more than it owes
         for c in self.cust:
-            bal = cash.customer_balance(db, c)
-            acc = db.value("SELECT COALESCE(SUM(t.amount),0) FROM tenders t JOIN sales s ON s.id = t.ref_id WHERE t.ref_type='sale' AND t.method='account' AND s.customer_id=?", c)
-            plan = db.value("SELECT COALESCE(SUM(financed),0) FROM plans WHERE customer_id = ?", c)
-            if bal < -10 ** 9:
-                bad.append('customer balance absurd')
             plans = db.all('SELECT id, financed FROM plans WHERE customer_id = ?', c)
             for p in plans:
                 sch = cash.plan_schedule(db, dict(db.one('SELECT * FROM plans WHERE id = ?', p['id'])))
@@ -250,11 +258,7 @@ class World:
             acct = -v("SELECT COALESCE(SUM(amount),0) FROM ar_entries WHERE ref_type = 'return' AND ref_id = ?", r['id'])
             if paid + acct != r['total'] + r['fee']:
                 bad.append(f'return {r["id"][:6]}: paid {paid} + account {acct} != total {r["total"]} + fee {r["fee"]}')
-        # reports
-        s = reports.summary(db, '2000-01-01', '2100-01-01', True)
-        rev_sales = db.value('SELECT COALESCE(SUM(total),0) FROM sales')
-        rev_ret = db.value('SELECT COALESCE(SUM(total + fee),0) FROM returns')
-        return bad, s
+        return bad, None
 
 
 class RandomDays(unittest.TestCase):

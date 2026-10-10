@@ -1151,7 +1151,8 @@
       "errors": [
         "err.diffReason",
         "err.drawerShort",
-        "err.safeShort"
+        "err.safeShort",
+        "err.safeShortPay"
       ],
       "roles": [],
       "guide": "close-shift"

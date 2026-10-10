@@ -213,6 +213,7 @@
   "problem.drawer-diff.do.1": "Count the cash in the drawer again.",
   "problem.drawer-diff.do.2": "When you close, write why it differs in [[cash.closeNote]].",
   "problem.drawer-diff.do.3": "Lower the withdrawal, the expense or the refund until the drawer or the safe can cover it.",
+  "problem.drawer-diff.do.4": "Record a deposit into the safe first when the safe is short.",
   "problem.drawer-diff.still": "A common cause: the change you gave was wrong. Or an expense was not recorded. Or the starting cash was wrong. Card sales do not enter the drawer.",
   "problem.cash-form.see": "The cash movement was not saved.",
   "problem.cash-form.why": "The amount, the reason, the expense type or the source is missing. Or the movement was already reversed.",

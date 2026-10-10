@@ -20,15 +20,15 @@ class SafeNeverGoesBelowZero(unittest.TestCase):
     def tearDown(self):
         self.s.cleanup()
 
-    def refused(self, fn, *args):
+    def refused(self, fn, *args, key='err.safeShort', user=None):
         with self.assertRaises(Problem) as e:
-            self.s.do(fn, *args)
-        self.assertEqual(e.exception.key, 'err.safeShort')
+            self.s.do(fn, *args, user=user)
+        self.assertEqual(e.exception.key, key)
         self.assertGreaterEqual(cash.safe_balance(self.s.db), 0)
 
     def test_the_safe_starts_empty_and_an_expense_from_it_is_refused(self):
         self.assertEqual(cash.safe_balance(self.s.db), 0)
-        self.refused(cash.expense, {'idem_key': 'e1', 'source': 'safe', 'amount': 5000, 'category': 'other', 'note': 'tea and sugar'})
+        self.refused(cash.expense, {'idem_key': 'e1', 'source': 'safe', 'amount': 5000, 'category': 'other', 'note': 'tea and sugar'}, key='err.safeShortPay')
         self.s.do(cash.safe_move, {'kind': 'deposit', 'amount': 5000, 'note': 'owner adds'})
         self.s.do(cash.expense, {'idem_key': 'e2', 'source': 'safe', 'amount': 5000, 'category': 'other', 'note': 'tea and sugar'})
         self.assertEqual(cash.safe_balance(self.s.db), 0)
@@ -37,10 +37,10 @@ class SafeNeverGoesBelowZero(unittest.TestCase):
         sup = self.s.do(cash.save_supplier, {'name': 'Supplier'})
         pid = self.s.product(qty=0)
         self.s.do(stock.receive, {'idem_key': 'p1', 'location_id': self.s.store, 'supplier_id': sup, 'lines': [{'product_id': pid, 'qty': 5, 'unit_cost': 10000}]})
-        self.refused(cash.pay_supplier, {'idem_key': 'sp', 'supplier_id': sup, 'amount': 10000, 'source': 'safe'})
+        self.refused(cash.pay_supplier, {'idem_key': 'sp', 'supplier_id': sup, 'amount': 10000, 'source': 'safe'}, key='err.safeShortPay')
         self.assertEqual(cash.supplier_balance(self.s.db, sup), 50000, 'nothing was recorded as paid')
         self.refused(stock.receive, {'idem_key': 'p2', 'location_id': self.s.store, 'supplier_id': sup, 'paid_now': 10000, 'pay_from': 'safe',
-                                     'lines': [{'product_id': pid, 'qty': 1, 'unit_cost': 10000}]})
+                                     'lines': [{'product_id': pid, 'qty': 1, 'unit_cost': 10000}]}, key='err.safeShortPay')
         self.assertEqual(stock.on_hand(self.s.db, pid, self.s.store), 5, 'and the goods of the refused purchase did not arrive')
         # the drawer is a way too, and the refusal names the way out in plain words
         self.s.do(cash.safe_move, {'kind': 'deposit', 'amount': 10000})
@@ -81,6 +81,50 @@ class SafeNeverGoesBelowZero(unittest.TestCase):
         s.do(cash.reverse_collection, got['id'], 'typed twice')
         self.assertEqual(cash.customer_balance(s.db, cust), 100000)
         self.assertEqual(cash.safe_balance(s.db), 0)
+
+
+    def test_undoing_a_collection_the_drawer_no_longer_holds_is_refused(self):
+        """Review of the first version: only the safe side was guarded. Collect 600, spend 600 from the drawer, undo the collection: the drawer was -600."""
+        s = self.s
+        owner = s.users['owner']
+        cust = s.do(cash.save_customer, {'name': 'Customer', 'phone': '01000000000'})
+        pid = s.product(qty=3)
+        s.do(sales.sell, {'idem_key': 'a1', 'lines': [{'product_id': pid, 'qty': 1}], 'customer_id': cust, 'payments': [{'method': 'account', 'amount': 100000}]})
+        shift = cash.open_shift_of(s.db, owner['id'])
+        s.do(cash.expense, {'idem_key': 'drain0', 'amount': cash.drawer_expected(s.db, shift['id']), 'category': 'other', 'note': 'empty the drawer first'})
+        got = s.do(cash.collect, {'idem_key': 'c1', 'customer_id': cust, 'amount': 60000})
+        s.do(cash.expense, {'idem_key': 'spend', 'amount': 60000, 'category': 'other', 'note': 'spent what came in'})
+        self.assertEqual(cash.drawer_expected(s.db, shift['id']), 0)
+        self.refused(cash.reverse_collection, got['id'], 'typed twice', key='err.drawerShort')
+        self.assertEqual(cash.drawer_expected(s.db, shift['id']), 0, 'the drawer is not below zero')
+        self.assertEqual(cash.customer_balance(s.db, cust), 40000)
+
+    def test_a_cashier_cannot_put_money_into_the_safe_by_undoing_an_expense_of_a_closed_shift(self):
+        """Review: undoing an expense of a closed shift credits the safe, and only cash.expense was asked for: a cashier could raise the safe's balance
+        although a direct deposit needs cash.safe."""
+        s = self.s
+        cashier = s.user('cashier', 'cas1')
+        s.do(cash.open_shift, 100000, user=cashier)
+        e = s.do(cash.expense, {'idem_key': 'tea', 'amount': 20000, 'category': 'other', 'note': 'tea for the shop'}, user=cashier)
+        shift = cash.open_shift_of(s.db, cashier['id'])
+        s.do(cash.close_shift, shift['id'], cash.drawer_expected(s.db, shift['id']), '', user=cashier)
+        before = cash.safe_balance(s.db)
+        from auth import Forbidden
+        with self.assertRaises(Forbidden):
+            s.do(cash.reverse_cash, e['id'], 'typed by mistake', user=cashier)
+        self.assertEqual(cash.safe_balance(s.db), before)
+        s.do(cash.reverse_cash, e['id'], 'typed by mistake')  # the owner (who holds the safe's tick) may
+        self.assertEqual(cash.safe_balance(s.db), before + 20000)
+
+    def test_a_person_may_close_their_own_shift_even_after_losing_the_counter_tick(self):
+        """Review: a blanket need_any('pos.sell', ...) in close_shift would leave the drawer open when the owner edits a profile mid-shift."""
+        s = self.s
+        cashier = s.user('cashier', 'cas2')
+        s.do(cash.open_shift, 50000, user=cashier)
+        s.db.run("UPDATE users SET role = 'custom', perms = '[\"cash.expense\"]' WHERE id = ?", cashier['id'])
+        shift = cash.open_shift_of(s.db, cashier['id'])
+        s.do(cash.close_shift, shift['id'], 50000, '', user=cashier)
+        self.assertIsNotNone(s.db.value('SELECT closed_at FROM shifts WHERE id = ?', shift['id']))
 
 
 class PlanPaymentsCannotExceedThePlan(unittest.TestCase):
