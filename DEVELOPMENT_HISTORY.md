@@ -1,5 +1,10 @@
 # Development history (newest first)
 
+## 2026-10-10 — readiness review after 1.9.1 (docs only)
+**Why (owner request, phase 5):** `docs/03-ready-to-sell.md` still said 32 core controls and 30 of 32 verified. The factory's gate now has 34 core controls (UX-04 and UX-09 became core) and says **NO-GO**.
+**What changed:** section 1 of the readiness plan now states the gate's real answer (30 of 34 verified; UX-04, UX-09, DATA-05, A11Y-01 need a person or a customer's PC; three field proofs open, one of them, the encrypted cloud restore of the Solo tier, is not built) and lists, per item, **why a machine cannot prove it** and what must happen (a clean Windows PC, receipt printers 80 and 58 mm, an hour with a real cashier, a keyboard walk-through, two weeks at the first shop, the relay and Telegram on the real internet, the first real code with a non-default trial length).
+**Not done on purpose:** nothing was marked verified; no price, term or support promise was written.
+
 ## 2026-10-10 — 1.9.1: the trial's length is no longer written on the screens
 **Why (owner request of 2026-10-10, phase 2):** the factory's Licence Studio now lets the owner set the trial length per product (14 days by default). The shop's screens said «اطلب تجربة 14 يوم» in both languages, which would be wrong for a product set to 30.
 **What changed:** `lic.req.trial`, `lic.req.kind.trial` and `lic.how1` in `ar.js` and `en.js` no longer carry a number; the real length arrives inside the signed code and is shown from there as before (`days_left`). `server/licence.py` no longer states «a trial is 14 days».
