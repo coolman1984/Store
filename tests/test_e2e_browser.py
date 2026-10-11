@@ -163,6 +163,34 @@ class CoreJourney(Browser):
         self.assertIn('Sell', pg.inner_text('.rail'))
         self.assertEqual(self.errors, [])
 
+    def test_error_texts_show_money_in_pounds_not_piasters(self):
+        """The server counts in piasters. «This is more than what is owed (300000)» told a person 100 times too much; the text now formats it."""
+        pg = self.open('manager')
+        for lang in ('en', 'ar'):
+            said = pg.evaluate("""async (lang) => { const i = await import('/js/i18n.js'); await import('/js/ui.js'); i.setLang(lang);
+              return [i.t('err.payMoreThanOwed', {owed: 300000}), i.t('err.payMoreThanPlan', {left: 125050}), i.t('err.notEnough', {have: 2, name: 'Fan', place: 'Shop'})]; }""", lang)
+            self.assertIn('3,000', said[0], said)
+            self.assertIn('1,250.50', said[1], said)
+            self.assertNotIn('300000', said[0] + said[1])
+            self.assertIn('2', said[2])
+        self.assertEqual(self.errors, [])
+
+    def test_a_person_who_cannot_see_costs_is_not_sent_to_the_stock_value_tab(self):
+        """Opening #/stock?tab=value by hand as a cashier asked the server for the value (refused with a 403 in the console). The page does not ask now."""
+        pg = self.open('cashier')
+        asked = []
+        pg.on('request', lambda r: asked.append(r.url) if '/api/stock/value' in r.url else None)
+        pg.goto(self.S.base + '/#/stock?tab=value')
+        pg.wait_for_selector('#page')
+        pg.wait_for_timeout(700)
+        self.assertEqual(asked, [])
+        self.assertEqual(self.errors, [])
+        pg2 = self.open('owner')
+        pg2.goto(self.S.base + '/#/stock?tab=value')
+        pg2.wait_for_selector('#page')
+        self.until(pg2, "!!document.querySelector('#page .kpi, #page .card')")
+        self.assertEqual(self.errors, [])
+
     def test_command_palette_finds_a_product(self):
         pg = self.open()
         pg.keyboard.press('Control+k')
@@ -329,6 +357,35 @@ class TrainingByClicking(Browser):
         self.check(pg, 'count')
         self.assertEqual(self.errors, [])
 
+    def test_the_owner_looks_at_a_big_discount_in_the_owners_eye(self):
+        pg = self.open('owner')
+        self.start(pg, 'discount')
+        d = self.lesson_data(pg, 'discount')['data']
+        self.assertIn(d['number'], pg.inner_text('[data-lesson="discount"]'))   # the story names the invoice
+        self.go(pg, 'watch')
+        pg.wait_for_selector(f'[data-seen="disc:{d["sale_id"]}"]')
+        self.assertIn(d['number'], pg.inner_text('#page'))                     # the discount is listed there, with its invoice
+        pg.click(f'[data-seen="disc:{d["sale_id"]}"]')
+        pg.wait_for_selector('#wn')
+        pg.click('.dialog [data-ok]')                                          # a bare tick first: seen, but not yet with a note of his own
+        pg.wait_for_selector('.dialog', state='detached')
+        self.go(pg, 'help')
+        pg.wait_for_selector('[data-lesson="discount"] [data-check]')
+        pg.click('[data-lesson="discount"] [data-check]')
+        pg.wait_for_timeout(300)
+        self.assertEqual(pg.get_attribute('[data-lesson="discount"] [data-state]', 'data-state'), 'open')
+        self.assertEqual(len(pg.query_selector_all('[data-lesson="discount"] .train-checks li.ok')), 1)
+        self.go(pg, 'watch')                                                   # the item is hidden now that it was seen: show the seen ones and edit the note
+        pg.check('#w-all')
+        pg.wait_for_selector(f'[data-seen="disc:{d["sale_id"]}"][data-note]')
+        pg.click(f'[data-seen="disc:{d["sale_id"]}"]')
+        pg.wait_for_selector('#wn')
+        pg.fill('#wn', 'كلمت الكاشير وتمام')
+        pg.click('.dialog [data-ok]')
+        pg.wait_for_selector('.dialog', state='detached')
+        self.check(pg, 'discount')
+        self.assertEqual(self.errors, [])
+
     def test_a_restart_sets_the_problem_up_again_and_the_owner_can_rebuild_everything(self):
         pg = self.open('owner')
         self.start(pg, 'drawer')
@@ -390,11 +447,18 @@ class LeavingWhileLoading(Browser):
     def test_leaving_today_before_its_numbers_arrive_is_quiet(self):
         pg = self.open('owner')
         self.go(pg, 'customers')
-        pg.route('**/api/home**', lambda r: (pg.wait_for_timeout(1200), r.continue_()))
+        held = []  # the answer is held, not delayed in the handler: the order is then certain (review of PR #18)
+        pg.route('**/api/home**', lambda r: held.append(r))
         pg.evaluate("location.hash = '#/home'")
-        pg.wait_for_timeout(200)
+        for _ in range(100):
+            if held:
+                break
+            pg.wait_for_timeout(50)
+        self.assertEqual(len(held), 1, 'the Today page asked for its numbers')
         pg.evaluate("location.hash = '#/sales'")
-        pg.wait_for_timeout(2200)
+        pg.wait_for_selector('#page h1:has-text("المبيعات")')
+        held[0].continue_()  # only now do the numbers arrive, on a page that is no longer Today
+        pg.wait_for_timeout(800)
         self.assertIn('المبيعات', pg.inner_text('#page h1'))
         self.assertEqual(self.errors, [])
 
@@ -462,6 +526,20 @@ class LayoutSweep(Browser):
 
     def test_phone(self):
         self.sweep(360, 780)
+
+    def test_narrowest_phone_320_in_both_languages(self):
+        """The factory's smallest screen (design-factory/DESIGN.md): the top bar was 10-21 px wider than a 320 px phone on every page."""
+        self.sweep(320, 640)
+        self.sweep(320, 640, 'night', 'en')
+
+    def test_the_search_button_keeps_its_name_when_its_label_is_hidden_at_320(self):
+        """Review of PR #21: at 340 px and below the label is hidden; the button must still have an accessible name in both languages."""
+        for language in ('ar', 'en'):
+            pg = self.open('owner', width=320, height=640, prefs={'lang': language})
+            self.assertEqual(pg.is_visible('.top .search-pill > span.grow'), False)
+            name = pg.get_attribute('[data-cmdk]', 'aria-label')
+            self.assertTrue(name and name.strip(), language)
+            pg.context.close()
 
     def test_tablet_dark(self):
         self.sweep(820, 1180, 'night')
@@ -566,6 +644,92 @@ class AskingTheCompany(Browser):
 
 
 @SKIP
+class AskingTheCompanyTryNow(Browser):
+    """«حاول تاني دلوقتي» finds the code: the page switches on at once, without a reload (review of PR #17: it only redrew the line)."""
+    practice = False
+    licensed = False
+
+    @classmethod
+    def setUpClass(cls):
+        from fake_relay import FakeRelay
+        cls.relay = FakeRelay()
+        os.environ['STORE_LICENCE_RELAY'] = cls.relay.base
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.relay.stop()
+        os.environ.pop('STORE_LICENCE_RELAY', None)
+
+    def test_try_now_switches_the_page_on(self):
+        from harness import code_for
+        pg = self.open(OWNER[0], OWNER[1])
+        pg.wait_for_selector('.banner.licence')
+        try:
+            pg.wait_for_selector('[data-afc="decline"]', timeout=5000)
+            pg.click('[data-afc="decline"]')
+            pg.wait_for_selector('[data-afc="card"]', state='detached')
+        except Exception:
+            pass
+        self.go(pg, 'settings?tab=licence')
+        pg.wait_for_selector('[data-req="trial"]')
+        device = pg.inner_text('#dev')
+        import trial
+        pg.click('[data-req="trial"]')
+        pg.wait_for_selector('.lic-line.busy')
+        self.relay.fail_status = 503  # the relay is in trouble when the program next looks (the background loop does this look)
+        trial.step(self.S.app, force=True)
+        pg.wait_for_selector('[data-retry]', timeout=15000)  # the page shows «no connection» and the button
+        self.relay.fail_status = None
+        self.relay.issue(self.relay.last(), code_for(device))  # meanwhile the company answered
+        pg.click('[data-retry]')  # only this press looks: no background look runs in the test
+        self.until(pg, "document.querySelector('.banner.licence.bad') === null && document.querySelector('.lic.good') !== null", 4)
+        self.assertEqual(self.S.app.licence()['state'], 'trial')
+        self.assertEqual([e for e in self.errors if '400' not in e], [])
+
+
+@SKIP
+class StandaloneNetworkFailure(Browser):
+    """Factory UX-04 for the `standalone` tier: the company's server is unreachable (nothing listens on its address) and the shop goes on:
+    a calm, labelled state with the sentence «selling is not affected», no error page, no console error, nothing spilling out of a phone
+    screen, and the shop's own work (a new product) is saved and shown while the failure stands."""
+    practice = False
+
+    def test_the_support_server_is_unreachable_and_the_shop_goes_on(self):
+        import socket
+        import support
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1', 0))
+            dead = probe.getsockname()[1]            # a port nothing listens on: the connection is refused
+        support.save(self.S.app.home, True, f'http://127.0.0.1:{dead}', '0123456789abcdef0123')
+        for language, width in (('ar', 390), ('en', 320)):
+            with self.subTest(language=language):
+                pg = self.open(OWNER[0], OWNER[1], width=width, height=800, prefs={'lang': language})
+                try:
+                    pg.wait_for_selector('[data-afc="decline"]', timeout=3000)
+                    pg.click('[data-afc="decline"]')
+                    pg.wait_for_selector('[data-afc="card"]', state='detached')
+                except Exception:
+                    pass
+                self.go(pg, 'settings?tab=support')
+                pg.click('[data-ping]')
+                pg.wait_for_selector('.tip.warn')
+                shown = pg.inner_text('.tip.warn')
+                self.assertTrue('البيع مش متأثر' in shown or 'not affected' in shown.lower(), shown)
+                self.assertEqual(pg.evaluate(OVERFLOW), [], 'the failure state fits the screen')
+                name = f'Kept while offline {language}'
+                self.assertEqual(self.S.app.licence()['full'], True)
+                c = self.S.client()
+                c.login()
+                self.assertEqual(c.post('/api/product/save', {'name': name, 'retail': 100})[0], 200)
+                self.go(pg, 'products?q=' + name.replace(' ', '%20'))
+                self.assertIn(name, pg.inner_text('#page'))
+                self.assertEqual(self.errors, [])
+                pg.context.close()
+
+
+@SKIP
 class OwnerRecovery(Browser):
     """Setup shows the paper code until the owner ticks that it is kept; «نسيت كلمة السر؟» uses it and shows a new one."""
     practice = False
@@ -648,6 +812,26 @@ class GuideCoach(Browser):
         self.assertIsNotNone(again, advanced)
         self.assertEqual(again.group(1), found.group(1), advanced)
         self.assertEqual(self.errors, [])
+
+    def test_no_stray_null_in_the_coach_or_in_settings_privacy(self):
+        """Found by looking at the real screens: the coach printed «nullnull» on every step and Settings -> Privacy printed «nullnull» for a person who
+        cannot change settings (replaceChildren turns a null child into the word). Both languages, the cashier (the role that saw it) and the owner."""
+        import re
+        stray = re.compile(r'(?<![A-Za-z])(?:null|undefined|NaN)+(?![A-Za-z])|\[object ')  # (+: a run like «nullnull» too; a \b boundary misses it)
+        for user in ('cashier', 'owner'):
+            for lang in ('ar', 'en'):
+                with self.subTest(user=user, lang=lang):
+                    pg = self.open(user, prefs={'lang': lang})
+                    pg.goto(self.S.base + '/#/settings?tab=privacy')
+                    pg.wait_for_selector('#privacy-box [data-afc="state"]')
+                    self.assertNotRegex(pg.inner_text('#page'), stray)
+                    pg.click('[data-afg="help"]')
+                    pg.wait_for_selector('[data-guide-id] [data-afg="start"]')
+                    self.assertNotRegex(pg.inner_text('[data-afg="panel"], .afg-panel'), stray)
+                    pg.click('[data-guide-id] [data-afg="start"]')
+                    pg.wait_for_selector('[data-afg="coach"] [data-afg="step"]')
+                    self.assertNotRegex(pg.inner_text('[data-afg="coach"]'), stray)
+                    self.assertEqual(self.errors, [])
 
     def test_consent_card_is_nonmodal_and_a_shop_dialog_stays_clickable(self):
         pg = self.open('owner', width=360, height=844)

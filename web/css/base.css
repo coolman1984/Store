@@ -1,4 +1,4 @@
-/* Mizan base: reset, shell, components. Logical properties only (RTL first). Every value comes from tokens.css. */
+/* Al-Store base: reset, shell, components. Logical properties only (RTL first). Every value comes from tokens.css. */
 *, *::before, *::after { box-sizing: border-box; }
 html { font-size: var(--fs); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { margin: 0; font-family: var(--font-ui); line-height: var(--lh); color: var(--ink); background: var(--canvas);

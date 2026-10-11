@@ -1,4 +1,4 @@
-/* Vendored from Apps-Factory packages/af-guide 0.1.2 - do not edit here. */
+/* Vendored from Apps-Factory packages/af-guide 0.1.3 - do not edit here. */
 /* Update with: python scripts/vendor_guide.py <product repo> (from the Apps-Factory checkout) */
 /* af-guide 0.1.0: the factory's in-app guide (role courses, coach with auto-advance, per-page help, problem
    entries, per-guide language switch, progress saved per person on the server). No dependencies; DOM built with textContent only.
@@ -16,7 +16,7 @@
   else root.AFGuide = api;
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
-  const VERSION = '0.1.1';
+  const VERSION = '0.1.3';
   const UI_REF = /\[\[([A-Za-z0-9_.\-]+)\]\]/g;
   const WORDS = {
     ar: {guide: 'الدليل', path: 'طريقك', page: 'هذه الصفحة', problems: 'مشكلات هذه الصفحة', start: 'ابدأ',
@@ -37,6 +37,8 @@
       help: 'Help for this page', mistake: 'If you make a mistake', ok: 'How you know it worked'}
   };
   const fmt = (s, v) => String(s).replace(/\{(\w+)\}/g, (_, k) => (k in v ? v[k] : ''));
+  // `replaceChildren(a, null, b)` prints the null as the word "null" (it reached the guide's coach on every step, 0.1.2): only real nodes go in.
+  const kept = (list) => list.filter((x) => x !== null && x !== undefined && x !== false);
 
   // ------------------------------------------------------------ pure helpers (unit-tested with node --test)
   function parts(text, label) {
@@ -244,7 +246,7 @@
           el('ol', {class: 'afg-list'}, c.items.map(i => guideRow(guides[i.id], i)))));
       }
       if (opts.onReport) sections.push(el('div', {class: 'afg-sec'}, el('button', {type: 'button', class: 'afg-btn afg-quiet', 'data-afg': 'report', on: {click: () => report({})}, text: W('report')})));
-      panel.replaceChildren(...sections);
+      panel.replaceChildren(...kept(sections));
       panel.setAttribute('aria-labelledby', 'afg-title');
       setDir(panel);
     }
@@ -355,7 +357,7 @@
       const away = page && page !== val(opts.route) && s.k !== 'go';
       const isDone = s.k === 'done';
       const u = untilOf(s);
-      coach.replaceChildren(
+      coach.replaceChildren(...kept([
         el('div', {class: 'afg-coach-head'}, el('strong', {text: T('guide.' + g.id + '.title')}),
           el('span', {class: 'afg-meta', 'data-afg': 'step', text: fmt(W('step'), {i: i + 1, n: total})}),
           el('button', {type: 'button', class: 'afg-x', 'aria-label': W('stop'), on: {click: () => stop(false)}, text: '×'})),
@@ -369,7 +371,7 @@
           i > 0 && !isDone ? el('button', {type: 'button', class: 'afg-btn afg-quiet', 'data-afg': 'back', on: {click: () => move(-1)}, text: W('back')}) : null,
           (away || s.k === 'go') && opts.go && page ? el('button', {type: 'button', class: 'afg-btn afg-quiet', 'data-afg': 'there', on: {click: () => opts.go(page)}, text: W('there')}) : null,
           isDone ? el('button', {type: 'button', class: 'afg-btn', 'data-afg': 'finish', on: {click: () => finish(true)}, text: W('finished')})
-            : el('button', {type: 'button', class: 'afg-btn', 'data-afg': 'next', on: {click: () => move(1)}, text: W('next')})));
+            : el('button', {type: 'button', class: 'afg-btn', 'data-afg': 'next', on: {click: () => move(1)}, text: W('next')}))]));
       setDir(coach);
       coach.hidden = false;
       highlight(away ? null : s.target);

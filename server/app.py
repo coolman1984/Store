@@ -18,6 +18,7 @@ import mimetypes
 import os
 import shutil
 import socket
+import sqlite3
 import sys
 import threading
 import time
@@ -48,7 +49,7 @@ import training  # noqa: E402
 import trial  # noqa: E402
 from auth import AuthError, Forbidden  # noqa: E402
 from core import Ctx, Problem  # noqa: E402
-from db import Database, NewerData  # noqa: E402
+from db import Database, NewerData, is_busy_error  # noqa: E402
 from version import FROZEN, PRODUCT, PRODUCT_AR, ROOT, VERSION  # noqa: E402
 
 WEB = os.path.join(ROOT, 'web')
@@ -102,6 +103,7 @@ class App:
             self.cfg['host'] = host
         self.data_dir = os.path.join(home, 'data')
         self.backup_dir = os.path.join(home, 'backups')
+        practice_mod.preflight(os.path.join(self.data_dir, 'store.db'), practice)  # before any migration or write
         self.db = Database(os.path.join(self.data_dir, 'store.db'), self.backup_dir)
         self.org_id = self._meta_id('org_id')
         self.branch_id = self._meta_id('branch_id')
@@ -262,6 +264,10 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     # ------------------------------------------------------------ plumbing
+    def local(self):
+        """The request comes from this PC itself (not a phone or another PC on the shop's network)."""
+        return self.client_address[0] in ('127.0.0.1', '::1', '::ffff:127.0.0.1')
+
     @property
     def ip(self):
         return self.client_address[0]
@@ -370,14 +376,24 @@ class Handler(BaseHTTPRequestHandler):
             self.send(400, {'error': 'A number or date in the request is not valid.', 'key': 'err.badRequest'})
         except (ConnectionError, BrokenPipeError):
             pass
+        except sqlite3.OperationalError as e:
+            if not is_busy_error(e):
+                return self.bug(e)
+            # another program holds the shop's data file for a moment: a calm "try again", not a bug and not a freeze
+            log.warning('DATA BUSY %s: %s', self.path, e)
+            self.send(503, {'error': 'The shop data is busy. Try again in a moment.', 'key': 'err.busy'}, headers={'Retry-After': '2'})
         except Exception as e:  # a bug: log the details on this PC, show a calm message
-            log.error('ERROR %s\n%s', self.path, traceback.format_exc())
-            APP.note_error()
-            try:  # type and fingerprint only; never the message. Consent still applies inside capture.
-                APP.assist.capture(e, self.path.split('?', 1)[0])
-            except Exception:
-                log.warning('telemetry capture failed', exc_info=True)
-            self.send(500, {'error': f'Unexpected problem: {e.__class__.__name__}', 'key': 'err.server'})
+            self.bug(e)
+
+    def bug(self, e):
+        """A real bug: the details stay on this PC, the person reads a calm message."""
+        log.error('ERROR %s\n%s', self.path, traceback.format_exc())
+        APP.note_error()
+        try:  # type and fingerprint only; never the message. Consent still applies inside capture.
+            APP.assist.capture(e, self.path.split('?', 1)[0])
+        except Exception:
+            log.warning('telemetry capture failed', exc_info=True)
+        self.send(500, {'error': f'Unexpected problem: {e.__class__.__name__}', 'key': 'err.server'})
 
     # ------------------------------------------------------------ routing
     def do_HEAD(self):
@@ -582,8 +598,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/licence':
             d = {**APP.licence(), 'vendor_telegram': vendor_telegram(APP.cfg.get('vendor_telegram'))}
         elif path == '/api/practice':  # the real shop asks whether the practice shop runs; the practice shop just says it is the one
-            d = {'state': 'here', 'url': ''} if APP.practice else practice_mod.status(APP)
-        elif path == '/api/training':  # the three exercises and where this person stands (practice shop only)
+            d = {'state': 'here', 'url': ''} if APP.practice else practice_mod.status(APP) if self.local() else {'state': 'remote', 'url': ''}
+        elif path == '/api/training':  # the four exercises and where this person stands (practice shop only)
             if not APP.practice:
                 raise Problem('err.practiceOnly', 'Training is available in the practice shop only.', 403)
             d = training.view(APP)
@@ -679,25 +695,29 @@ class Handler(BaseHTTPRequestHandler):
         if path in ('/api/licence/request', '/api/licence/request/retry', '/api/licence/request/clear'):
             # asking the company: the state is saved in a transaction, the network call happens outside it (and works while the licence is locked)
             ctx.need('settings.edit')
-            if path.endswith('/clear'):
-                with APP.db.tx():
-                    return self.send(200, trial.clear(APP, ctx))
+            if path.endswith('/clear'):  # trial takes its own lock, then its own transaction: never the other way round
+                return self.send(200, trial.clear(APP, ctx))
             if path.endswith('/retry'):
                 return self.send(200, trial.step(APP, force=True))
-            with APP.db.tx():
-                trial.begin(APP, ctx, data.get('kind'), str(data.get('ref') or ''))
+            trial.begin(APP, ctx, data.get('kind'), str(data.get('ref') or ''))
             return self.send(200, trial.step(APP))
         if path == '/api/practice/open':  # starts the practice shop (its own folder and port) for the person who asked; touches no shop data
             if APP.practice:
                 return self.send(200, {'state': 'here', 'url': ''})
+            if not self.local():  # the practice shop listens on the counter PC only: a phone would open a dead link (review of PR #19)
+                return self.send(200, {'state': 'remote', 'url': ''})
             out = practice_mod.launch(APP)
             with APP.db.tx():
                 ctx.audit('practice.open', 'practice', '', {'state': out['state']})
             return self.send(200, out)
         if path == '/api/practice/reset':  # practice shop only: the made-up shop is rebuilt; everyone signs in again
             ctx.need('settings.edit')
+            who = u['full_name']
             APP.reset_practice()
             log.info('practice shop rebuilt on request')
+            with APP.db.tx():  # the old audit went with the old made-up shop: the rebuild itself is the first line of the new one
+                APP.db.insert('audit', {'id': ids.uuid7(), 'at': ids.iso(), 'user_id': '', 'user_name': who, 'ip': self.ip,
+                                        'action': 'practice.reset', 'entity': 'practice', 'entity_id': '', 'detail': ''})
             return self.send(200, {'ok': True, 'login': True},
                              headers={'Set-Cookie': f'{cookie_name()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
         if path == '/api/support/ping':  # network call: never while the database is locked for a write
@@ -754,6 +774,7 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as e:
                 raise Problem('lic.err.' + str(e), 'This code does not work on this PC.', 400, reason=str(e))
             ctx.audit('licence.activate', 'licence', st.get('serial') or '', {'state': st['state'], 'last_day': st.get('last_day')})
+            trial.note_manual(db)  # an answer to an earlier request that arrives later must not replace this code
             return st
         if path == '/api/product/save':
             pid = catalog.save_product(ctx, data)

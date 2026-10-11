@@ -11,7 +11,7 @@
 - [x] New "Showroom" design system: layered surfaces, Readex Pro + Alexandria, motion, AR/EN, light/dark/contrast, phone dock
 - [x] Tests: domain, HTTP/security, licence gate, static page checks, browser journey + measured layout sweep (4 sizes)
 
-- [x] Design system v2 + Mizan (ميزان) identity on every screen, logo files, icon, splash; contrast and mark tests (docs/DESIGN.md)
+- [x] Design system v2 identity on every screen, logo files, icon, splash; contrast and mark tests (docs/DESIGN.md). Its display name «Mizan» was withdrawn on 2026-10-10 (the owner's accounting product is Mizan): the Store shows الستور / Al-Store
 
 - [x] 1.1.0 People, profiles and pages (factory access standard, BAMS model): editable profiles, page permissions, lock-out guard, who-can-do-what, audit of ticks; gate `afaccess` in tests
 - [x] 1.2.0 implemented: role courses and coach, per-person progress, every server error explained, two-scope consent, IDs/counts-only usage/error telemetry and redacted free-text reports with explicit preview/send. Nothing leaves the PC without receiver URL and token; withdrawals work while licence-locked.
@@ -30,11 +30,21 @@
 - [x] 1.7.0 practice shop opened from Help + three hands-on exercises checked from the books + rebuild; practice and real folders can never be mixed (`server/practice.py`, `server/training.py`, `tests/test_training.py`)
 - [x] 1.6.0 ask for the trial from the licence screen; the signed code switches the program on by itself (Telegram to the owner, owner-approved policy in the Licence Studio); independent review fixes: read leaks, refund by tender, practice cookie, header triggers
 
+- [x] 1.8.0 independent audit round: random shop days with the books checked after every step, a real-browser sweep of every page/role/language/size, probes of the write routes and the database layer; 10 defects fixed (see DEVELOPMENT_HISTORY); the owner's Telegram buttons on the licence screen
+
+- [ ] **Open before an official release (the gate says NO-GO, 2026-10-10):** UX-04 real-browser journey with the network cut · UX-09 screenshot set judged by a person · DATA-05 and `clean_device_restore` on a second clean PC · A11Y-01 keyboard walk-through · `core_user_acceptance` (two weeks at the first shop) · `off_device_cloud_restore` (the Solo tier's encrypted cloud restore is **not built**: next engineering task) · receipt printers 80 and 58 mm. Details: `docs/03-ready-to-sell.md`.
+- [x] 1.9.1 the trial's length is the company's per-product setting (labels no longer say 14; trials of 7, 30 and 60 days tested against signed codes)
+- [x] 1.9.0 the name الستور again (Mizan withdrawn), the 320 px phone, a fourth practice exercise for the owner (the Owner's eye), licence-kind tests against codes signed by the factory's own tool (`tests/test_licence_types.py`), a network-failure browser test (factory UX-04)
+
+### The learn-by-doing roadmap of 2026-10-09 (the old PR #13, which only held a plan): where it stands
+- Done (1.7.0, 1.9.0): a separate practice shop opened from Help (own folder, own port, banner), four hands-on exercises for the cashier, the storekeeper and the owner that are checked from the books and can be started over, a full rebuild of the practice shop, no way to mix the practice and real folders (`tests/test_training.py`, `TrainingByClicking`). In the practice shop everything can be added, edited and deleted, and the rebuild brings it back.
+- Not done, and not started: a role-limited demo login picker beyond the four practice accounts, a manager-approval exercise, and the public online trial site (needs isolated hosting and a cost and abuse review; the owner decides, nothing is chosen).
+
 ## Next (in order) — full list and reasons in docs/03-ready-to-sell.md
 - [ ] Vendor licence key from Licence Studio → public key in `licence_keys.txt`, build the pilot copy (owner)
 - [ ] Prices for the monthly and permanent codes, and who pays for support → DECISIONS.md (owner)
 - [ ] Deploy the licence relay and write its address in `licence_relay.txt`; the company's Telegram contact in `config.json` (`vendor_telegram`) for the manual way — not in this public repository (owner; steps in Apps-Factory `docs/LICENCE_ACTIVATION.md` §9)
-- [ ] Trademark/domain check for "Mizan / ميزان" in EG, SA, AE (owner) — gate before renaming the installer and data folder
+- [ ] Trademark/domain check for the name the Store will be sold under (today: الستور / Al-Store) in EG, SA, AE (owner) — gate before selling; a new brand name is the owner's choice
 - [ ] Clean-PC install + restore on a second clean PC (DATA-05, clean_device_restore) (field)
 - [ ] One-hour session with a real cashier, including a keyboard-only journey (A11Y-01) (field)
 - [ ] Receipt printer field test, 80 mm and 58 mm, Arabic shaping on the real driver (field)

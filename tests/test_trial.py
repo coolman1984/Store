@@ -42,6 +42,95 @@ class Asking(unittest.TestCase):
     def step(self):
         return self.owner.post('/api/licence/request/retry')[1]
 
+    def test_a_second_press_during_a_slow_answer_never_freezes_the_shop(self):
+        """Review of PR #17: the request route held the database while waiting for the trial lock, and a look at the relay held the trial
+        lock while waiting for the database: with a slow relay a double click froze every page of the shop."""
+        import threading
+        import time
+        self.assertEqual(self.ask()[1]['status'], 'waiting')
+        self.relay.delay = 2.5
+        done = {}
+        a = threading.Thread(target=lambda: done.setdefault('retry', self.S.client().call('POST', '/api/licence/request/retry', {},
+                                                                                         headers={'Cookie': self.owner.cookie})[0]))
+        a.start()
+        time.sleep(0.4)  # the look at the relay is under way and holds the trial lock
+        b = threading.Thread(target=lambda: done.setdefault('again', self.ask()[0]))
+        b.start()
+        time.sleep(0.3)
+        t0 = time.time()
+        self.assertEqual(self.owner.get('/api/me')[0], 200, 'other pages answer while the relay is slow')
+        self.assertLess(time.time() - t0, 2, 'and they do not wait for it')
+        a.join(15)
+        b.join(15)
+        self.assertFalse(a.is_alive() or b.is_alive(), 'both presses finished: nothing is frozen')
+        self.assertEqual((done['retry'], done['again']), (200, 200))
+        self.relay.delay = 0
+        self.assertEqual(self.owner.post('/api/customer/save', {'name': 'x'})[0], 402, 'and the database still takes writes (licence-locked answer)')
+
+    def test_a_code_typed_by_hand_is_never_replaced_by_a_late_answer(self):
+        """Review of PR #17: a trial answer arriving after the owner pasted a permanent code replaced it, and the shop would stop in 14 days."""
+        self.assertEqual(self.ask()[1]['status'], 'waiting')
+        self.relay.issue(self.relay.last(), code_for(self.device))  # the company answers the trial request...
+        typed = code_for(self.device, days=365, edition='standard')
+        self.assertEqual(self.owner.post('/api/licence/activate', {'code': typed})[0], 200)  # ...but the owner already typed a yearly code
+        self.assertEqual((self.state()['status'], self.state()['reason']), ('closed', 'manual'), 'the screen says so at once')
+        self.assertEqual(self.step()['status'], 'closed')
+        lic = self.owner.get('/api/licence')[1]
+        self.assertEqual(lic['edition'], 'standard', 'the code the person typed stays')
+        self.assertEqual(self.app.db.value("SELECT COUNT(*) FROM audit WHERE action = 'licence.auto'"), 0)
+        # a new request made after the typed code is answered normally
+        self.owner.post('/api/licence/request/clear')
+        self.assertEqual(self.ask('monthly')[1]['status'], 'waiting')
+        self.relay.issue(self.relay.last(), code_for(self.device, days=30, edition='standard'))
+        self.assertEqual(self.step()['status'], 'activated')
+
+    def test_the_company_owner_approving_is_shown_but_is_not_a_licence(self):
+        """Apps-Factory 0.14: the owner's «✅ موافق» on Telegram makes the relay answer `stage: approved` while the code is still being signed on the
+        owner's PC. The screen says "approved, the code is on its way" and the program stays exactly as locked as before."""
+        self.assertEqual(self.ask()[1]['status'], 'waiting')
+        self.assertEqual(self.state().get('stage') or '', '')
+        self.relay.last()['stage'] = 'approved'
+        st = self.step()  # "try again now" looks at the relay at once
+        self.assertEqual((st['status'], st['stage']), ('waiting', 'approved'))
+        self.assertEqual(self.state()['stage'], 'approved')
+        # the word goes away as soon as the relay stops saying it (the approval expired), and never outlives the request
+        self.relay.last()['stage'] = ''
+        self.assertEqual(self.step()['stage'], '')
+        self.relay.last()['stage'] = 'approved'
+        self.assertEqual(self.step()['stage'], 'approved')
+        self.relay.fail_status = 503
+        self.assertEqual(self.step()['stage'], '', 'a relay in trouble: the screen does not keep claiming an approval it cannot see')
+        self.relay.fail_status = None
+        self.relay.last()['stage'] = 'approved'
+        self.assertEqual(self.step()['stage'], 'approved')
+        self.assertEqual(self.owner.get('/api/licence')[1]['state'], 'none', 'an approval is not a licence')
+        self.assertEqual(self.owner.post('/api/customer/save', {'name': 'Too early'})[0], 402)
+        self.relay.issue(self.relay.last(), code_for(self.device))
+        self.assertEqual(self.step()['status'], 'activated')
+        self.assertEqual(self.state()['stage'], '', 'an activated request shows no "approved" word')
+
+    def test_a_new_request_never_inherits_the_old_ones_approval(self):
+        """Review: a poll token reset (401) kept `stage: approved` and the new request showed «the company approved» before anybody saw it."""
+        self.assertEqual(self.ask()[1]['status'], 'waiting')
+        self.relay.last()['stage'] = 'approved'
+        self.assertEqual(self.step()['stage'], 'approved')
+        first = self.relay.last()
+        first['token'] = 'lp_changed_so_the_next_look_is_a_401'
+        self.assertEqual(self.step()['status'], 'failed')
+        self.assertEqual(self.state()['stage'], '')
+        self.assertEqual(self.step()['status'], 'waiting')   # the new request (a new nonce) is made on the next look
+        self.assertEqual(self.state()['stage'], '', 'a brand-new request was approved by nobody')
+
+    def test_a_code_typed_by_hand_closes_the_request_and_the_approved_word_goes_with_it(self):
+        """Review: public() blanked the word before the «superseded» override changed the status, so a closed request could still say «approved»."""
+        self.assertEqual(self.ask()[1]['status'], 'waiting')
+        self.relay.last()['stage'] = 'approved'
+        self.assertEqual(self.step()['stage'], 'approved')
+        typed = code_for(self.device, days=365, edition='standard')
+        self.assertEqual(self.owner.post('/api/licence/activate', {'code': typed})[0], 200)
+        st = self.state()
+        self.assertEqual((st['status'], st['reason'], st['stage']), ('closed', 'manual', ''))
+
     def test_the_relay_is_not_set_up_so_only_the_manual_way_is_offered(self):
         os.environ.pop('STORE_LICENCE_RELAY')
         self.assertEqual(self.state()['available'], False)

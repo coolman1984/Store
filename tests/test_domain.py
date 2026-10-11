@@ -668,6 +668,44 @@ class RefundFollowsTheMoneyTests(Base):
         self.assertEqual(self.drawer(), before - 200000)
         self.assertEqual(self.owed(), 0, 'the financing fee goes with the goods')
 
+    def test_a_returned_instalment_fee_leaves_the_reports_too(self):
+        """Review of PR #15: the ledgers gave the fee back but returns.total held only the goods, so the reports kept the fee as income."""
+        import reports
+        today = ids.local_day()
+        before = reports.summary(self.s.db, today, today)['net']
+        r = sale(self.s, [{'product_id': self.tv, 'qty': 1}], [{'method': 'cash', 'amount': 200000}, {'method': 'installment', 'amount': 960000}],
+                 customer_id=self.cust, instalment={'months': 10, 'first_due': day(30), 'guarantor': {'name': 'G'}})
+        self.assertEqual(reports.summary(self.s.db, today, today)['net'], before + 1160000, 'goods 1,000,000 + fee 160,000 sold')
+        out = self.give_back(r)
+        self.assertEqual((out['total'], out['fee']), (1000000, 160000))
+        self.assertEqual(reports.summary(self.s.db, today, today)['net'], before, 'everything came back: nothing is left as income')
+        self.assertEqual(reports.year_turnover(self.s.db)['turnover'], reports.year_turnover(self.s.db)['sales'] - reports.year_turnover(self.s.db)['returns'])
+        self.assertEqual(sum(d['sales'] for d in reports.daily_series(self.s.db, 3)), before)
+
+    def test_a_sale_is_on_the_account_or_on_instalments_never_both(self):
+        with self.assertRaises(Problem) as e:
+            sale(self.s, [{'product_id': self.tv, 'qty': 1}], [{'method': 'account', 'amount': 200000}, {'method': 'installment', 'amount': 960000}],
+                 customer_id=self.cust, instalment={'months': 10, 'first_due': day(30), 'guarantor': {'name': 'G'}})
+        self.assertEqual(e.exception.key, 'err.creditMix')
+
+    def test_an_older_sale_on_both_credits_clears_both_when_it_comes_back(self):
+        """Review of PR #15: such a sale (allowed before) cleared only the plan and paid the account part from the drawer."""
+        real = sales.one_credit_kind
+        sales.one_credit_kind = lambda by_method: None  # as an older version allowed
+        try:
+            r = sale(self.s, [{'product_id': self.tv, 'qty': 1}], [{'method': 'account', 'amount': 200000}, {'method': 'installment', 'amount': 960000}],
+                     customer_id=self.cust, instalment={'months': 10, 'first_due': day(30), 'guarantor': {'name': 'G'}})
+        finally:
+            sales.one_credit_kind = real
+        plan = self.s.db.one('SELECT * FROM plans WHERE id = ?', r['plan_id'])
+        self.assertEqual(self.owed(), 1160000)
+        before = self.drawer()
+        out = self.give_back(r)
+        self.assertEqual((out['on_account'], out['paid_back']), (1160000, 0))
+        self.assertEqual(self.drawer(), before, 'nobody paid anything: nothing leaves the drawer')
+        self.assertEqual(self.owed(), 0)
+        self.assertEqual(cash.plan_schedule(self.s.db, plan)['remaining'], 0)
+
     def test_store_credit_is_a_choice_and_pays_nothing_from_the_drawer(self):
         r = sale(self.s, [{'product_id': self.tv, 'qty': 1}], customer_id=self.cust)  # a cash sale
         before = self.drawer()

@@ -44,6 +44,23 @@ def safe_balance(db):
     return db.value("SELECT COALESCE(SUM(amount), 0) FROM cash_moves WHERE account = 'safe'")
 
 
+def need_in_drawer(db, shift_id, amount):
+    """The same rule for a drawer: nothing leaves it that it does not hold (undoing a collection that was already spent from the drawer)."""
+    have = drawer_expected(db, shift_id)
+    if amount > have:
+        raise Problem('err.drawerShort', 'There is not enough cash in the drawer for this.', have=have)
+
+
+def need_in_safe(db, amount, paying=False):
+    """Money leaves the safe only if the safe holds it, whatever the way out (a withdrawal, an expense, a supplier payment, a purchase paid
+    from it, or the undoing of an earlier deposit or cash collection). A negative safe would be a balance nobody could count."""
+    have = safe_balance(db)
+    if amount > have:
+        if paying:  # an expense, a supplier or a purchase: the drawer is the other way to pay, and the message says so
+            raise Problem('err.safeShortPay', 'The safe does not have this much.', have=have)
+        raise Problem('err.safeShort', 'The safe does not have this much.', have=have)
+
+
 def open_shift(ctx, opening_float):
     ctx.need('pos.sell')
     if open_shift_of(ctx.db, ctx.uid):
@@ -87,10 +104,10 @@ def shift_summary(db, shift_id):
 
 def close_shift(ctx, shift_id, counted, note=''):
     s = ctx.db.one('SELECT * FROM shifts WHERE id = ?', shift_id)
+    if not s or s['user_id'] != ctx.uid:  # your own shift you may always close (even if your counter ticks were removed meanwhile); another's needs the manager's tick,
+        ctx.need('shifts.manage')         # and a person without it learns nothing about which ids exist
     if not s:
         raise NotFound('shift')
-    if s['user_id'] != ctx.uid:
-        ctx.need('shifts.manage')
     if s['closed_at']:
         raise Problem('err.shiftClosed', 'This shift is already closed.')
     counted = money(counted, 'counted')
@@ -122,6 +139,7 @@ def cash_out(ctx, source, kind, amount, ref_type, ref_id, note, category='', ide
         return cash_move(ctx, 'drawer', kind, -amount, shift['id'], category, ref_type, ref_id, note, idem_key)
     if source == 'safe':
         ctx.need('cash.safe')
+        need_in_safe(ctx.db, amount, paying=True)  # an expense, a supplier or a purchase: the drawer is the other way to pay
         return cash_move(ctx, 'safe', kind, -amount, None, category, ref_type, ref_id, note, idem_key)
     raise Problem('err.source', 'Choose drawer or safe.')
 
@@ -157,8 +175,7 @@ def safe_move(ctx, data):
     if not amount:
         raise Problem('err.zero', 'Write the amount.')
     if kind == 'withdraw':
-        if amount > safe_balance(ctx.db):
-            raise Problem('err.safeShort', 'The safe does not have this much.')
+        need_in_safe(ctx.db, amount)
         row = cash_move(ctx, 'safe', 'withdraw', -amount, note=note)
     elif kind == 'deposit':
         row = cash_move(ctx, 'safe', 'deposit', amount, note=note)
@@ -177,6 +194,7 @@ def safe_move(ctx, data):
 
 def reverse_cash(ctx, move_id, reason):
     """Undo an expense or safe move typed by mistake: a new opposite row, never an edit."""
+    ctx.need_any('cash.expense', 'cash.safe')
     reason = text(reason, 'reason', 300)
     if len(reason) < 3:
         raise Problem('err.reason', 'Write the reason (3 letters or more).')
@@ -187,10 +205,13 @@ def reverse_cash(ctx, move_id, reason):
         raise Problem('err.notReversible', 'Sales, returns and collections are reversed from their own page.')
     if m['reverses'] or ctx.db.value('SELECT 1 FROM cash_moves WHERE reverses = ?', move_id):
         raise Problem('err.alreadyReversed', 'This entry is already reversed.')
-    ctx.need('cash.safe' if m['account'] == 'safe' or m['by_user'] != ctx.uid else 'cash.expense')
     shift_id = m['shift_id']
+    shift = ctx.db.one('SELECT * FROM shifts WHERE id = ?', shift_id) if m['account'] == 'drawer' else None
+    to_safe = m['account'] == 'safe' or bool(shift and shift['closed_at'])  # the correction of a closed shift goes through the safe
+    ctx.need('cash.safe' if to_safe or m['by_user'] != ctx.uid else 'cash.expense')  # whatever touches the safe needs the safe's tick, as a deposit does
+    if m['kind'] == 'deposit':  # undoing money that came into the safe: it must still be there
+        need_in_safe(ctx.db, m['amount'])
     if m['account'] == 'drawer':
-        shift = ctx.db.one('SELECT * FROM shifts WHERE id = ?', shift_id)
         if shift['closed_at']:  # the drawer of a closed shift is counted: the correction goes through the safe
             row = cash_move(ctx, 'safe', 'reversal', -m['amount'], None, m['category'], 'cash', move_id, reason, reverses=move_id)
         else:
@@ -328,8 +349,13 @@ def collect(ctx, data):
     if method not in core.pay_methods(ctx.db):
         raise Problem('err.methodOff', 'This way of paying is turned off. The owner can turn it on in Settings.')
     plan_id = data.get('plan_id') or None
-    if plan_id and not ctx.db.value('SELECT 1 FROM plans WHERE id = ? AND customer_id = ?', plan_id, customer['id']):
-        raise NotFound('plan')
+    if plan_id:
+        plan = ctx.db.one('SELECT * FROM plans WHERE id = ? AND customer_id = ?', plan_id, customer['id'])
+        if not plan:
+            raise NotFound('plan')
+        left = plan_schedule(ctx.db, plan)['remaining']
+        if amount > left:  # a payment tagged to a plan can not pay more than the plan still owes (the plan would show a negative rest)
+            raise Problem('err.payMoreThanPlan', 'This is more than what is left on this instalment plan.', left=max(left, 0))
     owed = customer_balance(ctx.db, customer['id'])
     if amount > owed:
         raise Problem('err.payMoreThanOwed', 'This is more than the customer owes.', owed=owed)
@@ -360,6 +386,10 @@ def reverse_collection(ctx, entry_id, reason):
     t = ctx.db.one("SELECT * FROM tenders WHERE ref_type = 'collection' AND ref_id = ?", entry_id)
     if paid_cash:
         shift = ctx.db.one('SELECT * FROM shifts WHERE id = ?', paid_cash['shift_id'])
+        if shift and not shift['closed_at']:
+            need_in_drawer(ctx.db, shift['id'], paid_cash['amount'])  # the cash may already have been spent from this drawer
+        else:  # the shift is closed: the cash is in the safe now and goes back out of it
+            need_in_safe(ctx.db, paid_cash['amount'])
         if shift and not shift['closed_at']:
             cash_move(ctx, 'drawer', 'reversal', -paid_cash['amount'], shift['id'], ref_type='collection', ref_id=entry_id,
                       note=reason, reverses=paid_cash['id'], at=at)

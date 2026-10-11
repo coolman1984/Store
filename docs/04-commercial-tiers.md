@@ -17,7 +17,7 @@ The Windows CI workflow `.github/workflows/windows.yml` must run on PR and main,
 
 ## Work in order, without scope explosion
 
-- **W0 (before any sale):** PR Windows job green for release candidate; all 32 applicable factory controls, real manual keyboard/cashier acceptance, no demo login, backup+restore on another PC and receipt printer check. Existing cash-only checkout must not regress.
+- **W0 (before any sale):** PR Windows job green for release candidate; all 34 core factory controls (32 until the factory made UX-04 and UX-09 core on 2026-10-10), real manual keyboard/cashier acceptance, no demo login, backup+restore on another PC and receipt printer check. Existing cash-only checkout must not regress.
 - **D1 (required for advertised Solo cloud-protected plan):** safe SQLite backup snapshots, encrypted/versioned off-device upload, customer-controlled key recovery, bounded retry queue, backup-age UI/warnings, three separate recoverable copies, forced-failure test and restore on different PC. Customer approves storage and residency before first upload. Until D1 verified, label cloud backup as NOT AVAILABLE and offer explicit provisional on-site pilot/backup arrangement; do not claim the desired Tier 1 delivered.
 - **S2 (after paid Solo field acceptance):** cloud hub shared by PCs, scoped enrollment, conflict and stock/payment pending states, separate backup system; owner-only mobile read endpoints with server-enforced read-only.
 - **M3 (only after plan 2 works):** HTTPS hosted installable PWA with install/standalone test on Android/iOS; safe sales, staff roles, barcode camera detection with manual/HID fallback, retry+duplicate protection and manual device checks.

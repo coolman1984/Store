@@ -7,7 +7,7 @@ import { productFile } from './products.js';
 import { CUR, $, $$, html, put, icon, money, num, date, open, empty, skeleton, errorText, toast, parseQty, run, confirm, seg, bindSeg } from '../ui.js';
 
 export default async function view(page, params) {
-  const tab = ['transfer', 'count', 'value'].includes(params.tab) ? params.tab : 'stock';
+  const tab = ['transfer', 'count', 'value'].includes(params.tab) && (params.tab !== 'value' || can('cost.view')) ? params.tab : 'stock';
   put(page, html`<div class="page-head"><div class="titles"><h1>${t('nav.stock')}</h1><p>${t('stock.sub')}</p></div>
     <div class="actions">${can('stock.transfer') ? html`<button class="btn primary" data-move>${icon('swap')}${t('stock.move')}</button>` : ''}</div></div>
     <nav class="tabs" data-lab-scroll aria-label="${t('nav.sections')}"><a href="#/stock" ${tab === 'stock' ? CUR : ''}>${icon('warehouse')}${t('stock.tab.stock')}</a>

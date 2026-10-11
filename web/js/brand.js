@@ -1,4 +1,4 @@
-// The Mizan mark: two equal bars (books that balance) resting on a fulcrum (the shop's scale).
+// The Al-Store mark: two equal bars (books that balance) resting on a fulcrum (the shop's scale).
 // One drawing for every size; colours come from CSS classes, so it follows the theme and the surface it sits on.
 import { raw, esc } from './ui.js';
 

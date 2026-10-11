@@ -71,19 +71,59 @@ def write_marker(home):
         pass
 
 
-def guard(db, practice, home):
-    """Called when a program instance opens its folder. Raises WrongShop before anything is read or written for a person."""
+def _judge(db, practice):
+    """'ok', 'mark' (an older practice folder: mark it), or raise WrongShop."""
     kind = kind_of(db)
     people = db.value('SELECT COUNT(*) FROM users') or 0
+    older_practice = bool(people) and kind != 'practice' and _was_practice_before_marks(db)
     if practice:
         if people and kind != 'practice':
-            if not _was_practice_before_marks(db):
+            if not older_practice:
                 raise WrongShop('practice_on_real')
-            mark(db)
-        if people or kind == 'practice':
-            write_marker(home)
-    elif kind == 'practice':
+            return 'mark'
+    elif kind == 'practice' or older_practice:  # an older practice folder is refused in real mode too (review of PR #19)
         raise WrongShop('real_on_practice')
+    return 'ok'
+
+
+class _ReadOnly:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def value(self, sql, *args):
+        row = self.conn.execute(sql, args).fetchone()
+        return row[0] if row else None
+
+    def all(self, sql, *args):
+        cur = self.conn.execute(sql, args)
+        names = [c[0] for c in cur.description]
+        return [dict(zip(names, r)) for r in cur.fetchall()]
+
+
+def preflight(path, practice):
+    """Before the database is opened for writing (no migration, no upgrade copy, no metadata): refuse a folder of the other kind.
+    Review of PR #19: the first version judged after the database had been opened, migrated and given its ids."""
+    import sqlite3
+    if not os.path.exists(path):
+        return
+    try:
+        conn = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
+    except sqlite3.Error:
+        return
+    try:
+        _judge(_ReadOnly(conn), practice)
+    except sqlite3.Error:
+        return  # an older layout without these tables: the full open decides
+    finally:
+        conn.close()
+
+
+def guard(db, practice, home):
+    """Called once the folder is open. Raises WrongShop for a folder of the other kind; marks an older practice folder."""
+    if _judge(db, practice) == 'mark':
+        mark(db)
+    if practice and ((db.value('SELECT COUNT(*) FROM users') or 0) or kind_of(db) == 'practice'):
+        write_marker(home)
 
 
 def port_of(app):

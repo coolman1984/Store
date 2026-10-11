@@ -180,6 +180,38 @@ class ExportUnit(unittest.TestCase):
         finally:
             sh.cleanup()
 
+    def test_a_purchase_cost_does_not_leave_through_the_supplier_ledger_cash_or_audit(self):
+        """Review of PR #14: blanking purchases.total was not enough, the same total sat in ap_entries, cash_moves and the audit line."""
+        import backup
+        import ids
+        import money
+        import stock
+        from harness import Shop
+        sh = Shop()
+        try:
+            sid = sh.do(money.save_supplier, {'name': 'Supplier'})
+            pid = sh.product('Fan', qty=0)
+            sh.do(money.open_shift, 500000)
+            sh.do(stock.receive, {'idem_key': ids.uuid7(), 'location_id': sh.shop, 'supplier_id': sid, 'paid_now': 31313,
+                                  'lines': [{'product_id': pid, 'qty': 3, 'unit_cost': 73131}]})
+            sh.do(stock.receive, {'idem_key': ids.uuid7(), 'location_id': sh.shop, 'paid_now': 4 * 52127,  # no supplier: paid from the drawer
+                                  'lines': [{'product_id': pid, 'qty': 4, 'unit_cost': 52127}]})
+            total, cash_paid = '219393', '208508'
+            full = zipfile.ZipFile(io.BytesIO(backup.export_zip(sh.db)))
+            plain = zipfile.ZipFile(io.BytesIO(backup.export_zip(sh.db, cost=False)))
+            self.assertIn(total, full.read('ap_entries.csv').decode('utf-8-sig'))
+            self.assertIn(total, full.read('audit.csv').decode('utf-8-sig'))
+            self.assertIn(cash_paid, full.read('cash_moves.csv').decode('utf-8-sig'))
+            for name in plain.namelist():
+                text = plain.read(name).decode('utf-8-sig')
+                self.assertNotIn(total, text, name)
+                self.assertNotIn('73131', text, name)
+                self.assertNotIn(cash_paid, text, name)  # the whole cost of the second purchase, paid from the drawer
+                self.assertNotIn('52127', text, name)
+            self.assertIn('supplier.add', plain.read('audit.csv').decode('utf-8-sig'), 'other audit lines stay whole')
+        finally:
+            sh.cleanup()
+
 
 if __name__ == '__main__':
     unittest.main()
