@@ -1,0 +1,21 @@
+{
+  "name": "Al-Store - private mobile practice preview",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+  "forwardPorts": [
+    8097
+  ],
+  "portsAttributes": {
+    "8097": {
+      "label": "Al-Store practice (private)",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "postStartCommand": "bash .devcontainer/start-preview.sh",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

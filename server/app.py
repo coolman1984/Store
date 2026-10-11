@@ -59,6 +59,27 @@ PRACTICE_COOKIE = 'store_practice_session'  # cookies are per host, not per port
 
 def cookie_name():
     return PRACTICE_COOKIE if APP is not None and APP.practice else COOKIE
+
+def cookie_flags():
+    """Keep local HTTP working; enforce HTTPS-only cookies in the private cloud preview."""
+    suffix = '; Secure' if APP is not None and APP.practice and os.environ.get('ALSTORE_CODESPACES_PREVIEW') == '1' else ''
+    return 'Path=/; HttpOnly; SameSite=Strict' + suffix
+
+
+def _codespaces_preview_host(host):
+    """Allow only THIS private Codespace forwarding URL, and only for synthetic practice mode.
+
+    The launcher opts in explicitly; the ordinary shop never accepts a GitHub public hostname.
+    GitHub itself authenticates requests to private forwarded ports.
+    """
+    if APP is None or not APP.practice or os.environ.get('ALSTORE_CODESPACES_PREVIEW') != '1':
+        return False
+    name = os.environ.get('CODESPACE_NAME', '').lower()
+    if not name or any(c not in 'abcdefghijklmnopqrstuvwxyz0123456789-' for c in name):
+        return False
+    return host == f'{name}-{int(APP.cfg["port"])}.app.github.dev'
+
+
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
        "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
 TYPES = {'.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8',
@@ -276,7 +297,7 @@ class Handler(BaseHTTPRequestHandler):
         """DNS-rebinding guard: only names that really mean this PC."""
         host = (self.headers.get('Host') or '').rsplit(':', 1)[0].strip('[]').lower()
         allowed = {'localhost', '127.0.0.1', '::1', socket.gethostname().lower()} | set(_lan_ips())
-        return host in allowed or host.endswith('.local') or _is_private_ip(host)
+        return host in allowed or host.endswith('.local') or _is_private_ip(host) or _codespaces_preview_host(host)
 
     def origin_ok(self):
         origin = self.headers.get('Origin')
@@ -352,7 +373,7 @@ class Handler(BaseHTTPRequestHandler):
             fn()
         except NotLoggedIn:
             self.send(401, {'error': 'Please sign in.', 'key': 'err.signIn', 'login': True},
-                      headers={'Set-Cookie': f'{cookie_name()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
+                      headers={'Set-Cookie': f'{cookie_name()}=; {cookie_flags()}; Max-Age=0'})
         except LicenceLocked:
             self.send(402, {'error': 'The licence does not allow changes now.', 'key': 'err.licence', 'licence': APP.licence()})
         except Forbidden as e:
@@ -681,7 +702,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/logout':
             self.body(65536)
             APP.auth.end_session(self.token())
-            return self.send(200, {'ok': True}, headers={'Set-Cookie': f'{cookie_name()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
+            return self.send(200, {'ok': True}, headers={'Set-Cookie': f'{cookie_name()}=; {cookie_flags()}; Max-Age=0'})
         u = self.user()
         ctx = self.ctx(u)
         data = self.body(2 * 1048576)
@@ -719,7 +740,7 @@ class Handler(BaseHTTPRequestHandler):
                 APP.db.insert('audit', {'id': ids.uuid7(), 'at': ids.iso(), 'user_id': '', 'user_name': who, 'ip': self.ip,
                                         'action': 'practice.reset', 'entity': 'practice', 'entity_id': '', 'detail': ''})
             return self.send(200, {'ok': True, 'login': True},
-                             headers={'Set-Cookie': f'{cookie_name()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'})
+                             headers={'Set-Cookie': f'{cookie_name()}=; {cookie_flags()}; Max-Age=0'})
         if path == '/api/support/ping':  # network call: never while the database is locked for a write
             ctx.need('settings.edit')
             return self.send(200, support.send(APP))
@@ -917,7 +938,7 @@ class Handler(BaseHTTPRequestHandler):
             log.warning('telemetry note failed', exc_info=True)
 
     def cookie(self, token):
-        return {'Set-Cookie': f'{cookie_name()}={token}; Path=/; HttpOnly; SameSite=Strict'}
+        return {'Set-Cookie': f'{cookie_name()}={token}; {cookie_flags()}'}
 
     def too_many(self, ip, add=False):
         now = time.time()
