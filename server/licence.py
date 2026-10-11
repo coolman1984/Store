@@ -1,7 +1,7 @@
 """Is this copy allowed to sell today? The licence code pasted by the shop, checked on this PC.
 
 - The vendor's Licence Studio (Apps-Factory apps/licence-studio) signs a code for this PC's device code.
-  A trial is 14 days. A new code is needed after that.
+  A trial's length is whatever the company signs into the code (14 days unless it set another for the product). A new code is needed after that.
 - Only the vendor's public keys are inside the program (licence_keys.txt). They cannot make codes.
 - Without a working code the shop can still open everything, read, print, export and back up (constitution 8):
   only actions that change data are refused, with a clear message and the device code to send to the vendor.

@@ -7,6 +7,19 @@
 
 # Development history (newest first)
 
+## 2026-10-10 — readiness review after 1.9.1 (docs only)
+**Why (owner request, phase 5):** `docs/03-ready-to-sell.md` still said 32 core controls and 30 of 32 verified. The factory's gate has 34 core controls (UX-04 and UX-09 became core in factory catalogue 1.11.0, Apps-Factory PR #42, CHANGELOG 0.15.0) and says **NO-GO**. Evidence: `python scripts/factory.py check examples/al-store-product.json --release` in Apps-Factory at `main` 7bc2134 on 2026-10-10 printed `NO-GO` with exactly these open items: `off_device_cloud_restore`, field acceptance, `clean_device_restore`, `core_user_acceptance`, and the proofs UX-04, DATA-05, UX-09, A11Y-01.
+**What changed:** section 1 of the readiness plan now states the gate's real answer (30 of 34 verified; UX-04, UX-09, DATA-05, A11Y-01 need a person or a customer's PC; three field proofs open, one of them, the encrypted cloud restore of the Solo tier, is not built) and lists, per item, **why a machine cannot prove it** and what must happen (a clean Windows PC, receipt printers 80 and 58 mm, an hour with a real cashier, a keyboard walk-through, two weeks at the first shop, the relay and Telegram on the real internet, the first real code with a non-default trial length).
+**Not done on purpose:** nothing was marked verified; no price, term or support promise was written.
+
+## 2026-10-10 — 1.9.1: the trial's length is no longer written on the screens
+**Why (owner request of 2026-10-10, phase 2):** the factory's Licence Studio now lets the owner set the trial length per product (14 days by default). The shop's screens said «اطلب تجربة 14 يوم» in both languages, which would be wrong for a product set to 30.
+**What changed:** `lic.req.trial`, `lic.req.kind.trial` and `lic.how1` in `ar.js` and `en.js` no longer carry a number; the real length arrives inside the signed code and is shown from there as before (`days_left`). `server/licence.py` no longer states «a trial is 14 days».
+**Proof:** `tests/test_licence_types.py` pins three more codes signed with the factory's own tool and the same test key (7, 30 and 60 days from 2026-01-01, tied to the same PC): each is active on its first day, shows the right days left, is active on its last day, expired the day after with no grace, and refuses another PC; a 60-day trial is still running when a 14-day one has ended. No change to the code format or to the licence code that reads it.
+**Independent review of this change:** one string still said «التجربة أسبوعين» (`lic.how4`, both languages), the README heading, a comment in `licence_relay.txt` and two docs still named a fixed length: all fixed, and `NoLengthOnTheScreens` now scans every `lic.*` text in both dictionaries for «14», «أسبوعين», «two weeks» (it fails if one comes back). A short trial (3 days) showing the existing «soon» banner at once is the existing behaviour for any code with 3 days or fewer.
+**Codex's review of the PR:** the scan read only single-quoted licence texts while `en.js` has five double-quoted ones (so a fixed length added there would have passed). It now reads both quote forms and asserts that every `lic.*` key was read (checked by putting «14 days» into a double-quoted text: the test fails).
+**Not changed on purpose:** codes already issued (they carry their own last day), prices, terms, the three kinds of licence.
+
 ## 2026-10-10 — 1.9.0: the name الستور again, the 320 px phone, the owner's practice exercise, licence-kind tests, a network-failure browser test
 **Why (owner request of 2026-10-10, closing the open points of the old PRs #8, #9, #13):** the factory's design review said the working name «Mizan» collides with the owner's accounting product; the smallest screen of the factory standard (320 px) had never been tested; the practice shop had exercises for the cashier and the storekeeper but not for the owner; and the licence code kinds had no test against codes signed by the factory's own tool.
 
