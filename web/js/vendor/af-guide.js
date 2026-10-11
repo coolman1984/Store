@@ -1,4 +1,4 @@
-/* Vendored from Apps-Factory packages/af-guide 0.1.3 - do not edit here. */
+/* Vendored from Apps-Factory packages/af-guide 0.1.4 - do not edit here. */
 /* Update with: python scripts/vendor_guide.py <product repo> (from the Apps-Factory checkout) */
 /* af-guide 0.1.0: the factory's in-app guide (role courses, coach with auto-advance, per-page help, problem
    entries, per-guide language switch, progress saved per person on the server). No dependencies; DOM built with textContent only.
