@@ -9,7 +9,8 @@ from harness import PW, Server
 
 # routes that every signed-in person (or the sign-in itself) may call, each guarded by what it does
 EVERYBODY = {'/api/login', '/api/logout', '/api/setup', '/api/recover', '/api/password', '/api/guide/progress', '/api/consent/decide',
-             '/api/telemetry/events', '/api/telemetry/feedback', '/api/telemetry/feedback/preview', '/api/practice/open', '/api/watch/review'}
+             '/api/telemetry/events', '/api/telemetry/feedback', '/api/telemetry/feedback/preview', '/api/practice/open', '/api/watch/review',
+             '/api/offsite/restore-new'}  # before setup only (409 after), and from this PC only
 SKIP_FOR_THE_PROBE = {'/api/login', '/api/logout', '/api/setup', '/api/recover', '/api/password'}  # they would end the session this test needs
 
 

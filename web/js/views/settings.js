@@ -5,7 +5,7 @@ import { t, lang, setLang } from '../i18n.js';
 import { shake } from '../motion.js';
 import { printHTML } from '../print.js';
 import { prefs } from '../prefs.js';
-import { CUR, raw, $, $$, html, put, icon, date, open, empty, skeleton, errorText, toast, run, confirm, seg, bindSeg, initials, download, parseMoney } from '../ui.js';
+import { CUR, raw, $, $$, html, put, icon, date, open, empty, skeleton, errorText, toast, run, confirm, seg, bindSeg, initials, download, parseMoney, showError, today } from '../ui.js';
 import { signal } from '../guide.js';
 import { makeNewCode } from '../recovery.js';
 
@@ -332,20 +332,21 @@ async function privacy(body, again) {
 }
 
 async function backup(body, again) {
-  const d = await api.get('/api/settings').catch(() => null);
+  const [d, o] = await Promise.all([api.get('/api/settings').catch(() => null), api.get('/api/offsite').catch(() => null)]);
   if (!d) return;
   const age = d.backup_age_hours;
   put(body, html`<div class="stack"><div class="two"><div class="card ${age !== null && age < 30 ? 'accent-card' : 'ink-card'}"><div class="kpi"><span class="label">${t('backup.last')}</span>
       <span class="value">${age === null ? t('backup.never') : t('backup.ago', { h: age })}</span><span class="small">${t('backup.auto')}</span></div>
       <div class="row wrap"><button class="btn primary" data-now data-guide="backup.now">${icon('download')}${t('backup.now')}</button><button class="btn" data-export>${icon('upload')}${t('backup.export')}</button></div></div>
-    <div class="card"><div class="card-head"><h2>${t('backup.where')}</h2></div><p class="small muted">${t('backup.whereHint')}</p>
-      <div class="tip warn">${icon('alert')}<div>${t('backup.usb')}</div></div></div></div>
+    ${o && !o.practice ? offsiteCard(o) : html`<div class="card"><div class="card-head"><h2>${t('backup.where')}</h2></div><p class="small muted">${t('backup.whereHint')}</p>
+      <div class="tip warn">${icon('alert')}<div>${t('backup.usb')}</div></div></div>`}</div>
     <div class="card"><div class="card-head"><h2>${t('backup.list')}</h2></div>${d.backups.length ? html`<div class="list">${d.backups.map((b) => html`<div class="li">${icon('layers')}
       <span class="grow num">${b.name}</span><span class="small muted">${date(b.mtime, true)} · ${(b.size / 1048576).toFixed(1)} MB</span><button class="btn sm" data-restore="${b.name}">${t('backup.restore')}</button></div>`)}</div>`
       : html`<p class="muted">${t('backup.none')}</p>`}</div>
     <div class="card"><div class="card-head"><h2>${t('settings.devices')}</h2></div><p class="small muted">${t('settings.devicesHint')}</p>
       <div class="row wrap">${d.addresses.map((a) => html`<code class="chip num">${a}</code>`)}</div></div></div>`);
   $('[data-now]', body).addEventListener('click', async (e) => { if (await run(api.post('/api/backup/now'), t('backup.done'), e.currentTarget)) { signal('backup.done'); again(); } });
+  if (o && !o.practice) bindOffsite(body, o, again);
   $('[data-export]', body).addEventListener('click', async (e) => {
     const btn = e.currentTarget; btn.setAttribute('aria-busy', 'true');
     try { const res = await api.get('/api/export'); download(`al-store-${new Date().toISOString().slice(0, 10)}.zip`, await res.blob()); } catch (err) { toast(errorText(err), 'bad'); }
@@ -362,6 +363,127 @@ async function backup(body, again) {
       });
     },
   })));
+}
+
+// ---------------------------------------------------------------- the protected copy outside this PC (server/offsite.py)
+const offsiteFresh = (o) => o.on && o.reachable && o.age_hours !== null && o.age_hours <= 48;
+
+function offsiteCard(o) {
+  if (!o.on) {
+    return html`<div class="card" data-offsite><div class="card-head"><h2>${t('off.title')}</h2><span class="badge warn">${t('off.offBadge')}</span></div>
+      <p class="small muted">${t('off.why')}</p><div class="tip">${icon('info')}<div>${t('off.how')}</div></div>
+      <div class="row wrap"><button class="btn accent" data-off-change>${icon('shield')}${t('off.start')}</button></div></div>`;
+  }
+  return html`<div class="card ${offsiteFresh(o) ? 'accent-card' : ''}" data-offsite><div class="card-head"><h2>${t('off.title')}</h2>
+      <span class="badge ${offsiteFresh(o) ? 'ok' : 'bad'}">${t(!o.reachable ? 'off.unreachable' : offsiteFresh(o) ? 'off.onBadge' : 'off.oldBadge')}</span></div>
+    <p class="small"><span class="muted">${t('off.folder')}</span> <code class="wrap-any" dir="ltr">${o.dir}</code></p>
+    <p class="small">${o.age_hours === null ? t('off.noneYet') : t('off.ago', { h: o.age_hours })} · ${t('off.count', { n: o.copies.length })}</p>
+    ${!o.reachable ? html`<div class="tip bad">${icon('alert')}<div>${t('off.unreachableHint')}</div></div>` : ''}
+    ${o.reachable && o.last && !o.last.ok ? html`<div class="tip bad">${icon('alert')}<div>${t('off.failed')}</div></div>` : ''}
+    ${o.same_disk ? html`<div class="tip warn">${icon('alert')}<div>${t('off.sameDisk')}</div></div>` : ''}
+    <div class="row wrap"><button class="btn primary" data-off-now>${icon('upload')}${t('off.now')}</button>
+      <button class="btn" data-off-phrase>${icon('key')}${t('off.showPhrase')}</button>
+      <button class="btn" data-off-restore>${icon('layers')}${t('off.restore')}</button>
+      <button class="btn ghost" data-off-change>${t('off.change')}</button><button class="btn ghost" data-off-stop>${t('off.stop')}</button></div></div>`;
+}
+
+const pwField = (id) => html`<div class="field"><label for="${id}">${t('backup.yourPassword')}</label><input id="${id}" type="password" class="input" autocomplete="current-password"></div>`;
+
+/** The phrase on screen and on paper. `first`: right after it was made, the person must tick that it is written down. */
+function showPhrase(phrase, first) {
+  const shop = S.boot.shop_name || '';
+  const paper = html`<div class="recovery-paper"><h1>${t('off.phraseTitle')}</h1><p>${shop}</p><p class="recovery-code" dir="ltr">${phrase}</p>
+    <p>${t('off.phraseWhy')}</p><p>${t('off.phraseLost')}</p><p>${date(today())}</p></div>`;
+  open({
+    title: t('off.phraseTitle'),
+    sticky: first,
+    body: html`<p class="muted">${t('off.phraseWhy')}</p><p class="recovery-code" dir="ltr" data-offsite-phrase>${phrase}</p>
+      <div class="tip warn">${icon('alert')}<div>${t('off.phraseLost')}</div></div>
+      ${first ? html`<label class="check"><input type="checkbox" id="op-kept">${t('recovery.kept')}</label>` : ''}`,
+    foot: html`<button class="btn" data-print>${icon('print')}${t('act.print')}</button>
+      <button class="btn accent grow" data-ok ${first ? 'disabled' : ''}>${t('recovery.continue')}</button>`,
+    mount(box, close) {
+      $('[data-print]', box).addEventListener('click', () => printHTML(paper, 'a4'));
+      if (first) $('#op-kept', box).addEventListener('change', (e) => { $('[data-ok]', box).disabled = !e.target.checked; });
+      $('[data-ok]', box).addEventListener('click', () => close());
+    },
+  });
+}
+
+function bindOffsite(body, o, again) {
+  const on = (sel, fn) => { const el = $(sel, body); if (el) el.addEventListener('click', fn); };
+  on('[data-off-now]', async (e) => {
+    const btn = e.currentTarget; btn.setAttribute('aria-busy', 'true');
+    try { const r = await api.post('/api/offsite/now'); toast(r.ok ? t('off.done') : t('off.failed'), r.ok ? 'ok' : 'bad'); again(); } catch (err) { toast(errorText(err), 'bad'); }
+    btn.removeAttribute('aria-busy');
+  });
+  on('[data-off-change]', () => open({
+    title: o.on ? t('off.change') : t('off.start'),
+    body: html`<p class="small muted">${t('off.chooseHint')}</p>
+      ${o.places.length ? html`<div class="row wrap">${o.places.map((p) => html`<button class="chip" data-place="${p.dir}">${icon(p.kind === 'drive' ? 'download' : 'upload')}${t('off.kind.' + p.kind)} <span class="wrap-any" dir="ltr">${p.dir}</span></button>`)}</div>`
+        : html`<div class="tip">${icon('info')}<div>${t('off.noPlaces')}</div></div>`}
+      <div class="field"><label for="od">${t('off.folder')}</label><input id="od" class="input num" dir="ltr" value="${o.dir || ''}" placeholder="E:\Al-Store-Backup"></div>
+      ${pwField('opw')}<p class="err small" id="od-err" role="alert"></p>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn accent" data-ok>${icon('shield')}${t('off.save')}</button>`,
+    mount(box, close) {
+      $$('[data-place]', box).forEach((b) => b.addEventListener('click', () => { $('#od', box).value = b.dataset.place; }));
+      $('[data-ok]', box).addEventListener('click', async (e) => {
+        const btn = e.currentTarget; btn.setAttribute('aria-busy', 'true');
+        try {
+          const r = await api.post('/api/offsite/enable', { dir: $('#od', box).value, password: $('#opw', box).value });
+          close();
+          toast(r.copy && r.copy.ok ? t('off.done') : t('off.failed'), r.copy && r.copy.ok ? 'ok' : 'bad');
+          if (r.phrase) showPhrase(r.phrase, true);
+          again();
+        } catch (err) { showError($('#od-err', box), err); } finally { btn.removeAttribute('aria-busy'); }
+      });
+    },
+  }));
+  const withPassword = (title, text, url, done) => () => open({
+    title,
+    body: html`${text ? html`<p class="muted">${text}</p>` : ''}${pwField('xpw')}<p class="err small" id="x-err" role="alert"></p>`,
+    foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn primary" data-ok>${t('act.ok')}</button>`,
+    mount(box, close) {
+      $('[data-ok]', box).addEventListener('click', async (e) => {
+        const btn = e.currentTarget; btn.setAttribute('aria-busy', 'true');
+        try { const r = await api.post(url, { password: $('#xpw', box).value }); close(); done(r); } catch (err) { showError($('#x-err', box), err); } finally { btn.removeAttribute('aria-busy'); }
+      });
+    },
+  });
+  on('[data-off-phrase]', withPassword(t('off.showPhrase'), '', '/api/offsite/phrase', (r) => showPhrase(r.phrase, false)));
+  on('[data-off-stop]', withPassword(t('off.stop'), t('off.stopHint'), '/api/offsite/disable', () => { toast(t('saved'), 'ok'); again(); }));
+  on('[data-off-restore]', async () => {
+    const found = await api.get('/api/offsite/find').catch(() => ({ copies: [] }));
+    open({
+      title: t('off.restore'), wide: true,
+      body: html`<div class="tip bad">${icon('alert')}<div>${t('off.restoreText')}</div></div>
+        ${copyPicker(found.copies)}<div class="field"><label for="ofr">${t('off.phrase')}</label><input id="ofr" class="input num" dir="ltr" autocomplete="off"></div>
+        ${pwField('orpw')}<p class="err small" id="or-err" role="alert"></p>`,
+      foot: html`<button class="btn ghost" data-close>${t('act.cancel')}</button><button class="btn danger" data-ok>${t('backup.restore')}</button>`,
+      mount(box) {
+        bindCopyPicker(box);
+        $('[data-ok]', box).addEventListener('click', async (e) => {
+          const btn = e.currentTarget; btn.setAttribute('aria-busy', 'true');
+          try {
+            await api.post('/api/offsite/restore', { path: $('#ofp', box).value.trim(), phrase: $('#ofr', box).value, password: $('#orpw', box).value });
+            toast(t('backup.restored'), 'ok'); setTimeout(() => location.reload(), 900);
+          } catch (err) { showError($('#or-err', box), err); btn.removeAttribute('aria-busy'); }
+        });
+      },
+    });
+  });
+}
+
+/** The protected copies the program found (OneDrive, Google Drive, USB sticks), and a box for a file path it did not find. Also used by setup. */
+export function copyPicker(copies) {
+  return html`${copies.length ? html`<div class="list" data-copies>${copies.map((c, i) => html`<label class="li check"><input type="radio" name="ofc" value="${c.path}" ${i === 0 ? 'checked' : ''}>
+      <span class="grow num ellipsis" dir="ltr">${c.path}</span><span class="small muted">${date(c.made_at, true)} · ${(c.size / 1048576).toFixed(1)} MB</span></label>`)}</div>`
+    : html`<div class="tip">${icon('info')}<div>${t('off.noneFound')}</div></div>`}
+    <div class="field"><label for="ofp">${t('off.file')}</label><input id="ofp" class="input num" dir="ltr" value="${copies[0]?.path || ''}" placeholder="E:\Al-Store-Backup\alstore-….alstore"></div>`;
+}
+
+export function bindCopyPicker(box) {
+  $$('input[name="ofc"]', box).forEach((r) => r.addEventListener('change', () => { $('#ofp', box).value = r.value; }));
 }
 
 function device(body) {

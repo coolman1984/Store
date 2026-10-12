@@ -1067,7 +1067,12 @@
     {
       "id": "practice-shop",
       "page": "help",
-      "errors": ["err.practiceOnly", "err.practicePort", "err.trainingUsers", "err.practiceStart"],
+      "errors": [
+        "err.practiceOnly",
+        "err.practicePort",
+        "err.trainingUsers",
+        "err.practiceStart"
+      ],
       "roles": []
     },
     {
@@ -1087,7 +1092,9 @@
         "lic.err.unbound_perpetual",
         "lic.err.no_keys",
         "lic.err.unknown_version",
-        "lic.err.invalid", "err.trialOff", "err.trialHave"
+        "lic.err.invalid",
+        "err.trialOff",
+        "err.trialHave"
       ],
       "roles": []
     },
@@ -1111,7 +1118,9 @@
     {
       "id": "data-busy",
       "page": "help",
-      "errors": ["err.busy"],
+      "errors": [
+        "err.busy"
+      ],
       "roles": []
     },
     {
@@ -1130,6 +1139,27 @@
         "err.backupName",
         "err.backupBad",
         "err.backupOtherShop"
+      ],
+      "roles": [],
+      "guide": "backup"
+    },
+    {
+      "id": "offsite-copy",
+      "page": "settings",
+      "errors": [
+        "err.offsiteFolder",
+        "err.offsiteInside",
+        "err.offsiteNotOff",
+        "err.offsiteUnreachable",
+        "err.offsiteOff",
+        "err.offsiteNotFound",
+        "err.offsiteNotOurs",
+        "err.offsitePhrase",
+        "err.offsiteBroken",
+        "err.offsitePractice",
+        "err.offsiteNewer",
+        "err.offsiteLocal",
+        "err.practiceOnlyReal"
       ],
       "roles": [],
       "guide": "backup"

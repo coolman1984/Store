@@ -197,7 +197,7 @@ def review(ctx, key, note):
 
 
 # ------------------------------------------------------------------ advisor
-def advisor(db, ctx, licence_state=None, backup_age_hours=None):
+def advisor(db, ctx, licence_state=None, backup_age_hours=None, offsite=None):
     """Ranked "do this now" items for the home page, each with a target page."""
     out = []
     shift = cash.open_shift_of(db, ctx.uid)
@@ -222,6 +222,11 @@ def advisor(db, ctx, licence_state=None, backup_age_hours=None):
         out.append({'id': 'upcoming_prices', 'level': 'info', 'go': 'products', 'n': upcoming})
     if ctx.can('settings.edit') and (backup_age_hours is None or backup_age_hours > 30):
         out.append({'id': 'backup', 'level': 'warn', 'go': 'settings', 'hours': backup_age_hours})
+    if ctx.can('settings.edit') and offsite is not None:  # the copy outside this PC: none yet, or none for two days
+        if not offsite.get('on'):
+            out.append({'id': 'offsite_off', 'level': 'info', 'go': 'settings'})
+        elif offsite.get('age_hours') is None or offsite['age_hours'] > 48:
+            out.append({'id': 'offsite_old', 'level': 'warn', 'go': 'settings', 'hours': offsite.get('age_hours')})
     if licence_state and licence_state.get('state') in ('trial', 'active') and licence_state.get('days_left') is not None \
             and licence_state['days_left'] <= 3:
         out.append({'id': 'licence_soon', 'level': 'warn', 'go': 'settings', 'days': licence_state['days_left']})
@@ -234,10 +239,10 @@ def advisor(db, ctx, licence_state=None, backup_age_hours=None):
     return out
 
 
-def home(db, ctx, licence_state=None, backup_age_hours=None):
+def home(db, ctx, licence_state=None, backup_age_hours=None, offsite=None):
     today = ids.local_day()
     can_cost = ctx.can('cost.view')
-    data = {'today': today, 'advisor': advisor(db, ctx, licence_state, backup_age_hours)}
+    data = {'today': today, 'advisor': advisor(db, ctx, licence_state, backup_age_hours, offsite)}
     if ctx.can('reports.view'):
         data['summary'] = summary(db, today, today, can_cost)
         yesterday = (ids.utcnow() - timedelta(days=1)).astimezone().date().isoformat()
