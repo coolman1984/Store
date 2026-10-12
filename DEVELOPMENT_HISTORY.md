@@ -44,6 +44,11 @@ PC (OneDrive, Google Drive, another drive letter such as a USB stick; `offsite.i
 the copy's own name (`alstore-…alstore`). That is also the honest rule: a folder on the PC's own disk is not «off the PC». A network share
 (\\\\server\\share) is not offered; a mapped drive letter is. New error `err.offsiteNotOff`; tests for a copy outside the places, a renamed
 copy and a `..` path.
+**Codex's review and CI on the PR, all fixed with a test:** the header is not authenticated until the tag is checked, so a crafted
+`iterations` could pin the CPU in PBKDF2 or crash it (format, KDF, iteration range, 16-byte salt and nonce are now checked first); an
+unplugged Windows drive made the «same disk?» walk loop for ever on `E:\\` and hung the Backups page (stops at the root); two restores at
+once shared one staging file (one restore at a time now). CI found that copies made faster than one a second got bumped names, and the next
+copy could sort before them and be pruned at once (a new name now always sorts after the newest copy).
 **Not proven by a machine:** a real USB stick and a real OneDrive / Google Drive sync on two real Windows PCs (field item, same session as
 DATA-05). Speed measured here: a 27 MB database seals in ~2.4 s and opens in ~1.3 s.
 

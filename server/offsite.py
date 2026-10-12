@@ -27,6 +27,7 @@ import ids
 MAGIC = b'AL-STORE SEALED BACKUP\n'
 FORMAT = 1
 ITERATIONS = 200_000
+MIN_ITERATIONS, MAX_ITERATIONS = 100_000, 2_000_000  # what a later version may write; anything else is a damaged header
 NAME = re.compile(r'^alstore-(\d{8}-\d{6})\.alstore$')
 FOLDER = 'Al-Store-Backup'
 KEEP = 30
@@ -85,7 +86,13 @@ def _tag(key, framed, body):
 
 
 def stamp_name(folder):
+    """A new name that sorts after every copy already there: copies made faster than one a second get the next free second, and the
+    next copy never sorts before them (pruning keeps the newest by name)."""
     moment = ids.utcnow().astimezone()
+    names = listing(folder)
+    if names:
+        newest = datetime.strptime(NAME.match(names[0]['name']).group(1), '%Y%m%d-%H%M%S').replace(tzinfo=moment.tzinfo)
+        moment = max(moment, newest + timedelta(seconds=1))
     while True:
         name = f'alstore-{moment.strftime("%Y%m%d-%H%M%S")}.alstore'
         if not os.path.exists(os.path.join(folder, name)):
@@ -156,11 +163,17 @@ def unseal(path, phrase, out_path):
     if len(data) < framed_len + 32:
         raise SealError('err.offsiteBroken', 'This copy is incomplete.')
     framed, body, tag = data[:framed_len], data[framed_len:-32], data[-32:]
+    # the header is not authenticated until the tag is checked: nothing in it may make the key derivation slow or crash
     try:
-        enc_key, mac_key = _keys(phrase, header['salt'], header['iterations'])
-        nonce = base64.b64decode(header['nonce'])
+        iterations = header['iterations']
+        good = header.get('kdf') == 'pbkdf2-sha256' and type(iterations) is int and MIN_ITERATIONS <= iterations <= MAX_ITERATIONS \
+            and len(base64.b64decode(header['salt'], validate=True)) == 16 and len(base64.b64decode(header['nonce'], validate=True)) == 16
     except (KeyError, ValueError, TypeError):
+        good = False
+    if not good:
         raise SealError('err.offsiteBroken', 'This copy is damaged.')
+    enc_key, mac_key = _keys(phrase, header['salt'], iterations)
+    nonce = base64.b64decode(header['nonce'])
     if not normal(phrase) or not hmac.compare_digest(_tag(mac_key, framed, body), tag):
         # one tag for both causes: a wrong phrase and a changed byte cannot be told apart, and the person is told both
         raise SealError('err.offsitePhrase', 'The phrase is wrong, or the copy was changed.')
@@ -295,7 +308,10 @@ def same_disk(folder, home):
                 return False
         probe = real
         while not os.path.exists(probe):
-            probe = os.path.dirname(probe)
+            parent = os.path.dirname(probe)
+            if parent == probe:  # an unplugged drive: its root does not exist either
+                return False
+            probe = parent
         return os.stat(probe).st_dev == os.stat(home).st_dev
     except (OSError, ValueError):
         return False

@@ -84,6 +84,35 @@ class Sealing(unittest.TestCase):
         self.assertFalse(os.path.exists(back))
         self.assertFalse(os.path.exists(back + '.part'))
 
+    def test_a_changed_header_is_refused_before_any_key_is_made(self):
+        import json
+        import struct
+        import time
+        path = self.sealed()
+        with open(path, 'rb') as f:
+            data = f.read()
+        start = len(offsite.MAGIC) + 4
+        size = struct.unpack('>I', data[len(offsite.MAGIC):start])[0]
+        header = json.loads(data[start:start + size])
+        for change in ({'iterations': 10 ** 12}, {'iterations': 2 ** 80}, {'iterations': 5}, {'iterations': '200000'}, {'kdf': 'none'},
+                       {'salt': 'not base64!'}, {'nonce': 'AAAA'}):
+            raw = json.dumps({**header, **change}).encode()
+            bad = os.path.join(self.dir, 'bad.alstore')
+            with open(bad, 'wb') as f:
+                f.write(offsite.MAGIC + struct.pack('>I', len(raw)) + raw + data[start + size:])
+            began = time.time()
+            with self.assertRaises(offsite.SealError) as e:
+                offsite.unseal(bad, self.phrase, os.path.join(self.dir, 'back.db'))
+            self.assertEqual(e.exception.key, 'err.offsiteBroken', change)
+            self.assertLess(time.time() - began, 5, change)
+
+    def test_an_unplugged_drive_is_not_the_pcs_own_disk_and_does_not_hang(self):
+        from unittest import mock
+        real_exists = os.path.exists
+        # on Windows an unplugged E:\\ has no existing root at all; on this OS the same is made by hiding everything under /
+        with mock.patch('offsite.os.path.exists', lambda p: False if p.startswith(os.sep + 'no-such') or p == os.sep else real_exists(p)):
+            self.assertFalse(offsite.same_disk(os.path.join(os.sep, 'no-such-root-xyz', 'Al-Store-Backup'), self.dir))
+
     def test_a_file_that_is_not_ours_is_named_as_such(self):
         other = os.path.join(self.dir, 'notes.alstore')
         with open(other, 'wb') as f:
@@ -223,6 +252,25 @@ class OnTheShopPC(unittest.TestCase):
         for path in (os.path.join(elsewhere, name), os.path.join(self.folder, 'renamed.alstore'), os.path.join(self.folder, '..', '..', name)):
             st, d, _ = self.c.post('/api/offsite/restore', {'path': path, 'phrase': phrase, 'password': OWNER[1]})
             self.assertEqual((st, d['key']), (400, 'err.offsiteNotFound'), path)
+
+    def test_two_restores_at_once_take_turns(self):
+        import threading
+        phrase = self.enable()['phrase']
+        path = os.path.join(self.folder, offsite.listing(self.folder)[0]['name'])
+        out = []
+
+        def restore():
+            c = self.S.client()
+            c.login()
+            out.append(c.post('/api/offsite/restore', {'path': path, 'phrase': phrase, 'password': OWNER[1]})[0])
+
+        threads = [threading.Thread(target=restore) for _ in range(3)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(out, [200, 200, 200])
+        self.assertFalse([n for n in os.listdir(os.path.dirname(self.S.app.db.path)) if '.unsealed' in n])
 
     def test_a_copy_of_another_shop_or_of_the_practice_shop_is_refused(self):
         self.enable()

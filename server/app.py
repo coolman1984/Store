@@ -137,6 +137,7 @@ class App:
         self.failed_ips = {}
         self._errors = []
         self._offsite_lock = threading.Lock()
+        self._restore_lock = threading.Lock()  # one restore at a time: they share the staging file beside the database
         self.offsite_last = None  # the last try to write the protected copy outside this PC (kept for the Backups page)
 
     def _meta_id(self, key):
@@ -307,6 +308,10 @@ class App:
         (the different-PC restore); otherwise the copy must be this shop's, and a safety copy of the current data is made first."""
         if self.practice:
             raise Problem('err.practiceOnlyReal', 'The practice shop has no protected copy.', 403)
+        with self._restore_lock:
+            return self._offsite_restore(path, phrase, new_pc)
+
+    def _offsite_restore(self, path, phrase, new_pc):
         if new_pc and not self.setup_needed():
             raise Problem('err.setupDone', 'The shop is already set up.', 409)
         real = offsite.inside_places(path, [self.cfg.get('offsite_dir') or ''])  # only a copy in a place that leaves this PC
