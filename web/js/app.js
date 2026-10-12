@@ -187,8 +187,10 @@ function showSetup() {
     <div class="field"><label for="pw">${t('f.password')}</label><input id="pw" type="password" class="input" data-guide="setup.password" required autocomplete="new-password">
       <span class="hint">${t('setup.pwHint')}</span></div>
     <p class="err small" id="setup-err" role="alert"></p>
-    <button class="btn accent lg block" type="submit" data-guide="setup.go">${t('setup.go')}</button></form>`);
+    <button class="btn accent lg block" type="submit" data-guide="setup.go">${t('setup.go')}</button>
+    ${S.boot.practice ? '' : html`<button class="btn ghost block" type="button" data-bring-back>${icon('shield')}${t('off.bringBack')}</button>`}</form>`);
   mountGuide({ live: false, role: 'owner', person: 'me', can: () => true, go });
+  $('[data-bring-back]')?.addEventListener('click', showBringBack);
   $('#setup-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
@@ -201,6 +203,32 @@ function showSetup() {
       signal('setup.done');
       go('settings', { tab: 'licence' });
     } catch (err) { showError($('#setup-err'), err); shake($('#setup-form')); }
+  });
+}
+
+/** A new PC: bring the shop back from its protected copy (OneDrive, Google Drive or a USB stick) instead of setting up a new shop. */
+async function showBringBack() {
+  const { copyPicker, bindCopyPicker } = await import('./views/settings.js');
+  const found = await api.get('/api/offsite/find').catch((e) => ({ copies: [], err: e }));
+  authFrame(html`<form class="card auth-card form" id="bring-form">
+    <div><span class="badge accent">${t('setup.step')}</span><h1>${t('off.bringBack')}</h1><p class="muted">${t('off.bringHint')}</p></div>
+    ${copyPicker(found.copies)}
+    <div class="field"><label for="ofr">${t('off.phrase')}</label><input id="ofr" class="input num" dir="ltr" autocomplete="off" required></div>
+    <p class="err small" id="bring-err" role="alert"></p>
+    <button class="btn accent lg block" type="submit">${icon('shield')}${t('off.bringGo')}</button>
+    <button class="btn ghost block" type="button" data-back>${t('act.back')}</button></form>`);
+  bindCopyPicker(document);
+  if (found.err) showError($('#bring-err'), found.err);
+  $('[data-back]').addEventListener('click', showSetup);
+  $('#bring-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.submitter;
+    btn.setAttribute('aria-busy', 'true');
+    try {
+      const r = await api.post('/api/offsite/restore-new', { path: $('#ofp').value.trim(), phrase: $('#ofr').value });
+      toast(t('off.broughtBack', { shop: r.shop_name || '' }), 'ok', 5000);
+      setTimeout(boot, 900);
+    } catch (err) { showError($('#bring-err'), err); shake($('#bring-form')); btn.removeAttribute('aria-busy'); }
   });
 }
 

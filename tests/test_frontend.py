@@ -119,7 +119,7 @@ class PageCode(unittest.TestCase):
         The ceiling includes the vendored factory guide, consent and telemetry files. Those are required and not edited here."""
         total_js = sum(os.path.getsize(p) for p in JS)
         total_css = sum(os.path.getsize(p) for p in CSS)
-        self.assertLess(total_js, 320_000, total_js)
+        self.assertLess(total_js, 335_000, total_js)  # 1.10.0: +15 KB for the protected copy (both dictionaries and the settings page)
         self.assertLess(total_css, 80_000, total_css)
         for name in os.listdir(os.path.join(WEB, 'fonts')):
             if name.endswith('.woff2'):

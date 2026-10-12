@@ -25,13 +25,14 @@ function greeting() {
 }
 
 const ADV_ICON = { open_shift: 'cash', add_products: 'box', late_instalments: 'instal', low_stock: 'warehouse', watch: 'eye', upcoming_prices: 'tag',
-  backup: 'download', licence_soon: 'key', slow_stock: 'clock' };
+  backup: 'download', offsite_off: 'shield', offsite_old: 'shield', licence_soon: 'key', slow_stock: 'clock' };
+const ADV_TAB = { backup: 'backup', offsite_off: 'backup', offsite_old: 'backup', licence_soon: 'licence' };
 
 function advisor(items) {
   if (!items.length) return html`<div class="empty small">${icon('check-circle')}<b>${t('home.allGood')}</b><span>${t('home.allGoodHint')}</span></div>`;
-  return html`<div class="advisor">${items.map((a) => html`<a class="adv ${a.level}" href="#/${a.go}${a.id === 'backup' || a.id === 'licence_soon' ? '?tab=' + (a.id === 'backup' ? 'backup' : 'licence') : ''}">
+  return html`<div class="advisor">${items.map((a) => html`<a class="adv ${a.level}" href="#/${a.go}${ADV_TAB[a.id] ? '?tab=' + ADV_TAB[a.id] : ''}">
     <span class="ic">${icon(ADV_ICON[a.id] || 'info')}</span><span class="grow"><b>${t('adv.' + a.id, { n: a.n, amount: money(a.amount || a.value || 0), days: a.days, hours: a.hours ?? '—' })}</b>
-    <span class="small">${t('adv.' + a.id + (a.id === 'backup' && a.hours == null ? '.never' : '') + '.hint',
+    <span class="small">${t('adv.' + a.id + ((a.id === 'backup' || a.id === 'offsite_old') && a.hours == null ? '.never' : '') + '.hint',
       { names: (a.names || []).join('، '), hours: a.hours == null ? '' : Math.round(a.hours) })}</span></span>${icon('chev-l', 'flip')}</a>`)}</div>`;
 }
 

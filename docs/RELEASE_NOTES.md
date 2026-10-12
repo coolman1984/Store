@@ -1,5 +1,12 @@
 # Release notes
 
+## 1.10.0
+- **A protected copy outside the PC (Settings → Backups → «نسخة محمية برّه الجهاز»).** Choose a OneDrive or Google Drive folder (it uploads to the internet by itself) or a USB stick. From then on every backup is also locked with a phrase that is yours alone and written there as a new file, with the last 30 kept. The phrase is shown once to print or write down (and again from this PC after typing your password). Nobody can open the copies without it, not even the company; the company stores nothing.
+- **Bring the shop back on a new PC.** If the old PC breaks or is stolen: install the program on the new PC and, on the first screen, press «عندك نسخة محمية من جهاز قديم؟». The program finds the copies on the USB stick or in OneDrive / Google Drive; type the phrase from the paper and the shop comes back with its goods, money, customers and people. Sign in with the same name and password. The licence needs a new code for the new PC, as before; the shop can be read, exported and backed up meanwhile.
+- **Restore the same shop from a protected copy**, from Settings → Backups, after a safety copy of the current data.
+- **Warnings:** the home page asks the owner to turn the protected copy on, and warns when the last copy off the PC is older than two days or the folder is missing (the USB stick is not plugged in). A missing folder never stops a sale or the PC's own backups.
+- A wrong phrase, a changed byte, a cut file, a copy of another shop or of the practice shop, and a copy from a newer version are each refused in plain words before anything is replaced.
+
 ## 1.9.1
 - **The trial's length is the company's to set for each product.** The screens no longer promise «14 يوم»: the button says «اطلب تجربة», and the real length arrives inside the code (14 days unless the company set another for Al-Store). The shop reads only the last day written in the code, as before: nothing about the trial's length is assumed, and a code already on a PC is never changed by what the company sets later. A trial of 7, 30 and 60 days is tested against codes signed by the factory's own tool (last day, no grace, tied to the PC).
 - Nothing else changes. The licence code format is the same.

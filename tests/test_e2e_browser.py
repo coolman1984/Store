@@ -1011,3 +1011,63 @@ class GuideCoach(Browser):
 
 
 _ = PW
+
+
+@SKIP
+@unittest.skipUnless(HAVE_CRYPTO, 'needs the cryptography package to sign test licence codes')
+class ProtectedCopyByClicking(Browser):
+    """The owner turns on the copy off this PC from Settings → Backups and keeps the phrase; a new PC brings the shop back from it."""
+    practice = False
+
+    def test_turn_it_on_then_bring_the_shop_back_on_a_new_pc(self):
+        import shutil
+        import tempfile
+        usb = tempfile.mkdtemp(prefix='usb-')
+        folder = os.path.join(usb, 'Al-Store-Backup')
+        new = None
+        try:
+            pg = self.open(OWNER[0], OWNER[1])
+            self.go(pg, 'settings?tab=backup')
+            pg.click('[data-offsite] [data-off-change]')
+            pg.fill('.dialog #od', folder)
+            pg.fill('.dialog #opw', OWNER[1])
+            pg.click('.dialog [data-ok]')
+            pg.wait_for_selector('[data-offsite-phrase]')
+            phrase = pg.inner_text('[data-offsite-phrase]').strip()
+            self.assertRegex(phrase, r'^[A-Z2-9]{4}(-[A-Z2-9]{4}){5}$')
+            self.assertTrue(pg.is_disabled('.dialog [data-ok]'))  # not before the person ticks that it is written down
+            pg.check('#op-kept')
+            pg.click('.dialog [data-ok]')
+            pg.wait_for_selector('[data-offsite] [data-off-now]')
+            self.assertEqual(len([n for n in os.listdir(folder) if n.endswith('.alstore')]), 1)
+            for width in (320, 768):  # the card's long folder path and five buttons fit the smallest phone (UX-08)
+                pg.set_viewport_size({'width': width, 'height': 800})
+                self.go(pg, 'settings?tab=backup')
+                self.assertEqual(pg.evaluate(OVERFLOW), [], width)
+            self.assertEqual(self.errors, [])
+            # the new PC: «bring the shop back» on the setup screen, the copy found on the USB stick, the phrase from the paper
+            os.environ['STORE_OFFSITE_PLACES'] = usb
+            new = Server(setup=False)  # the handler serves the newest program: the old PC's page is done from here on
+            ctx = self.browser.new_context(viewport={'width': 1366, 'height': 860})
+            ctx.add_init_script("localStorage.setItem('store.prefs', %s)" % json.dumps(json.dumps({'lang': 'ar', 'motion': 'off', 'sound': False})))
+            pg2 = ctx.new_page()
+            pg2.goto(new.base)
+            pg2.wait_for_selector('#setup-form')
+            pg2.click('[data-bring-back]')
+            pg2.wait_for_selector('#bring-form [data-copies]')
+            pg2.fill('#ofr', 'WRONG-PHRASE')
+            pg2.click('#bring-form [type=submit]')
+            self.until(pg2, "document.querySelector('#bring-err').textContent.length > 0")
+            pg2.fill('#ofr', phrase.lower())
+            pg2.click('#bring-form [type=submit]')
+            pg2.wait_for_selector('#auth-form', timeout=15000)
+            pg2.fill('#username', OWNER[0])
+            pg2.fill('#password', OWNER[1])
+            pg2.click('button[type=submit]')
+            pg2.wait_for_selector('.shell')
+            self.assertEqual(new.app.org_id, self.S.app.org_id)
+        finally:
+            os.environ.pop('STORE_OFFSITE_PLACES', None)
+            if new:
+                new.stop()
+            shutil.rmtree(usb, ignore_errors=True)

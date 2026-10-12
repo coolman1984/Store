@@ -7,6 +7,41 @@
 
 # Development history (newest first)
 
+## 2026-10-12 — 1.10.0: the protected copy outside the PC, and restore on a different PC (Solo D1, `off_device_cloud_restore`)
+**Why (owner instruction of 2026-10-12: "make a real plan to finish the store … you take the decisions"):** the factory gate's only open
+item that engineering could still close was `off_device_cloud_restore` («not built»). Every other open item needs a person, a printer, a
+second real PC or a customer. Decisions taken under that delegation are recorded in Apps-Factory `DECISIONS.md` (2026-10-12).
+**Decision: the customer's own folder, not a company cloud.** The copy goes to a folder the customer already has that leaves the PC: a
+OneDrive or Google Drive folder (synced to the internet by the customer's own account) or a USB stick. The company hosts nothing, holds no
+key, pays nothing and needs no hosting-region or data-transfer decision (ADR-0001 open decision 1 stays open for plan 2). The customer's
+data never reaches the company.
+**What changed:**
+- `server/offsite.py` (standard library only): the phrase (24 characters without O/0/I/1/L, printed once) makes two keys with PBKDF2-SHA256
+  (200 000 rounds, a salt per shop); the backup is compressed, encrypted with a keyed-BLAKE2b keystream (fresh 16-byte nonce per file) and
+  sealed with a keyed-BLAKE2b tag over header and body (encrypt-then-MAC). Every copy is a new versioned file (`alstore-…alstore`, 30 kept,
+  never fewer than 3); written as `.part` first. The plain header holds only the format, a random shop id, the time and the KDF settings.
+- `server/app.py`: every automatic and manual backup is also sealed when the copy is on (a restore's safety copy stays local); a folder that
+  cannot be reached is logged and shown, never raised. `/api/offsite` (status), `/enable` `/disable` `/phrase` (password typed again),
+  `/now`, `/restore` (same shop, safety copy first), `/find`, and before setup only, from this PC only: `/restore-new` (a new PC takes the
+  copy's shop and people, and keeps the same paper and folder). These keep working while the licence is locked (constitution 8). Folders
+  inside the shop's own folder are refused; a folder on the PC's own disk that does not sync out is accepted with a warning.
+- Restore refuses, before replacing anything: a wrong phrase or changed byte (one message: they cannot be told apart), a cut file, a file
+  that is not ours, another shop's copy (same-shop restore), the practice shop's copy, a copy from a newer schema. `App.restore` and the
+  new restore share one swap (`_swap_in`).
+- Home page advisor: `offsite_off` (info) and `offsite_old` (no copy for 48 h or folder missing). Settings → Backups: the card, the folder
+  dialog with the places found (OneDrive, Google Drive, other drives), the phrase dialog (print, «I wrote it down»), restore. Setup screen:
+  «bring the shop back». Guide problem entry `offsite-copy`; both dictionaries.
+**Tests:** `tests/test_offsite.py` (17): byte-for-byte round trip and no plain text in the file; typed phrase forms; wrong phrase, changed
+byte, cut file write nothing; versions and pruning; search of places; enable needs the password and shows the phrase once; every backup goes
+off the PC and the advisor stops asking; a missing USB stick never stops a backup and is shown; bad folders; a cashier gets 403 everywhere;
+same-shop restore after a safety copy; another shop's and the practice copy refused; works while licence-locked; **a never-set-up second
+shop server takes the shop back from the copy** (same org, same owner login, products, paper and folder kept, 409 afterwards); a newer copy
+refused. `ProtectedCopyByClicking` (real Chromium): turn it on by clicks, the phrase dialog cannot close before the tick, the card fits 320
+and 768 px, then a new PC brings the shop back from the setup screen (wrong phrase shown, right phrase signs in). Size budget for all JS
+raised from 320 000 to 335 000 bytes (both dictionaries grew).
+**Not proven by a machine:** a real USB stick and a real OneDrive / Google Drive sync on two real Windows PCs (field item, same session as
+DATA-05). Speed measured here: a 27 MB database seals in ~2.4 s and opens in ~1.3 s.
+
 ## 2026-10-11 — af-guide 0.1.4: the help is also checked for stiff office Arabic
 **Why (owner request 2026-10-09):** help in Arabic "between formal and simple Egyptian", never like a government letter. The
 factory lexicon now also refuses stiff office words (يُرجى، نظرًا، يتعذّر، بموجب، حيث إن، المذكور…).

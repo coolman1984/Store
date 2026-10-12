@@ -4,7 +4,7 @@
 
 | Plan | What the buyer gets | Store state |
 | --- | --- | --- |
-| 1 Solo | One Windows shop PC with SQLite, works offline; encrypted automatic **off-PC cloud backups**, plus local restore points | Core shop app built. Encrypted cloud backup, restore-on-different-PC, backup age warning **not yet verified/built**. Do NOT claim sale-ready or loss-proof |
+| 1 Solo | One Windows shop PC with SQLite, works offline; encrypted automatic **off-PC cloud backups**, plus local restore points | Core shop app built. 1.10.0 built the encrypted, versioned off-PC copy (customer's phrase, written to the customer's own OneDrive / Google Drive folder or a USB stick), restore on a different PC from the setup screen, and the backup-age warning; tested automatically, **not yet field-verified** on two real PCs. Do NOT claim sale-ready or loss-proof |
 | 2 Connected | More than one shop PC, offline-first sync via authenticated cloud hub; ONLY the shop owner sees read-only live metrics on installed Android/iPhone web app | Planned; no verified multi-PC cloud sync or owner app |
 | 3 Mobile Operations | Plan 2 plus permissioned users selling, viewing stock, scanning barcode and running approved operations from installed mobile PWA | Planned; do not reuse browser screen as evidence of operational mobile client |
 | 4 Cloud Business | Hosted core; authorized browser, mobile web app and Windows clients with exports/backups | Planned; do not build a large SaaS platform before demand |

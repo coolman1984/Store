@@ -40,6 +40,7 @@ import core  # noqa: E402
 import ids  # noqa: E402
 import licence  # noqa: E402
 import money as cash  # noqa: E402
+import offsite  # noqa: E402
 import practice as practice_mod  # noqa: E402
 import reports  # noqa: E402
 import sales  # noqa: E402
@@ -50,7 +51,7 @@ import trial  # noqa: E402
 from auth import AuthError, Forbidden  # noqa: E402
 from core import Ctx, Problem  # noqa: E402
 from db import Database, NewerData, is_busy_error  # noqa: E402
-from version import FROZEN, PRODUCT, PRODUCT_AR, ROOT, VERSION  # noqa: E402
+from version import FROZEN, PRODUCT, PRODUCT_AR, ROOT, SCHEMA, VERSION  # noqa: E402
 
 WEB = os.path.join(ROOT, 'web')
 COOKIE = 'store_session'
@@ -135,6 +136,8 @@ class App:
         self.started = time.time()
         self.failed_ips = {}
         self._errors = []
+        self._offsite_lock = threading.Lock()
+        self.offsite_last = None  # the last try to write the protected copy outside this PC (kept for the Backups page)
 
     def _meta_id(self, key):
         value = self.db.value('SELECT value FROM meta WHERE key = ?', key)
@@ -179,6 +182,8 @@ class App:
     def backup_now(self, tag=''):
         item = backup.make(self.db, self.backup_dir, tag, self.cfg.get('extra_backup_dirs') or [])
         backup.prune(self.backup_dir, int(self.cfg.get('keep_backups', 60)))
+        if tag in ('', 'manual') and self.offsite_on():  # the shop's own copies only: not a restore's safety copy
+            item['offsite'] = self.offsite_seal(os.path.join(self.backup_dir, item['name']))
         return item
 
     def restore(self, name):
@@ -190,13 +195,18 @@ class App:
         if backup.org_of(path) != self.org_id:
             raise Problem('err.backupOtherShop', 'This backup belongs to another shop.')
         self.backup_now('before-restore')
-        target = self.db.path
+        staged = self.db.path + '.restoring'  # copy beside the database, then swap in one step: a power cut never leaves half a file
         with self.db.lock:
-            staged = target + '.restoring'  # copy beside the database, then swap in one step: a power cut never leaves half a file
             with open(path, 'rb') as src, open(staged, 'wb') as dst:
                 shutil.copyfileobj(src, dst)
                 dst.flush()
                 os.fsync(dst.fileno())
+            self._swap_in(staged)
+
+    def _swap_in(self, staged):
+        """Replaces the live database with the checked file `staged` (beside it, on the same disk) and reopens it."""
+        target = self.db.path
+        with self.db.lock:
             self.db.conn.close()
             try:
                 for suffix in ('-wal', '-shm'):
@@ -212,6 +222,131 @@ class App:
                 self.auth = auth_mod.Auth(self.db, self.org_id, self.practice)
                 if getattr(self, 'assist', None):
                     self.assist.rebind()
+
+    # ------------------------------------------------------------ the protected copy outside this PC (server/offsite.py)
+    def save_cfg(self, **changes):
+        """Writes config.json (this PC's settings) in one step; a value of None removes the key."""
+        with self.db.lock, self.assist.lock:
+            old = dict(self.cfg)
+            for key, value in changes.items():
+                if value is None:
+                    self.cfg.pop(key, None)
+                else:
+                    self.cfg[key] = value
+            try:
+                self.assist._write_cfg()
+            except OSError:
+                self.cfg.clear()
+                self.cfg.update(old)
+                raise
+
+    def offsite_on(self):
+        return bool(not self.practice and self.cfg.get('offsite_dir') and self.cfg.get('offsite_phrase') and self.cfg.get('offsite_salt'))
+
+    def offsite_seal(self, path):
+        """Locks the checked backup `path` into the folder outside this PC. Never raises: a USB stick that is not plugged in must not
+        stop a sale or the PC's own backups. The result is kept for the Backups page and the home page."""
+        with self._offsite_lock:
+            try:
+                item = offsite.seal(path, self.cfg['offsite_dir'], self.cfg['offsite_phrase'], self.cfg['offsite_salt'], self.org_id,
+                                    int(self.cfg.get('offsite_keep', offsite.KEEP)))
+                self.offsite_last = {'ok': True, 'at': ids.iso(), 'name': item['name']}
+            except (OSError, ValueError, KeyError) as e:
+                log.warning('protected copy outside this PC failed: %s', type(e).__name__)
+                self.offsite_last = {'ok': False, 'at': ids.iso(), 'error': type(e).__name__}
+            return dict(self.offsite_last)
+
+    def offsite_status(self):
+        folder = self.cfg.get('offsite_dir') or ''
+        on = self.offsite_on()
+        reachable = bool(on and os.path.isdir(folder))
+        return {'on': on, 'dir': folder, 'reachable': reachable, 'copies': offsite.listing(folder)[:10] if reachable else [],
+                'age_hours': offsite.age_hours(folder) if reachable else None, 'last': self.offsite_last,
+                'same_disk': bool(on and offsite.same_disk(folder, self.home)), 'has_phrase': bool(self.cfg.get('offsite_phrase')),
+                'places': [{'kind': p['kind'], 'dir': os.path.join(p['base'], offsite.FOLDER)} for p in offsite.places()],
+                'practice': self.practice}
+
+    def _offsite_folder(self, folder):
+        if not isinstance(folder, str) or not folder.strip() or len(folder) > 400 or any(ord(ch) < 32 for ch in folder):
+            raise Problem('err.offsiteFolder', 'Choose a folder.')
+        folder = os.path.normpath(folder.strip())
+        if not os.path.isabs(folder):
+            raise Problem('err.offsiteFolder', 'Write the whole folder path, starting with the drive (like E:\\Al-Store-Backup).')
+        real, home = os.path.realpath(folder), os.path.realpath(self.home)
+        try:
+            inside = os.path.commonpath([real, home]) == home
+        except ValueError:  # another drive letter
+            inside = False
+        if inside:
+            raise Problem('err.offsiteInside', "This folder is inside the shop's own folder. Choose a folder outside it.")
+        try:
+            os.makedirs(folder, exist_ok=True)
+            probe = os.path.join(folder, '.al-store-probe')
+            with open(probe, 'w', encoding='ascii') as f:
+                f.write('ok')
+            os.remove(probe)
+        except OSError:
+            raise Problem('err.offsiteUnreachable', 'The program cannot write in this folder. Plug the USB stick in, or choose another folder.')
+        return folder
+
+    def offsite_enable(self, folder):
+        if self.practice:
+            raise Problem('err.practiceOnlyReal', 'The practice shop has no protected copy.', 403)
+        folder = self._offsite_folder(folder)
+        fresh = not self.cfg.get('offsite_phrase')
+        self.save_cfg(offsite_dir=folder, offsite_phrase=self.cfg.get('offsite_phrase') or offsite.new_phrase(),
+                      offsite_salt=self.cfg.get('offsite_salt') or offsite.new_salt())
+        item = self.backup_now('manual')
+        return {'phrase': self.cfg['offsite_phrase'] if fresh else None, 'copy': item.get('offsite'), 'status': self.offsite_status()}
+
+    def offsite_restore(self, path, phrase, new_pc=False):
+        """Opens a protected copy and makes it the shop. `new_pc`: a PC that is not set up yet takes the copy's shop and people
+        (the different-PC restore); otherwise the copy must be this shop's, and a safety copy of the current data is made first."""
+        if self.practice:
+            raise Problem('err.practiceOnlyReal', 'The practice shop has no protected copy.', 403)
+        if new_pc and not self.setup_needed():
+            raise Problem('err.setupDone', 'The shop is already set up.', 409)
+        if not isinstance(path, str) or not path.lower().endswith('.alstore') or not os.path.isfile(path):
+            raise Problem('err.offsiteNotFound', 'This file was not found. Plug the USB stick in, or choose the file again.')
+        staged = self.db.path + '.unsealed'
+        try:
+            try:
+                header = offsite.unseal(path, phrase, staged)
+            except offsite.SealError as e:
+                if e.key == 'err.offsitePhrase':
+                    raise Problem('err.offsitePhrase', 'The phrase is wrong, or the copy was changed.')
+                if e.key == 'err.offsiteNotOurs':
+                    raise Problem('err.offsiteNotOurs', 'This file is not a protected Al-Store copy.')
+                raise Problem('err.offsiteBroken', 'This copy is incomplete or damaged.')
+            except OSError:
+                raise Problem('err.offsiteNotFound', 'This file was not found. Plug the USB stick in, or choose the file again.')
+            facts = offsite.db_facts(staged)
+            if not facts:
+                raise Problem('err.backupBad', 'This backup cannot be read. Choose another one.')
+            if facts['kind'] == 'practice':
+                raise Problem('err.offsitePractice', 'This copy is from the practice shop.')
+            if facts['schema'] > SCHEMA:
+                raise Problem('err.offsiteNewer', 'This copy was made by a newer version of the program. Install the newer version first.')
+            if not new_pc and facts['org_id'] != self.org_id:
+                raise Problem('err.backupOtherShop', 'This backup belongs to another shop.')
+            if not new_pc:
+                self.backup_now('before-restore')
+            self._swap_in(staged)
+        finally:
+            try:
+                os.remove(staged)
+            except FileNotFoundError:
+                pass
+        if new_pc:
+            self.org_id = self._meta_id('org_id')
+            self.branch_id = self._meta_id('branch_id')
+            self.auth = auth_mod.Auth(self.db, self.org_id, self.practice)
+            raw = offsite.normal(phrase)
+            folder = os.path.dirname(os.path.abspath(path))
+            keep_folder = not offsite.same_disk(folder, self.home)  # a USB stick or a synced folder goes on receiving copies
+            self.save_cfg(offsite_phrase='-'.join(raw[i:i + 4] for i in range(0, len(raw), 4)), offsite_salt=header['salt'],
+                          offsite_dir=folder if keep_folder else None)
+        return {'shop_name': facts['shop_name'], 'made_at': header.get('made_at')}
 
     def reset_practice(self):
         """Practice shop only: throw the made-up shop away (database, backups) and build a fresh one with the same accounts.
@@ -469,6 +604,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, {'product': PRODUCT, 'product_ar': PRODUCT_AR, 'version': VERSION, 'practice': APP.practice,
                                    'setup': APP.setup_needed(), 'shop_name': cfg['shop_name'], 'licence': APP.licence(),
                                    'user': self.me(u) if u else None, 'today': ids.local_day()})
+        if path == '/api/offsite/find' and APP.setup_needed():  # a new PC, before setup: the protected copies it can see (this PC only)
+            if not self.local() or APP.practice:
+                raise Problem('err.offsiteLocal', 'Open the program on the shop PC itself to bring back a copy.', 403)
+            return self.send(200, {'copies': offsite.find_copies()})
         u = self.user()
         ctx = self.ctx(u)
         can_cost = ctx.can('cost.view')
@@ -476,7 +615,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/me':
             d = self.me(u)
         elif path == '/api/home':
-            d = reports.home(db, ctx, APP.licence(), backup.age_hours(APP.backup_dir))
+            d = reports.home(db, ctx, APP.licence(), backup.age_hours(APP.backup_dir),
+                             None if APP.practice else {'on': APP.offsite_on(), 'age_hours': offsite.age_hours(APP.cfg.get('offsite_dir'))})
         elif path == '/api/lookups':
             cfg = core.settings(db)
             d = {**catalog.lookups(db), 'settings': {k: cfg[k] for k in (
@@ -616,6 +756,12 @@ class Handler(BaseHTTPRequestHandler):
                  'backup_age_hours': backup.age_hours(APP.backup_dir), 'extra_backup_dirs': APP.cfg.get('extra_backup_dirs') or [],
                  'addresses': [f'http://{ip}:{APP.cfg["port"]}' for ip in _lan_ips()], 'version': VERSION,
                  'locations': db.all('SELECT * FROM locations ORDER BY active DESC, kind DESC, name')}
+        elif path == '/api/offsite':
+            ctx.need('settings.edit')
+            d = APP.offsite_status()
+        elif path == '/api/offsite/find':
+            ctx.need('settings.edit')
+            d = {'copies': offsite.find_copies([APP.cfg.get('offsite_dir') or ''])}
         elif path == '/api/licence':
             d = {**APP.licence(), 'vendor_telegram': vendor_telegram(APP.cfg.get('vendor_telegram'))}
         elif path == '/api/practice':  # the real shop asks whether the practice shop runs; the practice shop just says it is the one
@@ -686,6 +832,23 @@ class Handler(BaseHTTPRequestHandler):
                 raise
             token = APP.auth.start_session(user, self.ip)
             return self.send(200, {'ok': True, 'user': self.me(user), 'recovery_code': code}, headers=self.cookie(token))
+        if path == '/api/offsite/restore-new':  # a new PC takes the shop from a protected copy (instead of setting up a new shop)
+            data = self.body(65536)
+            if not self.local():
+                raise Problem('err.offsiteLocal', 'Open the program on the shop PC itself to bring back a copy.', 403)
+            if self.too_many(self.ip):
+                raise Problem('auth.err.locked', 'Too many wrong tries. Try again after a few minutes.', 429)
+            try:
+                out = APP.offsite_restore(data.get('path'), data.get('phrase'), new_pc=True)
+            except Problem as e:
+                if e.key == 'err.offsitePhrase':
+                    self.too_many(self.ip, add=True)
+                raise
+            with APP.db.tx():
+                APP.db.insert('audit', {'id': ids.uuid7(), 'at': ids.iso(), 'user_id': '', 'user_name': '', 'ip': self.ip,
+                                        'action': 'offsite.restore', 'entity': 'backup', 'entity_id': os.path.basename(data['path']),
+                                        'detail': json.dumps({'new_pc': True})})
+            return self.send(200, {'ok': True, **out})
         if path == '/api/login':
             data = self.body(65536)
             if self.too_many(self.ip):
@@ -713,6 +876,38 @@ class Handler(BaseHTTPRequestHandler):
                 ctx.audit('backup', 'backup', item['name'])
             self._track('/api/backup/now', u)
             return self.send(200, item)
+        if path.startswith('/api/offsite/'):  # keeping the shop safe works whatever the licence says (constitution 8)
+            ctx.need('settings.edit')
+            if path == '/api/offsite/now':
+                if not APP.offsite_on():
+                    raise Problem('err.offsiteOff', 'Choose the folder outside this PC first.')
+                item = APP.backup_now('manual')
+                with APP.db.tx():
+                    ctx.audit('offsite.copy', 'backup', (item.get('offsite') or {}).get('name', ''), {'ok': (item.get('offsite') or {}).get('ok')})
+                return self.send(200, {**item['offsite'], 'status': APP.offsite_status()})
+            APP.auth.verify(u['username'], data.get('password'))  # step-up: the owner types the password again
+            if path == '/api/offsite/enable':
+                out = APP.offsite_enable(data.get('dir'))
+                with APP.db.tx():
+                    ctx.audit('offsite.enable', 'backup', '', {'dir': APP.cfg['offsite_dir'], 'new_phrase': bool(out['phrase'])})
+                return self.send(200, out)
+            if path == '/api/offsite/disable':
+                APP.save_cfg(offsite_dir=None)
+                with APP.db.tx():
+                    ctx.audit('offsite.disable', 'backup', '')
+                return self.send(200, APP.offsite_status())
+            if path == '/api/offsite/phrase':
+                if not APP.cfg.get('offsite_phrase'):
+                    raise Problem('err.offsiteOff', 'Choose the folder outside this PC first.')
+                with APP.db.tx():
+                    ctx.audit('offsite.phrase', 'backup', '')
+                return self.send(200, {'phrase': APP.cfg['offsite_phrase']})
+            if path == '/api/offsite/restore':
+                out = APP.offsite_restore(data.get('path'), data.get('phrase'))
+                with APP.db.tx():
+                    self.ctx(u).audit('offsite.restore', 'backup', os.path.basename(data['path']))
+                return self.send(200, {'ok': True, **out})
+            raise Problem('err.notFound', 'Unknown address.', 404)
         if path in ('/api/licence/request', '/api/licence/request/retry', '/api/licence/request/clear'):
             # asking the company: the state is saved in a transaction, the network call happens outside it (and works while the licence is locked)
             ctx.need('settings.edit')
