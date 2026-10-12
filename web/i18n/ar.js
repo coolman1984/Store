@@ -331,6 +331,7 @@ export default {
   'off.bringGo': "رجّع المحل",
   'off.broughtBack': "المحل «{shop}» رجع ✓ ادخل بنفس اسمك وكلمة السر. الترخيص محتاج كود جديد للجهاز ده.",
   'err.offsiteFolder': "اكتب مكان الفولدر كامل، بالحرف بتاع الهارد (زي E:\\Al-Store-Backup).",
+  'err.offsiteNotOff': "اختار فولدر OneDrive أو Google Drive أو فلاشة: مكان بيطلع برّه الجهاز.",
   'err.offsiteInside': "الفولدر ده جوّه فولدر المحل نفسه. اختار فولدر برّاه.",
   'err.offsiteUnreachable': "البرنامج مش قادر يكتب في الفولدر ده. ركّب الفلاشة، أو اختار فولدر تاني.",
   'err.offsiteOff': "اختار الفولدر اللي برّه الجهاز الأول.",

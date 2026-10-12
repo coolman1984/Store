@@ -272,7 +272,10 @@ class App:
         folder = os.path.normpath(folder.strip())
         if not os.path.isabs(folder):
             raise Problem('err.offsiteFolder', 'Write the whole folder path, starting with the drive (like E:\\Al-Store-Backup).')
-        real, home = os.path.realpath(folder), os.path.realpath(self.home)
+        real = offsite.inside_places(folder)
+        if real is None:
+            raise Problem('err.offsiteNotOff', 'Choose a OneDrive or Google Drive folder, or a USB stick: a place that leaves this PC.')
+        home = os.path.realpath(self.home)
         try:
             inside = os.path.commonpath([real, home]) == home
         except ValueError:  # another drive letter
@@ -280,14 +283,14 @@ class App:
         if inside:
             raise Problem('err.offsiteInside', "This folder is inside the shop's own folder. Choose a folder outside it.")
         try:
-            os.makedirs(folder, exist_ok=True)
-            probe = os.path.join(folder, '.al-store-probe')
+            os.makedirs(real, exist_ok=True)
+            probe = os.path.join(real, '.al-store-probe')
             with open(probe, 'w', encoding='ascii') as f:
                 f.write('ok')
             os.remove(probe)
         except OSError:
             raise Problem('err.offsiteUnreachable', 'The program cannot write in this folder. Plug the USB stick in, or choose another folder.')
-        return folder
+        return real
 
     def offsite_enable(self, folder):
         if self.practice:
@@ -306,8 +309,10 @@ class App:
             raise Problem('err.practiceOnlyReal', 'The practice shop has no protected copy.', 403)
         if new_pc and not self.setup_needed():
             raise Problem('err.setupDone', 'The shop is already set up.', 409)
-        if not isinstance(path, str) or not path.lower().endswith('.alstore') or not os.path.isfile(path):
+        real = offsite.inside_places(path, [self.cfg.get('offsite_dir') or ''])  # only a copy in a place that leaves this PC
+        if real is None or not offsite.NAME.match(os.path.basename(real)) or not os.path.isfile(real):
             raise Problem('err.offsiteNotFound', 'This file was not found. Plug the USB stick in, or choose the file again.')
+        path = real
         staged = self.db.path + '.unsealed'
         try:
             try:

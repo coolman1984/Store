@@ -39,6 +39,11 @@ shop server takes the shop back from the copy** (same org, same owner login, pro
 refused. `ProtectedCopyByClicking` (real Chromium): turn it on by clicks, the phrase dialog cannot close before the tick, the card fits 320
 and 768 px, then a new PC brings the shop back from the setup screen (wrong phrase shown, right phrase signs in). Size budget for all JS
 raised from 320 000 to 335 000 bytes (both dictionaries grew).
+**CodeQL on the PR (path from a request):** the folder and the file a person names are now accepted only inside a place that leaves the
+PC (OneDrive, Google Drive, another drive letter such as a USB stick; `offsite.inside_places`, realpath + prefix), and a file must carry
+the copy's own name (`alstore-…alstore`). That is also the honest rule: a folder on the PC's own disk is not «off the PC». A network share
+(\\\\server\\share) is not offered; a mapped drive letter is. New error `err.offsiteNotOff`; tests for a copy outside the places, a renamed
+copy and a `..` path.
 **Not proven by a machine:** a real USB stick and a real OneDrive / Google Drive sync on two real Windows PCs (field item, same session as
 DATA-05). Speed measured here: a 27 MB database seals in ~2.4 s and opens in ~1.3 s.
 

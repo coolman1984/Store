@@ -331,6 +331,7 @@ export default {
   'off.bringGo': "Bring the shop back",
   'off.broughtBack': "The shop «{shop}» is back ✓ Sign in with the same name and password. The licence needs a new code for this PC.",
   'err.offsiteFolder': "Write the whole folder path, starting with the drive (like E:\\Al-Store-Backup).",
+  'err.offsiteNotOff': "Choose a OneDrive or Google Drive folder, or a USB stick: a place that leaves this PC.",
   'err.offsiteInside': "This folder is inside the shop's own folder. Choose a folder outside it.",
   'err.offsiteUnreachable': "The program cannot write in this folder. Plug the USB stick in, or choose another folder.",
   'err.offsiteOff': "Choose the folder off this PC first.",

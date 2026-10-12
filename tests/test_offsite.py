@@ -119,10 +119,12 @@ class OnTheShopPC(unittest.TestCase):
         self.S = Server()
         self.usb = tempfile.mkdtemp(prefix='usb-')
         self.folder = os.path.join(self.usb, offsite.FOLDER)
+        os.environ['STORE_OFFSITE_PLACES'] = self.usb  # the stick this test plugs in
         self.c = self.S.client()
         self.c.login()
 
     def tearDown(self):
+        os.environ.pop('STORE_OFFSITE_PLACES', None)
         self.S.stop()
         shutil.rmtree(self.usb, ignore_errors=True)
 
@@ -177,7 +179,10 @@ class OnTheShopPC(unittest.TestCase):
         self.assertIn('offsite_old', [a['id'] for a in home['advisor']])
 
     def test_bad_folders_are_refused_in_words(self):
-        for folder, key in (('relative/folder', 'err.offsiteFolder'), (os.path.join(self.S.dir, 'backups', 'x'), 'err.offsiteInside'), ('', 'err.offsiteFolder')):
+        elsewhere = tempfile.mkdtemp(prefix='not-a-stick-')
+        self.addCleanup(shutil.rmtree, elsewhere, True)
+        for folder, key in (('relative/folder', 'err.offsiteFolder'), (os.path.join(self.S.dir, 'backups', 'x'), 'err.offsiteNotOff'), ('', 'err.offsiteFolder'),
+                            (elsewhere, 'err.offsiteNotOff')):
             st, d, _ = self.c.post('/api/offsite/enable', {'dir': folder, 'password': OWNER[1]})
             self.assertEqual((st, d['key']), (400, key), folder)
 
@@ -208,9 +213,20 @@ class OnTheShopPC(unittest.TestCase):
         self.assertTrue([b for b in os.listdir(self.S.app.backup_dir) if 'before-restore' in b])
         self.assertTrue(self.c.login())
 
+    def test_a_copy_outside_the_places_or_with_another_name_is_not_opened(self):
+        phrase = self.enable()['phrase']
+        name = offsite.listing(self.folder)[0]['name']
+        elsewhere = tempfile.mkdtemp(prefix='not-a-stick-')
+        self.addCleanup(shutil.rmtree, elsewhere, True)
+        for copy in (os.path.join(elsewhere, name), os.path.join(self.folder, 'renamed.alstore')):
+            shutil.copy(os.path.join(self.folder, name), copy)
+        for path in (os.path.join(elsewhere, name), os.path.join(self.folder, 'renamed.alstore'), os.path.join(self.folder, '..', '..', name)):
+            st, d, _ = self.c.post('/api/offsite/restore', {'path': path, 'phrase': phrase, 'password': OWNER[1]})
+            self.assertEqual((st, d['key']), (400, 'err.offsiteNotFound'), path)
+
     def test_a_copy_of_another_shop_or_of_the_practice_shop_is_refused(self):
         self.enable()
-        work = tempfile.mkdtemp(prefix='other-')
+        work = tempfile.mkdtemp(prefix='other-', dir=self.usb)
         try:
             for org, kind, key in (('someone-else', None, 'err.backupOtherShop'), (self.S.app.org_id, 'practice', 'err.offsitePractice')):
                 db = os.path.join(work, f'{org}-{kind}.db')
@@ -244,10 +260,10 @@ class OnADifferentPC(unittest.TestCase):
         usb = tempfile.mkdtemp(prefix='usb-')
         folder = os.path.join(usb, offsite.FOLDER)
         new = Server(setup=False)
+        os.environ['STORE_OFFSITE_PLACES'] = usb
         try:
             old.product('Washing machine', qty=4)
             phrase = old.app.offsite_enable(folder)['phrase']
-            os.environ['STORE_OFFSITE_PLACES'] = usb
             c = new.client()
             st, d, _ = c.get('/api/offsite/find')
             self.assertEqual(st, 200, d)
@@ -286,6 +302,7 @@ class OnADifferentPC(unittest.TestCase):
     def test_a_newer_copy_is_refused_and_the_new_pc_stays_empty(self):
         new = Server(setup=False)
         work = tempfile.mkdtemp(prefix='newer-')
+        os.environ['STORE_OFFSITE_PLACES'] = work
         try:
             db = os.path.join(work, 'newer.db')
             tiny_db(db, schema='99')
@@ -294,6 +311,7 @@ class OnADifferentPC(unittest.TestCase):
             self.assertEqual((st, d['key']), (400, 'err.offsiteNewer'))
             self.assertTrue(new.app.setup_needed())
         finally:
+            os.environ.pop('STORE_OFFSITE_PLACES', None)
             new.stop()
             shutil.rmtree(work, ignore_errors=True)
 

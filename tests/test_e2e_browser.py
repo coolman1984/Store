@@ -1025,6 +1025,7 @@ class ProtectedCopyByClicking(Browser):
         usb = tempfile.mkdtemp(prefix='usb-')
         folder = os.path.join(usb, 'Al-Store-Backup')
         new = None
+        os.environ['STORE_OFFSITE_PLACES'] = usb  # the stick this test plugs in
         try:
             pg = self.open(OWNER[0], OWNER[1])
             self.go(pg, 'settings?tab=backup')
@@ -1046,7 +1047,6 @@ class ProtectedCopyByClicking(Browser):
                 self.assertEqual(pg.evaluate(OVERFLOW), [], width)
             self.assertEqual(self.errors, [])
             # the new PC: «bring the shop back» on the setup screen, the copy found on the USB stick, the phrase from the paper
-            os.environ['STORE_OFFSITE_PLACES'] = usb
             new = Server(setup=False)  # the handler serves the newest program: the old PC's page is done from here on
             ctx = self.browser.new_context(viewport={'width': 1366, 'height': 860})
             ctx.add_init_script("localStorage.setItem('store.prefs', %s)" % json.dumps(json.dumps({'lang': 'ar', 'motion': 'off', 'sound': False})))

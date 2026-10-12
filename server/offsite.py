@@ -268,6 +268,19 @@ def places():
     return found
 
 
+def inside_places(path, extra=()):
+    """The real path of `path` when it lies inside a place that leaves this PC (or inside `extra`), else None. Every folder and file the
+    person names goes through here first: the program never reads or writes anywhere else for the protected copy."""
+    if not isinstance(path, str) or not path or '\0' in path:
+        return None
+    real = os.path.realpath(path)
+    for base in [p['base'] for p in places()] + [e for e in extra if e]:
+        root = os.path.realpath(base)
+        if real == root or real.startswith(root.rstrip('\\/') + os.sep):
+            return real
+    return None
+
+
 def cloud_bases():
     return [p['base'] for p in places() if p['kind'] in ('onedrive', 'gdrive')]
 
