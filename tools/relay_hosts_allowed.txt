@@ -1,0 +1,4 @@
+# Customer installer builds accept only relay hostnames listed here (one per line, lowercase, no scheme or path).
+# Add the real Worker hostname before a shop release, or pass the same names in STORE_RELEASE_ALLOWED_RELAY_HOSTS at build time.
+# Example (commented — not active in git):
+# al-store-licence.mycompany.workers.dev

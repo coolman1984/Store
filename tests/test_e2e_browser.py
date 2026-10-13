@@ -131,18 +131,54 @@ class CoreJourney(Browser):
         self.assertEqual(self.errors, [])
 
     def test_receipt_and_labels_carry_barcodes(self):
-        pg = self.open('manager')
-        pg.add_init_script("window.print = () => { window.__printed = document.getElementById('print-area').innerHTML; }")
+        pg = self.open('owner')  # settings.edit is owner-only; manager gets 403 on /api/settings/save
+        pg.add_init_script("""window.print = () => {
+          const el = document.getElementById('print-area');
+          window.__printMeta = {
+            dataPrint: document.documentElement.dataset.print,
+            classes: el.className,
+            page: getComputedStyle(el).page,
+            width: getComputedStyle(el).width,
+          };
+          window.__printed = el.innerHTML;
+        }""")
         pg.reload()
         pg.wait_for_selector('.shell')
         self.go(pg, 'sales')
         pg.click('[data-seg="range"] [data-v="week"]')  # the practice shop's day starts at 10:05: "today" is empty before that
         pg.click('tr[data-id]')
         pg.wait_for_selector('[data-print], [data-reprint], .dialog')
+        sale_id = pg.get_attribute('tr[data-id]', 'data-id')
+        pg.emulate_media(media='print')
         pg.evaluate("(id) => import('/js/print.js').then((m) => fetch('/api/sale?id=' + id).then((r) => r.json()).then((sale) => m.printReceipt(sale)))",
-                    pg.get_attribute('tr[data-id]', 'data-id'))
-        receipt = self.until(pg, 'window.__printed')
+                    sale_id)
+        meta = self.until(pg, 'window.__printMeta')
+        self.assertEqual(meta['dataPrint'], 'r80')
+        self.assertIn('w80', meta['classes'])
+        self.assertEqual(meta['page'], 'receipt80')
+        self.assertAlmostEqual(float(meta['width'].rstrip('px')), 72 * 96 / 25.4, delta=2)  # 72 mm content on 80 mm paper
+        receipt = pg.evaluate('window.__printed')
         self.assertIn('class="barcode"', receipt)  # the receipt number is a real Code 128 barcode now
+        saved = pg.evaluate("""async () => {
+          const res = await fetch('/api/settings/save', {method: 'POST', credentials: 'include',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({settings: {receipt_width: '58'}})});
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error('settings save failed: ' + res.status + ' ' + JSON.stringify(body));
+          const { S } = await import('/js/app.js');
+          S.lookups = await fetch('/api/lookups', {credentials: 'include'}).then((r) => r.json());
+          window.__printMeta = null; window.__printed = null;
+          return body.receipt_width;
+        }""")
+        self.assertEqual(saved, '58')
+        pg.evaluate("(id) => import('/js/print.js').then((m) => fetch('/api/sale?id=' + id).then((r) => r.json()).then((sale) => m.printReceipt(sale)))",
+                    sale_id)
+        meta58 = self.until(pg, 'window.__printMeta')
+        self.assertEqual(meta58['dataPrint'], 'r58')
+        self.assertIn('w58', meta58['classes'])
+        self.assertEqual(meta58['page'], 'receipt58')
+        self.assertAlmostEqual(float(meta58['width'].rstrip('px')), 50 * 96 / 25.4, delta=2)
+        pg.emulate_media(media='screen')
         pg.evaluate('window.__printed = null')
         pg.keyboard.press('Escape')
         self.go(pg, 'products')

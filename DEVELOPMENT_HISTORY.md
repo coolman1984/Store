@@ -1,11 +1,7 @@
 ## 2026-10-13 — Hub clock after activation (PR #34 follow-up)
 
-<<<<<<< HEAD
-- Rebased on PR #33 (`6c23960`). `GET /licence/clock`; `trial.sync_hub_clock` once per program run (fail-open offline). Hub expiry wins over `clock_back` when the subscription ended on hub time. Tests: `HubClockAfterActivationTests`.
-=======
-- Rebased on PR #33 (`7566c3a`, force respects trial locks). `GET /licence/clock`; `trial.sync_hub_clock` once per program run (fail-open offline). Fixes trusted date freezing when `step` stops after `activated`. Hub expiry wins over `clock_back` when the subscription ended on hub time.
+- Builds on PR #33 (licence hub activation + force respects trial locks). `GET /licence/clock`; `trial.sync_hub_clock` once per program run (fail-open offline). Fixes trusted date freezing when `step` stops after `activated`. Hub expiry wins over `clock_back` when the subscription ended on hub time.
 - Tests: `test_licence_online.HubClockAfterActivationTests`, hub `force on second pending request returns existing trial code`.
->>>>>>> 23b7cd5 (Fix hub clock sync after activation (PR #34 review))
 
 ## 2026-10-13 — Simple subscription protection (Teachers PR #35 standard on Store)
 
@@ -54,6 +50,17 @@
 - This is an owner-created Codespace workflow: no cloud server was started, and no public deployment/payment authorized. Full clean-device and cashier checks remain required for sales.
 
 # Development history (newest first)
+
+## 2026-10-13 — Customer Windows installer build (`--customer`)
+**Why:** CI builds a tested Setup from empty `licence_keys.txt` / `licence_relay.txt` templates; a shop needs the vendor public key and relay address baked into the program folder at build time, without committing them to git.
+**What changed:** `tools/build_windows.py` adds `--customer` and `--check --customer`, reading `STORE_RELEASE_PUBLIC_KEY` / `STORE_RELEASE_RELAY_URL` or one line in each licence file, validating with the same rules as `tests/test_release.py`, and writing only into `build/app.dist` before Inno Setup. `RELEASE-PROOF.txt` from the main Windows job records `customer_licence: no`; an optional `customer-installer` job builds when both GitHub secrets are set. Docs (`BUILD_AND_RELEASE.md`, `README.md`, `docs/02-product-spec.md`) and `tests/test_build.py` extended.
+**Review follow-up:** customer job fails (not skips) when only one release secret is set; stricter relay URL (no userinfo/query/fragment/custom port; short simple path segments only); `verify_customer_licence_in_dist` after write; `--release-proof-customer` feeds `release_proof_licence_lines` from validated inputs; subprocess tests for `--check --customer` with a clean `STORE_RELEASE_*` environment.
+**Relay allowlist:** exact hostname match against `tools/relay_hosts_allowed.txt` and/or `STORE_RELEASE_ALLOWED_RELAY_HOSTS`; fixed paths `''`, `/api`, `/licence-hub` only (suffix/word heuristics removed).
+**Evidence:** `python tools/build_windows.py --check`; `python -m unittest tests.test_build tests.test_release`.
+
+## 2026-10-13 — Receipt print page size, README and spec scope (trial-ready task 3)
+**Why:** thermal receipt printers need the browser print page to match 80 mm / 58 mm paper; the setting only changed a unused CSS variable and content width, so drivers scaled or clipped Arabic and the barcode. The README still said 1.0.2 and paste-only activation; the product spec still listed the installer and labels as out of scope.
+**What changed:** `web/css/pages.css` — named `@page receipt80` / `receipt58` with explicit `size: 80mm 200mm` / `58mm 120mm` (Chrome rejects `auto` height) and 2 mm margins, wired from `data-print="r80"` / `"r58"`; default `@page` stays 4 mm for A4 and labels. `README.md` — version 1.10.0, relay paths (`licence_relay.txt`, `STORE_LICENCE_RELAY`, `config.json`), automatic trial and paid requests when a relay is set, paste when not, installer mention. `docs/02-product-spec.md` — installer and sticker labels removed from «not in v1» (shipped 1.0.2). `tests/test_frontend.py` — CSS and `print.js` checks; `tests/test_e2e_browser.py` — print media `data-print`, named page and content width for 80 and 58 mm.
 
 ## 2026-10-12 — 1.10.0: the protected copy outside the PC, and restore on a different PC (Solo D1, `off_device_cloud_restore`)
 **Why (owner instruction of 2026-10-12: "make a real plan to finish the store … you take the decisions"):** the factory gate's only open
