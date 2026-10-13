@@ -39,7 +39,7 @@ advisor ("do this now"), reports (period, by category/brand/seller/product, paym
 simplified tax regime), stock value and slow movers, CSV/zip export, automatic checked backups and restore.
 **Not in v1.0 (decided, not forgotten):** ETA e-receipt integration (needs registration and certified device), multi-branch
 sync, online store, delivery tracking, supplier returns, loyalty points, cheque register, the vendor support window (Control Center).
-**Shipped with the product:** Windows installer (`Al-Store-Setup-<version>.exe`, Inno Setup + Nuitka) and barcode sticker labels from the counter.
+**Shipped with the product:** Windows installer (`Al-Store-Setup-<version>.exe`, Inno Setup + Nuitka; CI `windows installer` workflow, `installer/store.iss`) and barcode sticker labels from the counter (`web/js/print.js`, receipt `@page` sizes 80 mm / 58 mm in 1.10.0).
 
 ## Architecture
 Python 3.11+ standard library server (`server/`), one SQLite file in WAL mode, plain ES-module front end (`web/`), no build step.
