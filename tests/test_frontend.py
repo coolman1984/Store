@@ -131,6 +131,28 @@ class PageCode(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(WEB, 'fonts', 'OFL-ReadexPro.txt')))
         self.assertTrue(os.path.exists(os.path.join(WEB, 'fonts', 'OFL-Alexandria.txt')))
 
+    def test_receipt_print_uses_named_thermal_page_sizes(self):
+        """80 mm / 58 mm receipt width must set @page size, not only the content box (field printers)."""
+        css = read(os.path.join(WEB, 'css', 'pages.css'))
+        self.assertRegex(css, r'@page\s+receipt80\s*\{[^}]*size:\s*80mm\s+200mm')
+        self.assertRegex(css, r'@page\s+receipt58\s*\{[^}]*size:\s*58mm\s+120mm')
+        self.assertNotRegex(css, r'size:\s*\d+mm\s+auto')
+        self.assertIn('html[data-print="r80"] .receipt { page: receipt80; }', css)
+        self.assertIn('html[data-print="r58"] .receipt { page: receipt58; }', css)
+        self.assertIn('.receipt.w80 { inline-size: 72mm; }', css)
+        self.assertIn('.receipt.w58 { inline-size: 50mm;', css)
+        self.assertNotIn('--page:', css)
+        default_page = re.search(r'@page\s*\{([^}]+)\}', css)
+        self.assertIsNotNone(default_page)
+        self.assertNotIn('80mm', default_page.group(1))
+        self.assertNotIn('58mm', default_page.group(1))
+
+    def test_print_js_sets_data_print_for_receipt_width(self):
+        js = read(os.path.join(WEB, 'js', 'print.js'))
+        self.assertIn('document.documentElement.dataset.print', js)
+        self.assertRegex(js, r"dataset\.print\s*=\s*kind\s*===\s*'receipt'\s*\?\s*`r\$\{width\}`")
+        self.assertRegex(js, r"kind\s*===\s*'labels'\s*\?\s*'labels'\s*:\s*'a4'")
+
 
 def _lum(hex_):
     c = [int(hex_[i:i + 2], 16) / 255 for i in (1, 3, 5)]
