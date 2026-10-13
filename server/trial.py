@@ -36,9 +36,44 @@ POLL = ((600, 20), (3600, 120), (10 ** 9, 600))  # (age of the request in second
 SENT_FIELDS = ('product', 'kind', 'device', 'machine', 'nonce', 'shop', 'ref', 'version')  # exactly this goes out: shown on the screen first
 ACTIVE = ('sending', 'waiting', 'failed')
 MANUAL_KEY = 'licence_manual_at'  # when a person last pasted a working code by hand: a late answer to an older request never replaces it
+HUB_SYNC_META = 'licence_hub_sync_session'  # app.started value after a successful /licence/clock this run
 # Lock order, everywhere: this module's lock first, then the database. `step` holds the lock across the network call, so nothing may take
 # the lock while it holds the database (a request typed during a slow relay answer once froze the whole shop that way: review of PR #17).
 _lock = threading.Lock()
+
+
+def _note_hub_time(db, url, payload):
+    """Remember the relay's calendar day when online; fail-open on network errors."""
+    if not isinstance(payload, dict):
+        payload = {}
+    moment = payload.get('serverTime') or payload.get('calendar_day')
+    if moment:
+        licence.note_online(db, moment)
+        return
+    probed = licence.probe_http_date(url)
+    if probed:
+        licence.note_online(db, probed.isoformat(timespec='seconds'))
+
+
+def sync_hub_clock(app, force=False):
+    """Once per program run: learn the hub calendar so expiry can tighten after activation. Fail-open when offline."""
+    url = relay_url(app)
+    if not url:
+        return
+    session = str(app.started)
+    db = app.db
+    if not force and db.value('SELECT value FROM meta WHERE key = ?', HUB_SYNC_META) == session:
+        return
+    try:
+        code, body = _call('GET', url + '/licence/clock')
+        if code != 200:
+            return
+        _note_hub_time(db, url, body)
+        db.run('INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+               HUB_SYNC_META, session)
+        licence._cache.clear()
+    except ConnectionError:
+        return
 
 
 def relay_url(app=None):
@@ -222,19 +257,21 @@ def step(app, now=None, force=False):
                     st.update(status='failed', error='token', id=None, poll_token=None, nonce=str(uuid.uuid4()))
                 elif code != 200:
                     _failed(st, f'http_{code}')
-                elif d.get('status') == 'issued':
-                    _activate(app, st, url, d.get('code'))
-                elif d.get('status') == 'refused':
-                    st.update(status='refused', reason=d.get('reason') or 'refused', error='')
-                elif d.get('status') in ('expired',):
-                    st.update(status='closed', reason='expired', error='')
-                elif d.get('status') == 'delivered':
-                    st.update(status='activated' if licence.status(app.db)['full'] else 'closed', reason='delivered', error='')
                 else:
-                    age = (now - (ids.parse(st['created_at']) or now)).total_seconds()
-                    # `stage: approved` = the company's owner agreed and the code is on its way: said on the screen, but never a licence
-                    st.update(status='waiting', error='', stage='approved' if d.get('stage') == 'approved' else '')
-                    _soon(st, next(wait for limit, wait in POLL if age < limit))
+                    _note_hub_time(app.db, url, d)
+                    if d.get('status') == 'issued':
+                        _activate(app, st, url, d.get('code'))
+                    elif d.get('status') == 'refused':
+                        st.update(status='refused', reason=d.get('reason') or 'refused', error='')
+                    elif d.get('status') in ('expired',):
+                        st.update(status='closed', reason='expired', error='')
+                    elif d.get('status') == 'delivered':
+                        st.update(status='activated' if licence.status(app.db)['full'] else 'closed', reason='delivered', error='')
+                    else:
+                        age = (now - (ids.parse(st['created_at']) or now)).total_seconds()
+                        # `stage: approved` = the company's owner agreed and the code is on its way: said on the screen, but never a licence
+                        st.update(status='waiting', error='', stage='approved' if d.get('stage') == 'approved' else '')
+                        _soon(st, next(wait for limit, wait in POLL if age < limit))
         except ConnectionError as e:
             _failed(st, 'offline:' + str(e))
         _meta(app.db, st)
@@ -270,9 +307,10 @@ def _activate(app, st, url, code):
 
 
 def loop(app, every=20):
-    """Background: look for the answer while a request is open, even when nobody has the page open."""
+    """Background: hub calendar once per run, then look for trial answers while a request is open."""
     while True:
         try:
+            sync_hub_clock(app)
             st = _meta(app.db)
             if st and st.get('status') in ACTIVE + ('issued',):
                 step(app)

@@ -173,6 +173,11 @@ export async function handleLicence(request, env, url) {
 
   await expireStalePending(env);
 
+  if (url.pathname === '/licence/clock' && request.method === 'GET') {
+    const calendarDay = hubCalendarDay(env);
+    return json({ calendar_day: calendarDay, serverTime: calendarDay });
+  }
+
   if (url.pathname === '/licence/request' && request.method === 'POST') {
     let body;
     try { body = await request.json(); } catch { return json({ error: 'json' }, 400); }
@@ -244,13 +249,14 @@ export async function handleLicence(request, env, url) {
     const row = await env.DB.prepare('SELECT * FROM licence_requests WHERE id = ? AND poll_token_hash = ?').bind(id, pollHash).first();
     if (!row) return json({}, 401);
     const calendarDay = hubCalendarDay(env);
-    if (row.status === 'pending') return json({ status: 'pending', stage: row.stage || '', calendar_day: calendarDay });
-    if (row.status === 'approved') return json({ status: 'pending', stage: 'approved', calendar_day: calendarDay });
-    if (row.status === 'issued' && row.code) return json({ status: 'issued', code: row.code, calendar_day: calendarDay });
-    if (row.status === 'refused') return json({ status: 'refused', reason: row.reason || 'refused', calendar_day: calendarDay });
-    if (row.status === 'expired') return json({ status: 'expired', calendar_day: calendarDay });
-    if (row.status === 'delivered') return json({ status: 'delivered', calendar_day: calendarDay });
-    return json({ status: row.status, calendar_day: calendarDay });
+    const time = { calendar_day: calendarDay, serverTime: calendarDay };
+    if (row.status === 'pending') return json({ status: 'pending', stage: row.stage || '', ...time });
+    if (row.status === 'approved') return json({ status: 'pending', stage: 'approved', ...time });
+    if (row.status === 'issued' && row.code) return json({ status: 'issued', code: row.code, ...time });
+    if (row.status === 'refused') return json({ status: 'refused', reason: row.reason || 'refused', ...time });
+    if (row.status === 'expired') return json({ status: 'expired', ...time });
+    if (row.status === 'delivered') return json({ status: 'delivered', ...time });
+    return json({ status: row.status, ...time });
   }
 
   if (url.pathname === '/licence/ack' && request.method === 'POST') {
