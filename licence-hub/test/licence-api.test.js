@@ -4,7 +4,7 @@ import { createPrivateKey } from 'node:crypto';
 import { newD1 } from './d1-mock.js';
 import {
   handleLicence, approveRequest, refuseRequest, issueOfflineCustomer, derivePollToken, purgeStaleCodes,
-  deviceKey, deviceLockKey, REASON_PAID_IN_STUDIO,
+  deviceKey, deviceLockKey, machineLockKey, REASON_PAID_IN_STUDIO,
 } from '../src/licence-api.js';
 import { importSigningKey } from '../src/afcodes.js';
 
@@ -244,6 +244,36 @@ test('approve retry returns the same code', async () => {
   const first = await approveRequest(e, data.id, key);
   const second = await approveRequest(e, data.id, key);
   assert.equal(first.code, second.code);
+});
+
+test('approve retry does not add a second customer row', async () => {
+  const e = env();
+  const key = await importSigningKey(pemFromSeed(Buffer.alloc(32, 8)));
+  const { data } = await postRequest(e, body({ nonce: 'cust-once' }));
+  await approveRequest(e, data.id, key);
+  await approveRequest(e, data.id, key);
+  const rows = await e.DB.prepare('SELECT id FROM customers').bind().all();
+  assert.equal(rows.results.length, 1);
+});
+
+test('losing concurrent approval releases machine locks for a later request', async () => {
+  const e = env();
+  const key = await importSigningKey(pemFromSeed(Buffer.alloc(32, 10)));
+  const device = '7KD2M-QX9TP';
+  const dkey = deviceKey(device);
+  const t = 1;
+  await e.DB.prepare(
+    'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind('race-a', 'h1', 'al-store', 'trial', device, dkey, MACHINE_A, 'n1', '', '', '', 'pending', t, t).run();
+  await e.DB.prepare(
+    'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind('race-b', 'h2', 'al-store', 'trial', device, dkey, MACHINE_B, 'n2', '', '', '', 'pending', t, t).run();
+  await Promise.all([approveRequest(e, 'race-a', key), approveRequest(e, 'race-b', key)]);
+  const orphan = await e.DB.prepare('SELECT request_id FROM machine_trials WHERE machine = ?')
+    .bind(machineLockKey(MACHINE_B)).first();
+  assert.equal(orphan, null);
+  const later = await postRequest(e, body({ device: 'ABCDE-FGHJK', machine: MACHINE_B, nonce: 'n-after-race' }));
+  assert.equal(later.data.status, 'pending');
 });
 
 test('paid pending request approval is refused', async () => {

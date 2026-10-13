@@ -200,6 +200,8 @@ def read_code(text: str, trusted_public_keys: list[str], product_id: str, device
         trial_span = (_day(last) - _day(first)).days + 1
         if trial_span > 14:
             return bad('trial_key_days')
+        if trial_span + int(grace) > 14:
+            return bad('trial_key_grace')
         if dtag == b'\0' * 6:
             return bad('trial_key_unbound')
     if ptag != product_tag(product_id):

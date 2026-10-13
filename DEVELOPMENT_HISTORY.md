@@ -1,3 +1,7 @@
+## 2026-10-13 — Licence hub security fixes round 2 (PR #33 re-review)
+
+- `trial-hub` codes: reject any grace (`trial_key_grace`) or trial span + grace > 14 days; hub approval idempotent (same code, one customer row); losing `claimAndIssue` rolls back `machine_trials` for that request so partial locks do not block the machine forever.
+
 ## 2026-10-13 — Licence hub security fixes (PR #33 review)
 
 - `server/licence.py` keeps key ids (`trial-hub:` lines); `trial_only_public_keys()` limits those keys to device-bound trials ≤14 days (`afcodes.read_code` + `tests/test_licence_trial_hub_key.py`), matching Yousef-Transportation policy.

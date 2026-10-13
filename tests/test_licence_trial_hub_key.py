@@ -38,8 +38,8 @@ class TrialHubKeyPolicy(unittest.TestCase):
         import shutil
         shutil.rmtree(self.shop.dir, ignore_errors=True)
 
-    def _hub(self, edition='trial', days=14, device=None):
-        return afcodes.issue_code(HUB_PEM, 'al-store', edition, self.first, days, device or self.dev)['code']
+    def _hub(self, edition='trial', days=14, device=None, grace=0):
+        return afcodes.issue_code(HUB_PEM, 'al-store', edition, self.first, days, device or self.dev, grace_days=grace)['code']
 
     def test_valid_hub_trial_activates(self):
         st = licence.activate(self.shop.db, self._hub())
@@ -60,6 +60,15 @@ class TrialHubKeyPolicy(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             licence.activate(self.shop.db, self._hub(days=30))
         self.assertEqual(ctx.exception.args[0], 'trial_key_days')
+
+    def test_hub_key_rejects_grace_on_trial(self):
+        with self.assertRaises(ValueError) as ctx:
+            licence.activate(self.shop.db, self._hub(days=14, grace=60))
+        self.assertEqual(ctx.exception.args[0], 'trial_key_grace')
+
+    def test_hub_key_allows_trial_plus_grace_within_fourteen_total(self):
+        st = licence.activate(self.shop.db, self._hub(days=7, grace=7))
+        self.assertIn(st['state'], ('trial', 'active'))
 
     def test_studio_key_still_allows_longer_trial(self):
         from harness import PUBLIC
