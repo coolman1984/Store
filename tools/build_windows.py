@@ -29,9 +29,11 @@ SHIPPED = ('server/app.py', 'web/index.html', 'web/js/app.js', 'web/css/tokens.c
 DATA_DIRS = (('web', 'web'), ('guide', 'guide'))
 
 PUBLIC_KEY_LINE = re.compile(r'^(?:[A-Za-z0-9_-]+:)?[A-Za-z0-9_-]{43}$')
-RELAY_HOST = re.compile(r'^[A-Za-z0-9.-]+$')
-RELAY_PATH_WORD = re.compile(r'^[a-z0-9-]{1,24}$')
-MAX_RELAY_PATH_SEGMENTS = 3
+RELAY_LABEL = re.compile(r'^[a-z0-9-]{1,30}$')
+MAX_RELAY_HOST_LABELS = 4
+MAX_RELAY_LABEL_MIXED_LEN = 20
+# Exact paths permitted after https://<host> (customer relay URLs only).
+ALLOWED_RELAY_PATHS = frozenset(('', '/api', '/licence-hub'))
 RELAY_SECRET_WORDS = re.compile(r'(?i)token|secret|key|pass')
 
 
@@ -59,15 +61,19 @@ def validate_public_key_line(line):
         raise CustomerLicenceError('only a 32-byte Ed25519 public key may be listed')
 
 
-def _relay_path_segment_opaque(seg):
-    """Reject long opaque or base64/JWT-like path pieces (allowlist is lowercase words only)."""
-    if len(seg) > 16 and re.search(r'[A-Z]', seg) and re.search(r'[0-9]', seg):
-        return True
-    if len(seg) > 16 and re.fullmatch(r'[a-z0-9]+', seg) and any(c.isdigit() for c in seg):
-        return True
-    if len(seg) > 16 and re.fullmatch(r'[a-z]+', seg):
-        return True
-    return False
+def _validate_relay_host(host):
+    if not host or host != host.lower():
+        raise CustomerLicenceError('the relay host must use lowercase labels only')
+    labels = host.split('.')
+    if len(labels) > MAX_RELAY_HOST_LABELS:
+        raise CustomerLicenceError('the relay host may have at most four labels')
+    for label in labels:
+        if not label or not RELAY_LABEL.fullmatch(label):
+            raise CustomerLicenceError('each relay host label must be 1–30 lowercase letters, digits or hyphens')
+        has_letter = any(c.isalpha() for c in label)
+        has_digit = any(c.isdigit() for c in label)
+        if len(label) > MAX_RELAY_LABEL_MIXED_LEN and has_letter and has_digit:
+            raise CustomerLicenceError('a relay host label with mixed letters and digits may not exceed 20 characters')
 
 
 def validate_relay_line(line):
@@ -86,31 +92,15 @@ def validate_relay_line(line):
     if parsed.port not in (None, 443):
         raise CustomerLicenceError('the relay must use the default https port (no custom port)')
     host = parsed.hostname or ''
-    if not RELAY_HOST.fullmatch(host):
-        raise CustomerLicenceError('the relay host must be a simple hostname')
     path = parsed.path or ''
     if path == '/':
         path = ''
-    if path:
-        if not path.startswith('/'):
-            raise CustomerLicenceError('the relay path must start with /')
-        if '.' in path:
-            raise CustomerLicenceError('the relay path must not contain dots')
-        segments = path.split('/')[1:]
-        if any(not seg for seg in segments):
-            raise CustomerLicenceError('the relay path must not contain empty segments')
-        if len(segments) > MAX_RELAY_PATH_SEGMENTS:
-            raise CustomerLicenceError('the relay path may have at most three segments')
-        for seg in segments:
-            if not RELAY_PATH_WORD.fullmatch(seg):
-                raise CustomerLicenceError('each relay path segment must be a short lowercase word (a-z, 0-9, hyphen)')
-            if _relay_path_segment_opaque(seg):
-                raise CustomerLicenceError('the relay path must not carry opaque or token-like segments')
-        if len(segments) > 1 and any('-' not in seg for seg in segments):
-            raise CustomerLicenceError('multi-segment relay paths must use hyphenated word segments')
-    canonical = 'https://' + host + (path or '')
-    if line.rstrip('/') != canonical.rstrip('/'):
-        raise CustomerLicenceError('the relay address must be only scheme, host and a simple path')
+    if path not in ALLOWED_RELAY_PATHS:
+        raise CustomerLicenceError('the relay path is not on the allowed list')
+    _validate_relay_host(host)
+    canonical = 'https://' + host + path
+    if line != canonical:
+        raise CustomerLicenceError('the relay address must be exactly https://<host> with an allowed path only')
 
 
 def resolve_customer_licence(root=ROOT):

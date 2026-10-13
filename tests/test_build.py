@@ -137,22 +137,26 @@ class CustomerRelease(unittest.TestCase):
             build_windows.validate_relay_line('http://relay.example.com')
         with self.assertRaises(build_windows.CustomerLicenceError):
             build_windows.validate_relay_line(self.SAMPLE_RELAY + '?token=abc')
-        jwtish = 'a' * 50 + '.' + 'b' * 50 + '.' + 'c' * 50
-        with self.assertRaises(build_windows.CustomerLicenceError):
-            build_windows.validate_relay_line(self.SAMPLE_RELAY + '/' + jwtish)
-
-    def test_relay_path_allowlist_rejects_jwt_opaque_and_split_token_paths(self):
+    def test_relay_strict_allowlist_rejects_review_cases(self):
         reject = (
+            'https://relay.example.com/eyjhbgci-oijiuzi1nij9',
+            'https://relay.example.com/eyjh-bgci/payl-oad/sig-ab12',
+            'https://relay.example.com/' + ('a' * 16),
+            'https://eyjhbccioijiuzi1nij9.payload.sig.relay.example.com',
             'https://relay.example.com/eyJhbGciOiJIUzI1NiJ9.payload.sig',
-            self.SAMPLE_RELAY + '/' + ('a' * 32),
-            self.SAMPLE_RELAY + '/' + ('a' * 39),
-            'https://relay.example.com/abcd1234/efgh5678/ijkl9012',
+            self.SAMPLE_RELAY + '/not-allowed',
         )
         for url in reject:
             with self.assertRaises(build_windows.CustomerLicenceError, msg=url):
                 build_windows.validate_relay_line(url)
-        build_windows.validate_relay_line(self.SAMPLE_RELAY)
-        build_windows.validate_relay_line(self.SAMPLE_RELAY + '/licence-hub')
+
+    def test_relay_strict_allowlist_accepts_configured_paths(self):
+        for url in (
+            self.SAMPLE_RELAY,
+            self.SAMPLE_RELAY + '/licence-hub',
+            self.SAMPLE_RELAY + '/api',
+        ):
+            build_windows.validate_relay_line(url)
 
     def test_release_proof_customer_cli_uses_validated_relay(self):
         env = self._env_without_release_secrets(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
