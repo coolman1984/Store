@@ -7,6 +7,10 @@
 
 # Development history (newest first)
 
+## 2026-10-13 — Receipt print page size, README and spec scope (trial-ready task 3)
+**Why:** thermal receipt printers need the browser print page to match 80 mm / 58 mm paper; the setting only changed a unused CSS variable and content width, so drivers scaled or clipped Arabic and the barcode. The README still said 1.0.2 and paste-only activation; the product spec still listed the installer and labels as out of scope.
+**What changed:** `web/css/pages.css` — named `@page receipt80` / `receipt58` with `size: … auto` and 2 mm margins, wired from `data-print="r80"` / `"r58"`; default `@page` stays 4 mm for A4 and labels. `README.md` — version 1.10.0, «اطلب تجربة» when a relay is configured, paste when not, installer mention. `docs/02-product-spec.md` — installer and sticker labels removed from «not in v1». `tests/test_frontend.py` — static check for the named pages.
+
 ## 2026-10-12 — 1.10.0: the protected copy outside the PC, and restore on a different PC (Solo D1, `off_device_cloud_restore`)
 **Why (owner instruction of 2026-10-12: "make a real plan to finish the store … you take the decisions"):** the factory gate's only open
 item that engineering could still close was `off_device_cloud_restore` («not built»). Every other open item needs a person, a printer, a

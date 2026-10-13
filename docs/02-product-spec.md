@@ -38,8 +38,8 @@ balances and instalment collection) exists to make that journey correct.
 advisor ("do this now"), reports (period, by category/brand/seller/product, payment methods, balances, year turnover for the
 simplified tax regime), stock value and slow movers, CSV/zip export, automatic checked backups and restore.
 **Not in v1.0 (decided, not forgotten):** ETA e-receipt integration (needs registration and certified device), multi-branch
-sync, online store, delivery tracking, supplier returns, loyalty points, label printing, cheque register, Windows installer
-(use `start.bat` + embedded Python; installer = the factory's next shared piece), the vendor support window (Control Center).
+sync, online store, delivery tracking, supplier returns, loyalty points, cheque register, the vendor support window (Control Center).
+The Windows installer (`installer/store.iss`, CI `windows installer` workflow) and sticker label printing (`web/js/print.js`) shipped in 1.5.0+.
 
 ## Architecture
 Python 3.11+ standard library server (`server/`), one SQLite file in WAL mode, plain ES-module front end (`web/`), no build step.
