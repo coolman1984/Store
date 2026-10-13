@@ -155,6 +155,7 @@ export async function handleLicence(request, env, url) {
     let dkey;
     try { dkey = deviceKey(body.device); } catch { return json({ field: 'device' }, 400); }
     const machineHash = normalizeMachineHash(body.machine);
+    if (!machineHash) return json({ field: 'machine' }, 400);
 
     const poll = await derivePollToken(env.SESSION_SECRET, body.nonce);
     const pollHash = await sha256Hex(poll);
@@ -279,21 +280,24 @@ async function claimAndIssue(env, requestId, dkey, machineHash, signed, t, force
   const stmts = locks.map((lock) =>
     env.DB.prepare('INSERT INTO machine_trials(machine, request_id, at) VALUES(?, ?, ?) ON CONFLICT(machine) DO NOTHING').bind(lock, requestId, t),
   );
+  const lockPlaceholders = locks.map(() => '?').join(',');
+  const issueBind = [signed.code, t, requestId, ...locks, requestId, locks.length];
   stmts.push(
     env.DB.prepare(
-      'UPDATE licence_requests SET status = ?, stage = ?, code = ?, updated_at = ? WHERE id = ? AND code IS NULL AND status NOT IN (?, ?)',
-    ).bind('issued', 'approved', signed.code, t, requestId, 'refused', 'delivered'),
+      `UPDATE licence_requests SET status = ?, stage = ?, code = ?, updated_at = ?
+       WHERE id = ? AND code IS NULL AND status NOT IN ('refused', 'delivered')
+       AND (SELECT COUNT(*) FROM machine_trials WHERE machine IN (${lockPlaceholders}) AND request_id = ?) = ?`,
+    ).bind('issued', 'approved', ...issueBind),
   );
   await env.DB.batch(stmts);
 
-  if (!(await locksOwnedByRequest(env, dkey, machineHash, requestId))) {
-    await env.DB.prepare(
-      'UPDATE licence_requests SET code = NULL, status = ?, reason = ?, updated_at = ? WHERE id = ?',
-    ).bind('refused', 'already_used', t, requestId).run();
-    return false;
-  }
   const after = await env.DB.prepare('SELECT code, status FROM licence_requests WHERE id = ?').bind(requestId).first();
-  return Boolean(after?.code && after.status === 'issued');
+  if (after?.code && after.status === 'issued') return true;
+
+  await env.DB.prepare(
+    'UPDATE licence_requests SET status = ?, reason = ?, code = NULL, updated_at = ? WHERE id = ? AND status != ?',
+  ).bind('refused', 'already_used', t, requestId, 'issued').run();
+  return false;
 }
 
 export async function approveRequest(env, requestId, privateKey, options = {}) {

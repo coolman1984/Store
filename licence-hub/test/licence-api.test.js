@@ -150,6 +150,13 @@ test('short device code is rejected at request', async () => {
   assert.equal(data.field, 'device');
 });
 
+test('malformed machine hash is rejected at request', async () => {
+  const e = env();
+  const { res, data } = await postRequest(e, body({ machine: 'not-a-valid-machine-tag', nonce: 'bad-machine' }));
+  assert.equal(res.status, 400);
+  assert.equal(data.field, 'machine');
+});
+
 test('open pending is limited to one row per device until TTL expires', async () => {
   const e = env();
   const first = await postRequest(e, body({ nonce: 'p1' }));

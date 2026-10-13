@@ -1,3 +1,9 @@
+## 2026-10-13 — Licence hub security fixes (PR #33 review)
+
+- `server/licence.py` keeps key ids (`trial-hub:` lines); `trial_only_public_keys()` limits those keys to device-bound trials ≤14 days (`afcodes.read_code` + `tests/test_licence_trial_hub_key.py`), matching Yousef-Transportation policy.
+- `licence-hub`: reject non–64-hex `machine` at request; `claimAndIssue` issues a code only when all lock rows were claimed in the same D1 batch (no code publish without locks).
+- `tests/test_licence_hub_activation.py` restores `STORE_LICENCE_KEYS` after each test.
+
 ## 2026-10-13 — Licence hub template (trial activation end-to-end, task 1 of trial-ready plan)
 
 - Added `licence-hub/` Cloudflare Worker (D1, Arabic owner dashboard at `/owner`, same three shop URLs as `server/trial.py`), modelled on Yousef-Transportation PR #29: trial-only signing via `LICENCE_SIGNING_KEY` secret, paid monthly/permanent refused with `paid_in_licence_studio`, one trial per machine tag plus device locks as in the reference hub, 14-day default (`TRIAL_DAYS`, Cairo calendar).

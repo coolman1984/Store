@@ -21,19 +21,53 @@ from version import PRODUCT_ID, ROOT
 HERE = os.path.dirname(os.path.abspath(__file__))
 KEYS_FILE = os.path.join(ROOT, 'licence_keys.txt')
 CLOCK_TOLERANCE_HOURS = 24
+TRIAL_HUB_KIDS = frozenset({'trial-hub', 'trial_hub', 'hub-trial'})
 _lock = threading.Lock()
 _cache = {}
 
 
-def trusted_keys():
-    keys = [k.strip() for k in os.environ.get('STORE_LICENCE_KEYS', '').split(',') if k.strip()]
+def _parse_key_entry(raw):
+    raw = raw.strip()
+    if not raw:
+        return None
+    if ':' in raw and len(raw.split(':', 1)[0]) <= 40:
+        kid, key = raw.split(':', 1)
+        return kid.strip(), key.strip()
+    return '', raw
+
+
+def trusted_key_entries():
+    """(kid, public key) pairs — kid is '' when the line is key-only."""
+    entries = []
+    for raw in os.environ.get('STORE_LICENCE_KEYS', '').split(','):
+        entry = _parse_key_entry(raw)
+        if entry:
+            entries.append(entry)
     if os.path.exists(KEYS_FILE):
         with open(KEYS_FILE, encoding='utf-8') as f:
             for line in f:
                 line = line.split('#', 1)[0].strip()
-                if line:
-                    keys.append(line.split(':', 1)[-1])  # accepts "kid:key" or "key"
-    return keys
+                entry = _parse_key_entry(line)
+                if entry:
+                    entries.append(entry)
+    return entries
+
+
+def trusted_keys():
+    return [key for _, key in trusted_key_entries()]
+
+
+def trial_only_public_keys():
+    """Public keys that may sign device-bound trials of at most 14 days only (licence hub)."""
+    keys = set()
+    for kid, key in trusted_key_entries():
+        if kid and kid.lower() in TRIAL_HUB_KIDS:
+            keys.add(key)
+    for raw in os.environ.get('STORE_TRIAL_HUB_KEYS', '').split(','):
+        entry = _parse_key_entry(raw)
+        if entry:
+            keys.add(entry[1])
+    return frozenset(keys)
 
 
 def _machine_id():
@@ -123,7 +157,7 @@ def _check(code, dev, today):
         return {**base, 'state': 'no_keys', 'reason': 'no_keys'}
     if not code:
         return {**base, 'state': 'none', 'reason': 'no_code'}
-    r = afcodes.read_code(code, keys, PRODUCT_ID, dev, today)
+    r = afcodes.read_code(code, keys, PRODUCT_ID, dev, today, trial_only_keys=trial_only_public_keys())
     out = {**base, 'state': r.state, 'full': r.full_access, 'reason': r.reason}
     out.update({k: r.terms.get(k) for k in ('edition', 'first_day', 'last_day', 'days_left', 'serial') if k in r.terms})
     if r.state == 'active' and r.terms.get('edition') == 'trial':

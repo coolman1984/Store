@@ -24,13 +24,17 @@ def _hub_trial(device=''):
 
 class LicenceHubActivationTest(unittest.TestCase):
     def setUp(self):
+        self._saved_keys = os.environ.get('STORE_LICENCE_KEYS')
         self.shop = Shop(licensed=False)
         dev = licence.device(self.shop.db)
         self.payload = _hub_trial(dev)
         os.environ['STORE_LICENCE_KEYS'] = self.payload['public']
 
     def tearDown(self):
-        os.environ.pop('STORE_LICENCE_KEYS', None)
+        if self._saved_keys is None:
+            os.environ.pop('STORE_LICENCE_KEYS', None)
+        else:
+            os.environ['STORE_LICENCE_KEYS'] = self._saved_keys
         shutil.rmtree(self.shop.dir, ignore_errors=True)
 
     def test_happy_path_activates_this_device(self):
