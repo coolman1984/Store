@@ -268,9 +268,12 @@ details.card[open] > summary { margin-block-end: var(--s-3); }
   .recovery-paper .recovery-code { background: #fff; border-color: #000; color: #000; font-size: 20pt; }
   .a4 table { inline-size: 100%; border-collapse: collapse; font-size: 11px; }
   .a4 th, .a4 td { border: 1px solid #999; padding: 3px 5px; text-align: start; }
+  html[data-print="r80"] .receipt { page: receipt80; }
+  html[data-print="r58"] .receipt { page: receipt58; }
 }
-html[data-print="r80"] { --page: 80mm; } html[data-print="r58"] { --page: 58mm; }
 @page { margin: 4mm; }
+@page receipt80 { size: 80mm 200mm; margin: 2mm; }
+@page receipt58 { size: 58mm 120mm; margin: 2mm; }
 .plain { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s-2); }
 .plain li { display: flex; align-items: center; gap: var(--s-2); }
 .split { margin-block-start: var(--s-5); padding-block-start: var(--s-4); border-block-start: 1px solid var(--line); }
