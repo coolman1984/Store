@@ -74,6 +74,18 @@ class CustomerRelease(unittest.TestCase):
     SAMPLE_KEY = 'trial-release:' + ('A' * 43)
     SAMPLE_RELAY = 'https://relay.example.com'
 
+    def _env_without_release_secrets(self, **extra):
+        env = {k: v for k, v in os.environ.items() if k not in ('STORE_RELEASE_PUBLIC_KEY', 'STORE_RELEASE_RELAY_URL')}
+        env.update(extra)
+        return env
+
+    def _run_customer_check(self, **env_extra):
+        return subprocess.run(
+            [sys.executable, 'tools/build_windows.py', '--check', '--customer'],
+            cwd=ROOT, capture_output=True, text=True,
+            env=self._env_without_release_secrets(**env_extra),
+        )
+
     def test_check_passes_on_template_files(self):
         r = subprocess.run([sys.executable, 'tools/build_windows.py', '--check'], cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -86,11 +98,24 @@ class CustomerRelease(unittest.TestCase):
             keys, relay = build_windows.resolve_customer_licence(tmp)
             self.assertEqual(keys.strip(), self.SAMPLE_KEY)
             self.assertEqual(relay.strip(), self.SAMPLE_RELAY)
-        r = subprocess.run([sys.executable, 'tools/build_windows.py', '--check', '--customer'],
-                           cwd=ROOT, capture_output=True, text=True,
-                           env={**os.environ, 'STORE_RELEASE_PUBLIC_KEY': self.SAMPLE_KEY,
-                                'STORE_RELEASE_RELAY_URL': self.SAMPLE_RELAY})
+        r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
+                                     STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_customer_check_exits_nonzero_for_empty_templates_without_release_env(self):
+        r = self._run_customer_check()
+        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_customer_check_exits_nonzero_when_only_one_release_secret_is_set(self):
+        r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY)
+        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+        r = self._run_customer_check(STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY)
+        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_customer_check_exits_nonzero_for_http_relay_in_release_env(self):
+        r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
+                                     STORE_RELEASE_RELAY_URL='http://relay.example.com')
+        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_customer_check_reads_release_environment_variables(self):
         env = {k: v for k, v in os.environ.items() if k not in ('STORE_RELEASE_PUBLIC_KEY', 'STORE_RELEASE_RELAY_URL')}
@@ -109,6 +134,18 @@ class CustomerRelease(unittest.TestCase):
             build_windows.validate_relay_line('http://relay.example.com')
         with self.assertRaises(build_windows.CustomerLicenceError):
             build_windows.validate_relay_line(self.SAMPLE_RELAY + '?token=abc')
+        jwtish = 'a' * 50 + '.' + 'b' * 50 + '.' + 'c' * 50
+        with self.assertRaises(build_windows.CustomerLicenceError):
+            build_windows.validate_relay_line(self.SAMPLE_RELAY + '/' + jwtish)
+
+    def test_release_proof_customer_cli_uses_validated_relay(self):
+        env = self._env_without_release_secrets(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
+                                                 STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY)
+        r = subprocess.run([sys.executable, 'tools/build_windows.py', '--release-proof-customer'],
+                           cwd=ROOT, capture_output=True, text=True, env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(r.stdout.strip().splitlines(),
+                         list(build_windows.release_proof_licence_lines(True, self.SAMPLE_RELAY)))
 
     def test_customer_mode_refuses_template_files_in_the_repo(self):
         env = {k: v for k, v in os.environ.items() if k not in ('STORE_RELEASE_PUBLIC_KEY', 'STORE_RELEASE_RELAY_URL')}

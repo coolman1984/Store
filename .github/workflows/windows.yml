@@ -98,12 +98,20 @@ jobs:
           STORE_RELEASE_PUBLIC_KEY: ${{ secrets.STORE_RELEASE_PUBLIC_KEY }}
           STORE_RELEASE_RELAY_URL: ${{ secrets.STORE_RELEASE_RELAY_URL }}
         run: |
-          if [ -z "$STORE_RELEASE_PUBLIC_KEY" ] || [ -z "$STORE_RELEASE_RELAY_URL" ]; then
+          key_set=0
+          relay_set=0
+          [ -n "$STORE_RELEASE_PUBLIC_KEY" ] && key_set=1
+          [ -n "$STORE_RELEASE_RELAY_URL" ] && relay_set=1
+          if [ "$key_set" = 0 ] && [ "$relay_set" = 0 ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "Customer installer secrets are not set; skipping this job."
-          else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          if [ "$key_set" != "$relay_set" ]; then
+            echo "Only one of STORE_RELEASE_PUBLIC_KEY and STORE_RELEASE_RELAY_URL is set; both are required."
+            exit 1
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v7
         if: steps.gate.outputs.configured == 'true'
         with:
@@ -130,19 +138,21 @@ jobs:
         if: steps.gate.outputs.configured == 'true'
         shell: pwsh
         env:
+          STORE_RELEASE_PUBLIC_KEY: ${{ secrets.STORE_RELEASE_PUBLIC_KEY }}
           STORE_RELEASE_RELAY_URL: ${{ secrets.STORE_RELEASE_RELAY_URL }}
         run: |
           $setup = Get-ChildItem dist/Al-Store-Setup-*.exe | Select-Object -First 1
           $hash = (Get-FileHash $setup.FullName -Algorithm SHA256).Hash.ToLower()
           $version = python -c "import sys; sys.path.insert(0, 'server'); import version; print(version.VERSION)"
-          $relayHost = python -c "import os; from urllib.parse import urlparse; print(urlparse(os.environ['STORE_RELEASE_RELAY_URL']).hostname or '')"
+          $licenceProof = python tools/build_windows.py --release-proof-customer
+          if ($LASTEXITCODE -ne 0) { throw 'customer release proof inputs failed validation' }
           $proof = @(
             "product: Al-Store", "version: $version", "source_commit: ${env:GITHUB_SHA}", "ref: ${env:GITHUB_REF}",
-            "installer: $($setup.Name)", "installer_sha256: $hash", "customer_licence: yes", "relay_host: $relayHost",
+            "installer: $($setup.Name)", "installer_sha256: $hash") + ($licenceProof -split "`n" | Where-Object { $_ }) + @(
             "workflow_run: ${env:GITHUB_SERVER_URL}/${env:GITHUB_REPOSITORY}/actions/runs/${env:GITHUB_RUN_ID}",
             "checks: customer build (--customer), program folder licence files from release secrets")
           $proof | Set-Content -Encoding utf8 dist/RELEASE-PROOF.txt
-          Get-Content dist/RELEASE-PROOF.txt | ForEach-Object { if ($_ -notmatch 'STORE_RELEASE') { $_ } }
+          Get-Content dist/RELEASE-PROOF.txt
       - uses: actions/upload-artifact@v7
         if: steps.gate.outputs.configured == 'true'
         with:

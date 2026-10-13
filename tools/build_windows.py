@@ -29,8 +29,10 @@ SHIPPED = ('server/app.py', 'web/index.html', 'web/js/app.js', 'web/css/tokens.c
 DATA_DIRS = (('web', 'web'), ('guide', 'guide'))
 
 PUBLIC_KEY_LINE = re.compile(r'^(?:[A-Za-z0-9_-]+:)?[A-Za-z0-9_-]{43}$')
-RELAY_LINE = re.compile(r'^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~-]*)*$')
+RELAY_HOST = re.compile(r'^[A-Za-z0-9.-]+$')
+RELAY_PATH_SEGMENT = re.compile(r'^[A-Za-z0-9._~-]{1,48}$')
 RELAY_SECRET_WORDS = re.compile(r'(?i)token|secret|key|pass')
+RELAY_OPAQUE_SEGMENT = re.compile(r'^[A-Za-z0-9_-]{40,}$')
 
 
 class CustomerLicenceError(ValueError):
@@ -58,15 +60,40 @@ def validate_public_key_line(line):
 
 
 def validate_relay_line(line):
+    line = line.strip()
     if not line.startswith('https://'):
         raise CustomerLicenceError('the relay address must start with https://')
+    if '@' in line or '?' in line or '#' in line:
+        raise CustomerLicenceError('the relay address must not carry userinfo, a query or a fragment')
     if RELAY_SECRET_WORDS.search(line):
         raise CustomerLicenceError('the relay address must not contain token, secret, key or pass')
-    if not RELAY_LINE.fullmatch(line):
-        raise CustomerLicenceError('the relay must be an https address with no user, password or query')
     parsed = urlparse(line)
+    if parsed.scheme != 'https':
+        raise CustomerLicenceError('the relay address must use https')
     if parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise CustomerLicenceError('the relay address must not carry a user, password or query string')
+    if parsed.port not in (None, 443):
+        raise CustomerLicenceError('the relay must use the default https port (no custom port)')
+    host = parsed.hostname or ''
+    if not RELAY_HOST.fullmatch(host):
+        raise CustomerLicenceError('the relay host must be a simple hostname')
+    path = parsed.path or ''
+    if path == '/':
+        path = ''
+    if path:
+        if not path.startswith('/'):
+            raise CustomerLicenceError('the relay path must start with /')
+        segments = path.split('/')[1:]
+        for seg in segments:
+            if not seg:
+                raise CustomerLicenceError('the relay path must not contain empty segments')
+            if not RELAY_PATH_SEGMENT.fullmatch(seg):
+                raise CustomerLicenceError('each relay path segment must be short and simple (letters, digits, . _ - ~)')
+            if RELAY_OPAQUE_SEGMENT.fullmatch(seg) or (seg.count('.') >= 2 and len(seg) > 32):
+                raise CustomerLicenceError('the relay path must not carry a long opaque segment')
+    canonical = 'https://' + host + (path or '')
+    if line.rstrip('/') != canonical.rstrip('/'):
+        raise CustomerLicenceError('the relay address must be only scheme, host and a simple path')
 
 
 def resolve_customer_licence(root=ROOT):
@@ -163,6 +190,23 @@ def write_customer_licence_to_dist(keys_body, relay_body):
             f.write(body)
 
 
+def verify_customer_licence_in_dist(keys_body, relay_body):
+    """The program folder must contain exactly the validated customer licence files."""
+    for name, want in (('licence_keys.txt', keys_body), ('licence_relay.txt', relay_body)):
+        path = os.path.join(DIST, name)
+        if not os.path.isfile(path):
+            raise CustomerLicenceError(f'{name} is missing from the program folder')
+        got = open(path, encoding='utf-8').read()
+        if got != want:
+            raise CustomerLicenceError(f'{name} in the program folder does not match the customer release inputs')
+    key_lines = active_lines(os.path.join(DIST, 'licence_keys.txt'))
+    relay_lines = active_lines(os.path.join(DIST, 'licence_relay.txt'))
+    if len(key_lines) != 1 or len(relay_lines) != 1:
+        raise CustomerLicenceError('the program folder must ship exactly one key line and one relay address')
+    validate_public_key_line(key_lines[0])
+    validate_relay_line(relay_lines[0])
+
+
 def compile_program(v4):
     run([sys.executable, '-m', 'nuitka', '--standalone', '--assume-yes-for-downloads', '--windows-console-mode=attach',
          f'--output-dir={BUILD}', f'--output-filename={EXE}', f'--windows-icon-from-ico={os.path.join(BUILD, "store.ico")}',
@@ -175,6 +219,14 @@ def compile_program(v4):
 def main():
     customer = '--customer' in sys.argv
     preflight()
+    if '--release-proof-customer' in sys.argv:
+        try:
+            _, relay_body = resolve_customer_licence()
+        except CustomerLicenceError as e:
+            sys.exit(str(e))
+        for line in release_proof_licence_lines(True, relay_body.strip()):
+            print(line)
+        return
     if customer:
         try:
             keys_body, relay_body = resolve_customer_licence()
@@ -195,6 +247,10 @@ def main():
     assert not leaks, f'source files in the program folder: {leaks}'
     if customer:
         write_customer_licence_to_dist(keys_body, relay_body)
+        try:
+            verify_customer_licence_in_dist(keys_body, relay_body)
+        except CustomerLicenceError as e:
+            sys.exit(str(e))
     missing = [dest for _, dest in runtime_files() if not os.path.isfile(os.path.join(DIST, dest))]
     assert not missing, f'runtime files did not reach the program folder: {missing}'
     run([iscc(), f'/DAppVersion={VERSION}', os.path.join('installer', 'store.iss')])
