@@ -233,7 +233,7 @@ def status(db):
         else:
             result = _check(code, dev, today, trust)
             _cache['v'] = (key, dict(result))
-    if _local_before_trusted(today, trust) and not clock_back:
+    if _local_before_trusted(today, trust) and result['full']:
         clock_back = True
     if clock_back and result['full']:
         result.update(state='clock_back', full=False, reason='clock_back')

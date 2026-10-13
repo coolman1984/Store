@@ -1,6 +1,11 @@
 ## 2026-10-13 — Hub clock after activation (PR #34 follow-up)
 
+<<<<<<< HEAD
 - Rebased on PR #33 (`6c23960`). `GET /licence/clock`; `trial.sync_hub_clock` once per program run (fail-open offline). Hub expiry wins over `clock_back` when the subscription ended on hub time. Tests: `HubClockAfterActivationTests`.
+=======
+- Rebased on PR #33 (`7566c3a`, force respects trial locks). `GET /licence/clock`; `trial.sync_hub_clock` once per program run (fail-open offline). Fixes trusted date freezing when `step` stops after `activated`. Hub expiry wins over `clock_back` when the subscription ended on hub time.
+- Tests: `test_licence_online.HubClockAfterActivationTests`, hub `force on second pending request returns existing trial code`.
+>>>>>>> 23b7cd5 (Fix hub clock sync after activation (PR #34 review))
 
 ## 2026-10-13 — Simple subscription protection (Teachers PR #35 standard on Store)
 

@@ -14,7 +14,7 @@ import afcodes  # noqa: E402
 import licence  # noqa: E402
 import trial  # noqa: E402
 from fake_relay import FakeRelay  # noqa: E402
-from harness import HAVE_CRYPTO, OWNER, PW, Server, Shop, code_for  # noqa: E402
+from harness import HAVE_CRYPTO, Server, Shop, code_for  # noqa: E402
 
 
 class LicenceOnlineTests(unittest.TestCase):
@@ -98,7 +98,8 @@ class HubClockAfterActivationTests(unittest.TestCase):
 
     def test_sync_hub_clock_after_activation_expires_when_pc_clock_lags(self):
         last = date.fromisoformat(__import__('ids').local_day())
-        code = code_for(self.dev, 30, last, edition='standard', grace=3)
+        first = last - timedelta(days=29)
+        code = code_for(self.dev, 30, first, edition='standard', grace=3)
         self.assertEqual(self.client.post('/api/licence/activate', {'code': code})[0], 200)
         self.assertTrue(self.client.get('/api/licence')[1]['full'])
         self.relay.clock_day = (last + timedelta(days=10)).isoformat()
