@@ -1,3 +1,7 @@
+## 2026-10-13 — Licence hub: deterministic race test + package-lock (PR #33)
+
+- Concurrent machine-lock test branches on which request actually issued; added `licence-hub/package-lock.json` for `npm ci`.
+
 ## 2026-10-13 — Licence hub: force respects trial locks (PR #33)
 
 - `force` no longer clears `machine_trials`; returns an existing issued code (409 via owner API) instead of signing again. Offline mint records `licence_requests` and uses the same lock checks.

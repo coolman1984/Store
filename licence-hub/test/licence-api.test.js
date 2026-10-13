@@ -319,7 +319,7 @@ test('approve retry does not add a second customer row', async () => {
   assert.equal(rows.results.length, 1);
 });
 
-test('losing concurrent approval releases machine locks for a later request', async () => {
+test('second approve for same device does not leave a stray machine lock', async () => {
   const e = env();
   const key = await importSigningKey(pemFromSeed(Buffer.alloc(32, 10)));
   const device = '7KD2M-QX9TP';
@@ -331,10 +331,16 @@ test('losing concurrent approval releases machine locks for a later request', as
   await e.DB.prepare(
     'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   ).bind('race-b', 'h2', 'al-store', 'trial', device, dkey, MACHINE_B, 'n2', '', '', '', 'pending', t, t).run();
-  await Promise.all([approveRequest(e, 'race-a', key), approveRequest(e, 'race-b', key)]);
-  const orphan = await e.DB.prepare('SELECT request_id FROM machine_trials WHERE machine = ?')
+
+  const first = await approveRequest(e, 'race-a', key);
+  assert.ok(first?.code);
+  const second = await approveRequest(e, 'race-b', key);
+  assert.equal(second.code, first.code);
+  assert.equal(second.conflict, true);
+
+  const stray = await e.DB.prepare('SELECT request_id FROM machine_trials WHERE machine = ?')
     .bind(machineLockKey(MACHINE_B)).first();
-  assert.equal(orphan, null);
+  assert.equal(stray, null);
   const later = await postRequest(e, body({ device: 'ABCDE-FGHJK', machine: MACHINE_B, nonce: 'n-after-race' }));
   assert.equal(later.data.status, 'pending');
 });
