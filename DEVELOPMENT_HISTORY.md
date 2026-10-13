@@ -1,3 +1,7 @@
+## 2026-10-13 — Licence hub: force respects trial locks (PR #33)
+
+- `force` no longer clears `machine_trials`; returns an existing issued code (409 via owner API) instead of signing again. Offline mint records `licence_requests` and uses the same lock checks.
+
 ## 2026-10-13 — Licence hub: concurrent approve idempotency (PR #33)
 
 - `claimAndIssue` uses D1 `changes` on the issue UPDATE: only the winner inserts a customer row; a concurrent loser re-reads the stored code and does not release locks for an already-issued request. `force` returns the stored code when present.

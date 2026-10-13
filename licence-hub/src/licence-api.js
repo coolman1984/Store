@@ -134,6 +134,38 @@ async function locksOwnedByRequest(env, dkey, machineHash, requestId) {
   return true;
 }
 
+/** Licence request that already issued a trial and owns a device or machine lock. */
+async function issuedRequestForLock(env, lockId) {
+  const trialRow = await trialLockRow(env, lockId);
+  if (!trialRow) return null;
+  return env.DB.prepare(
+    "SELECT * FROM licence_requests WHERE id = ? AND status = 'issued' AND code IS NOT NULL",
+  ).bind(trialRow.request_id).first();
+}
+
+export async function findIssuedTrialForLocks(env, dkey, machineHash) {
+  const locks = [deviceLockKey(dkey)];
+  if (machineHash) locks.push(machineLockKey(machineHash));
+  const seen = new Set();
+  for (const lock of locks) {
+    const req = await issuedRequestForLock(env, lock);
+    if (req && !seen.has(req.id)) {
+      seen.add(req.id);
+      return req;
+    }
+  }
+  return null;
+}
+
+function existingTrialResponse(req, forRequestId) {
+  const out = signedFromRow(req);
+  if (req.id !== forRequestId) {
+    out.conflict = true;
+    out.existing_request_id = req.id;
+  }
+  return out;
+}
+
 export async function handleLicence(request, env, url) {
   const ip = request.headers.get('CF-Connecting-IP') || 'local';
   if (await limited(env, 'lic:ip:' + ip, 120)) return json({ error: 'rate' }, 429);
@@ -265,21 +297,13 @@ function signedFromRow(row, signed = null) {
   };
 }
 
-async function clearTrialLocks(env, dkey, machineHash) {
-  await env.DB.prepare('DELETE FROM machine_trials WHERE machine = ?').bind(deviceLockKey(dkey)).run();
-  if (machineHash) await env.DB.prepare('DELETE FROM machine_trials WHERE machine = ?').bind(machineLockKey(machineHash)).run();
-  await env.DB.prepare('DELETE FROM machine_trials WHERE machine = ?').bind(dkey).run();
-}
-
 /** Drop any trial locks this request claimed but did not complete (lost race or failed issue). */
 async function releaseLocksForRequest(env, requestId) {
   await env.DB.prepare('DELETE FROM machine_trials WHERE request_id = ?').bind(requestId).run();
 }
 
 /** @returns {{ outcome: 'won' | 'concurrent' | 'lost' }} */
-async function claimAndIssue(env, requestId, dkey, machineHash, signed, t, force) {
-  if (force) await clearTrialLocks(env, dkey, machineHash);
-
+async function claimAndIssue(env, requestId, dkey, machineHash, signed, t) {
   const locks = [deviceLockKey(dkey)];
   if (machineHash) locks.push(machineLockKey(machineHash));
 
@@ -342,7 +366,12 @@ export async function approveRequest(env, requestId, privateKey, options = {}) {
     row.code = null;
   }
 
-  if (!force && (await trialUsedOnline(env, dkey, machineHash))) {
+  const existingIssued = await findIssuedTrialForLocks(env, dkey, machineHash);
+  if (existingIssued) {
+    return existingTrialResponse(existingIssued, requestId);
+  }
+
+  if (await trialUsedOnline(env, dkey, machineHash)) {
     await refuseRequest(env, requestId, 'already_used');
     return null;
   }
@@ -360,7 +389,7 @@ export async function approveRequest(env, requestId, privateKey, options = {}) {
     throw e;
   }
 
-  const claim = await claimAndIssue(env, requestId, dkey, machineHash, signed, t, force);
+  const claim = await claimAndIssue(env, requestId, dkey, machineHash, signed, t);
 
   if (claim.outcome === 'won') {
     const issued = await env.DB.prepare('SELECT * FROM licence_requests WHERE id = ?').bind(requestId).first();
@@ -380,6 +409,9 @@ export async function approveRequest(env, requestId, privateKey, options = {}) {
     return signedFromRow(issued);
   }
 
+  const afterLoss = await findIssuedTrialForLocks(env, dkey, machineHash);
+  if (afterLoss) return existingTrialResponse(afterLoss, requestId);
+
   return null;
 }
 
@@ -389,9 +421,13 @@ export async function refuseRequest(env, requestId, reason = 'refused') {
 }
 
 export async function issueOfflineCustomer(env, privateKey, device, shop, productId, options = {}) {
-  const force = options.force === true;
   const dkey = deviceKey(device);
-  if (!force && (await trialUsedForDevice(env, dkey))) {
+  const existingIssued = await findIssuedTrialForLocks(env, dkey, null);
+  if (existingIssued) {
+    const out = existingTrialResponse(existingIssued, 'offline');
+    return out;
+  }
+  if (await trialUsedForDevice(env, dkey)) {
     throw new Error('already_used');
   }
   const days = Number(env.TRIAL_DAYS || 14);
@@ -400,18 +436,27 @@ export async function issueOfflineCustomer(env, privateKey, device, shop, produc
   const t = now();
   const requestId = 'offline:' + crypto.randomUUID();
   const lock = deviceLockKey(dkey);
-  if (force) await clearTrialLocks(env, dkey, null);
+  const shopName = shop.slice(0, 60) || '—';
 
-  await env.DB.batch([
+  const stmts = [
     env.DB.prepare('INSERT INTO machine_trials(machine, request_id, at) VALUES(?, ?, ?) ON CONFLICT(machine) DO NOTHING').bind(lock, requestId, t),
-  ]);
-  const claim = await trialLockRow(env, lock);
-  if (!claim || claim.request_id !== requestId) {
+    env.DB.prepare(
+      `INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, code, created_at, updated_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+       WHERE (SELECT COUNT(*) FROM machine_trials WHERE machine = ? AND request_id = ?) = 1
+       AND NOT EXISTS (SELECT 1 FROM licence_requests WHERE device_key = ? AND status = 'issued' AND code IS NOT NULL)`,
+    ).bind(requestId, 'offline', productId, 'trial', device, dkey, '', 'offline', shopName, '', '', 'issued', signed.code, t, t, lock, requestId, dkey),
+  ];
+  const results = await env.DB.batch(stmts);
+  const issuedChanges = results[1]?.meta?.changes ?? 0;
+  if (issuedChanges === 0) {
+    const again = await findIssuedTrialForLocks(env, dkey, null);
+    if (again) return existingTrialResponse(again, 'offline');
     throw new Error('already_used');
   }
   await env.DB.prepare(
     'INSERT INTO customers(id, shop, device, kind, serial, first_day, last_day, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
-  ).bind(crypto.randomUUID(), shop.slice(0, 60) || '—', signed.device, 'trial', signed.serial, signed.first_day, signed.last_day, t).run();
+  ).bind(crypto.randomUUID(), shopName, signed.device, 'trial', signed.serial, signed.first_day, signed.last_day, t).run();
   return signed;
 }
 

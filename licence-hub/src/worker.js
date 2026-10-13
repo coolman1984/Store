@@ -76,6 +76,9 @@ async function ownerApi(request, env, url, session) {
       if (signed.refused) {
         return json({ error: signed.reason || REASON_PAID_IN_STUDIO, message: 'paid_in_studio' }, 400);
       }
+      if (signed.conflict) {
+        return json({ error: 'already_used', code: signed.code, request_id: signed.existing_request_id }, 409);
+      }
       return json({ ok: true, code: signed.code });
     } catch (e) {
       if (e?.message === 'bad_device_code') return json({ error: 'bad_device', message: e.message }, 400);
@@ -94,6 +97,9 @@ async function ownerApi(request, env, url, session) {
     try {
       const product = String(env.LICENCE_PRODUCTS || 'al-store').split(',')[0].trim() || 'al-store';
       const signed = await issueOfflineCustomer(env, key, device, shop, product, { force: body.force === true });
+      if (signed.conflict) {
+        return json({ error: 'already_used', code: signed.code, request_id: signed.existing_request_id }, 409);
+      }
       return json({ ok: true, code: signed.code, device: signed.device });
     } catch (e) {
       if (e?.message === 'already_used') return json({ error: 'already_used' }, 400);
