@@ -131,7 +131,7 @@ class CoreJourney(Browser):
         self.assertEqual(self.errors, [])
 
     def test_receipt_and_labels_carry_barcodes(self):
-        pg = self.open('manager')
+        pg = self.open('owner')  # settings.edit is owner-only; manager gets 403 on /api/settings/save
         pg.add_init_script("""window.print = () => {
           const el = document.getElementById('print-area');
           window.__printMeta = {
@@ -159,14 +159,18 @@ class CoreJourney(Browser):
         self.assertAlmostEqual(float(meta['width'].rstrip('px')), 72 * 96 / 25.4, delta=2)  # 72 mm content on 80 mm paper
         receipt = pg.evaluate('window.__printed')
         self.assertIn('class="barcode"', receipt)  # the receipt number is a real Code 128 barcode now
-        pg.evaluate("""async () => {
-          await fetch('/api/settings/save', {method: 'POST', credentials: 'include',
+        saved = pg.evaluate("""async () => {
+          const res = await fetch('/api/settings/save', {method: 'POST', credentials: 'include',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({settings: {receipt_width: '58'}})});
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error('settings save failed: ' + res.status + ' ' + JSON.stringify(body));
           const { S } = await import('/js/app.js');
           S.lookups = await fetch('/api/lookups', {credentials: 'include'}).then((r) => r.json());
           window.__printMeta = null; window.__printed = null;
+          return body.receipt_width;
         }""")
+        self.assertEqual(saved, '58')
         pg.evaluate("(id) => import('/js/print.js').then((m) => fetch('/api/sale?id=' + id).then((r) => r.json()).then((sale) => m.printReceipt(sale)))",
                     sale_id)
         meta58 = self.until(pg, 'window.__printMeta')
