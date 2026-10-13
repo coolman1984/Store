@@ -47,6 +47,25 @@ function body(over = {}) {
   };
 }
 
+/** Two concurrent approves on the same device: one row issued, one refused; same code; one fresh + one conflict. */
+async function assertExactlyOneConcurrentIssue(e, idA, idB, signedA, signedB) {
+  assert.ok(signedA?.code, 'response A missing code');
+  assert.ok(signedB?.code, 'response B missing code');
+  assert.equal(signedA.code, signedB.code);
+  const rowA = await e.DB.prepare('SELECT status, code FROM licence_requests WHERE id = ?').bind(idA).first();
+  const rowB = await e.DB.prepare('SELECT status, code FROM licence_requests WHERE id = ?').bind(idB).first();
+  const aIssued = rowA.status === 'issued' && Boolean(rowA.code);
+  const bIssued = rowB.status === 'issued' && Boolean(rowB.code);
+  assert.equal((aIssued ? 1 : 0) + (bIssued ? 1 : 0), 1, 'exactly one request row is issued');
+  assert.equal([signedA, signedB].filter((s) => s?.code && !s?.conflict).length, 1, 'one fresh issue response');
+  assert.equal([signedA, signedB].filter((s) => s?.conflict).length, 1, 'one conflict response');
+  if (aIssued) {
+    assert.equal(rowB.status, 'refused');
+  } else {
+    assert.equal(rowA.status, 'refused');
+  }
+}
+
 async function postRequest(e, payload) {
   const req = new Request('https://hub.test/licence/request', {
     method: 'POST',
@@ -99,13 +118,7 @@ test('only one trial wins on concurrent approval for the same device', async () 
     'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   ).bind('b', 'h2', 'al-store', 'trial', device, dkey, MACHINE_B, 'n2', '', '', '', 'pending', t, t).run();
   const [signedA, signedB] = await Promise.all([approveRequest(e, 'a', key), approveRequest(e, 'b', key)]);
-  assert.ok(signedA?.code);
-  assert.ok(signedB?.code);
-  assert.equal(signedA.code, signedB.code);
-  const fresh = [signedA, signedB].filter((s) => s?.code && !s?.conflict);
-  assert.equal(fresh.length, 1);
-  const rowA = await e.DB.prepare('SELECT status FROM licence_requests WHERE id = ?').bind('a').first();
-  assert.equal(rowA.status, 'issued');
+  await assertExactlyOneConcurrentIssue(e, 'a', 'b', signedA, signedB);
 });
 
 test('second online trial for same machine hash is refused after install_id wipe (new device code)', async () => {
@@ -230,9 +243,7 @@ test('concurrent force approve on two pending same device yields one customer', 
     approveRequest(e, 'fc-a', key, { force: true }),
     approveRequest(e, 'fc-b', key, { force: true }),
   ]);
-  assert.ok(a?.code);
-  assert.ok(b?.code);
-  assert.equal(a.code, b.code);
+  await assertExactlyOneConcurrentIssue(e, 'fc-a', 'fc-b', a, b);
   const customers = await e.DB.prepare('SELECT id FROM customers').bind().all();
   assert.equal(customers.results.length, 1);
 });
@@ -294,6 +305,10 @@ test('concurrent approve on one request yields one code and one customer', async
   assert.ok(a?.code);
   assert.ok(b?.code);
   assert.equal(a.code, b.code);
+  const row = await e.DB.prepare('SELECT status, code FROM licence_requests WHERE id = ?').bind(data.id).first();
+  assert.equal(row.status, 'issued');
+  assert.ok(row.code);
+  assert.equal(a.code, row.code);
   const customers = await e.DB.prepare('SELECT id FROM customers').bind().all();
   assert.equal(customers.results.length, 1);
 });

@@ -1,3 +1,7 @@
+## 2026-10-13 — Licence hub: concurrent approve tests without winner bias (PR #33)
+
+- Shared `assertExactlyOneConcurrentIssue` for same-device races (either request may win).
+
 ## 2026-10-13 — Licence hub: deterministic race test + package-lock (PR #33)
 
 - Concurrent machine-lock test branches on which request actually issued; added `licence-hub/package-lock.json` for `npm ci`.
