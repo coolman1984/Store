@@ -40,6 +40,8 @@ openssl pkey -in trial-hub.pem -pubout -outform DER | tail -c 32 | base64 -w0
 
 The shop checks every code on the PC with the public keys in `licence_keys.txt`, so a broken or hostile relay cannot invent a paid licence.
 
+While the shop polls the relay (or calls public `GET /licence/clock` once per program run), the hub's `calendar_day` / `serverTime` is stored in the shop database (`licence_trusted_date` in `meta`). A local date before that is treated like a clock rollback; a hub date past the signed last day (plus grace) locks paid actions even if the PC clock lies. If the network is down, nothing new is written and the shop keeps working on the signed code and the local clock only (never-online edge case).
+
 ## Register the product (owner, once)
 
 1. **Licence hub** (`licence-hub/`): deploy the Worker with `LICENCE_PRODUCTS` including `al-store` (`wrangler.toml` vars). Set `LICENCE_SIGNING_KEY` (trial-only). Owner login secrets (`SESSION_SECRET`, `OWNER_PASSWORD_HASH`) and optional `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`.

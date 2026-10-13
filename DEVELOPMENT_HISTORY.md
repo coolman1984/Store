@@ -1,3 +1,13 @@
+## 2026-10-13 — Hub clock after activation (PR #34 follow-up)
+
+- Rebased on PR #33 (`6c23960`). `GET /licence/clock`; `trial.sync_hub_clock` once per program run (fail-open offline). Hub expiry wins over `clock_back` when the subscription ended on hub time. Tests: `HubClockAfterActivationTests`.
+
+## 2026-10-13 — Simple subscription protection (Teachers PR #35 standard on Store)
+
+**Why:** frozen PC dates and hub calendar must end a paid month without runtime counters that could hurt honest offline shops.
+**What:** `server/licence.py` — `note_online`, `probe_http_date`, `licence_trusted_date` in `meta`, hub billing day on top of signed `last_day` (never extended in code), clock rollback unchanged (`max_seen` + 24h slack). `server/trial.py` records hub time on every successful status poll. Hub status JSON adds `serverTime` alias. Tests: `tests/test_licence_online.py`. Docs: `docs/HUB_SETUP.md`.
+**Lesson:** offline-first shops are fail-open on network errors; online polls tighten dates only.
+
 ## 2026-10-13 — Licence hub: concurrent approve tests without winner bias (PR #33)
 
 - Shared `assertExactlyOneConcurrentIssue` for same-device races (either request may win).

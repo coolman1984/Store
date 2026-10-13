@@ -22,6 +22,7 @@ class FakeRelay:
         self.delay = 0          # seconds every answer waits: a slow relay
         self.fail_status = None  # e.g. 503: every status look gets this answer (the relay is in trouble)
         self.auto = None        # a function(request) -> ('issue', code) | ('refuse', reason) | None, answered at once
+        self.clock_day = None   # YYYY-MM-DD for GET /licence/clock (hub calendar)
         relay = self
 
         class H(BaseHTTPRequestHandler):
@@ -62,9 +63,15 @@ class FakeRelay:
                     if not r:
                         return self.send(401, {'error': 'unauthorised'})
                     out = {'status': r['status'], 'reason': r['reason'], **({'stage': r['stage']} if r.get('stage') and r['status'] == 'pending' else {})}
+                    if r.get('calendar_day'):
+                        out['calendar_day'] = r['calendar_day']
+                        out['serverTime'] = r['calendar_day']
                     if r['status'] == 'issued':
                         out['code'] = r['code']
                     return self.send(200, out)
+                if self.path == '/licence/clock':
+                    day = relay.clock_day or time.strftime('%Y-%m-%d', time.gmtime())
+                    return self.send(200, {'calendar_day': day, 'serverTime': day})
                 self.send(404, {})
 
         self.httpd = Quiet(('127.0.0.1', port), H)
