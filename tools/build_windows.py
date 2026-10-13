@@ -8,6 +8,7 @@ to the program), put the web pages and the vendor's public keys beside it, then 
     python tools/build_windows.py --customer shop installer: needs a vendor public key and https relay (files or env); see --check --customer
 """
 import glob
+import ipaddress
 import os
 import re
 import shutil
@@ -29,9 +30,10 @@ SHIPPED = ('server/app.py', 'web/index.html', 'web/js/app.js', 'web/css/tokens.c
 DATA_DIRS = (('web', 'web'), ('guide', 'guide'))
 
 PUBLIC_KEY_LINE = re.compile(r'^(?:[A-Za-z0-9_-]+:)?[A-Za-z0-9_-]{43}$')
-RELAY_LABEL = re.compile(r'^[a-z0-9-]{1,30}$')
-MAX_RELAY_HOST_LABELS = 4
-MAX_RELAY_LABEL_MIXED_LEN = 20
+# Host must end with one of these suffixes (add the owner's production domain here).
+ALLOWED_RELAY_HOST_SUFFIXES = ('.workers.dev', '.example.com')
+MAX_RELAY_SUBDOMAIN_WORD = 12
+MAX_RELAY_SUBDOMAIN_DIGITS = 4
 # Exact paths permitted after https://<host> (customer relay URLs only).
 ALLOWED_RELAY_PATHS = frozenset(('', '/api', '/licence-hub'))
 RELAY_SECRET_WORDS = re.compile(r'(?i)token|secret|key|pass')
@@ -61,19 +63,62 @@ def validate_public_key_line(line):
         raise CustomerLicenceError('only a 32-byte Ed25519 public key may be listed')
 
 
+def _relay_host_is_ip_literal(host):
+    probe = host
+    if probe.startswith('[') and probe.endswith(']'):
+        probe = probe[1:-1]
+    try:
+        ipaddress.ip_address(probe)
+        return True
+    except ValueError:
+        return False
+
+
+def _relay_subdomain_word_ok(word):
+    if not word or len(word) > MAX_RELAY_SUBDOMAIN_WORD:
+        return False
+    if re.fullmatch(r'[a-z]+', word):
+        return True
+    m = re.fullmatch(r'([a-z]+)([0-9]{1,%d})' % MAX_RELAY_SUBDOMAIN_DIGITS, word)
+    return bool(m) and len(m.group(1)) + len(m.group(2)) <= MAX_RELAY_SUBDOMAIN_WORD
+
+
+def _relay_host_suffix(host):
+    for suffix in sorted(ALLOWED_RELAY_HOST_SUFFIXES, key=len, reverse=True):
+        if host.endswith(suffix) and len(host) > len(suffix):
+            return suffix
+    return None
+
+
+def _validate_relay_label(label):
+    if not label or label != label.lower():
+        raise CustomerLicenceError('relay host labels must be lowercase')
+    if label.startswith('xn--'):
+        raise CustomerLicenceError('relay host must not use punycode labels')
+    if label.startswith('-') or label.endswith('-') or '--' in label:
+        raise CustomerLicenceError('relay host labels must not start or end with a hyphen or contain two hyphens in a row')
+    if not re.fullmatch(r'[a-z0-9-]+', label):
+        raise CustomerLicenceError('relay host labels may contain only lowercase letters, digits and hyphens')
+
+
 def _validate_relay_host(host):
     if not host or host != host.lower():
         raise CustomerLicenceError('the relay host must use lowercase labels only')
+    if _relay_host_is_ip_literal(host):
+        raise CustomerLicenceError('the relay host must not be an IP address')
+    if not _relay_host_suffix(host):
+        raise CustomerLicenceError('the relay host must end with an allowed company domain suffix')
     labels = host.split('.')
-    if len(labels) > MAX_RELAY_HOST_LABELS:
-        raise CustomerLicenceError('the relay host may have at most four labels')
     for label in labels:
-        if not label or not RELAY_LABEL.fullmatch(label):
-            raise CustomerLicenceError('each relay host label must be 1–30 lowercase letters, digits or hyphens')
-        has_letter = any(c.isalpha() for c in label)
-        has_digit = any(c.isdigit() for c in label)
-        if len(label) > MAX_RELAY_LABEL_MIXED_LEN and has_letter and has_digit:
-            raise CustomerLicenceError('a relay host label with mixed letters and digits may not exceed 20 characters')
+        _validate_relay_label(label)
+    leftmost = labels[0]
+    for word in leftmost.split('-'):
+        if not word:
+            raise CustomerLicenceError('the relay subdomain must be lowercase words separated by single hyphens')
+        if not _relay_subdomain_word_ok(word):
+            raise CustomerLicenceError(
+                'the relay subdomain must be short lowercase words (letters only, or letters with up to four digits at the end)'
+            )
 
 
 def validate_relay_line(line):

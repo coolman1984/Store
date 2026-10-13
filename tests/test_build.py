@@ -150,11 +150,28 @@ class CustomerRelease(unittest.TestCase):
             with self.assertRaises(build_windows.CustomerLicenceError, msg=url):
                 build_windows.validate_relay_line(url)
 
+    def test_relay_host_rejects_ip_literals_punycode_hyphen_tricks_and_bad_suffix(self):
+        reject = (
+            ('https://192.168.1.10', 'ipv4'),
+            ('https://[2001:db8::1]', 'ipv6'),
+            ('https://-relay.example.com', 'leading hyphen'),
+            ('https://relay-.example.com', 'trailing hyphen'),
+            ('https://re--lay.example.com', 'double hyphen'),
+            ('https://xn--badlabel.example.com', 'punycode'),
+            ('https://relay.notallowed.com', 'suffix'),
+            ('https://eyjhbccioijiuzi1nij9.example.com', 'jwt-like subdomain'),
+        )
+        for url, _why in reject:
+            with self.assertRaises(build_windows.CustomerLicenceError, msg=url):
+                build_windows.validate_relay_line(url)
+
     def test_relay_strict_allowlist_accepts_configured_paths(self):
         for url in (
             self.SAMPLE_RELAY,
             self.SAMPLE_RELAY + '/licence-hub',
             self.SAMPLE_RELAY + '/api',
+            'https://licence-hub.workers.dev',
+            'https://al-store-relay2.workers.dev',
         ):
             build_windows.validate_relay_line(url)
 
