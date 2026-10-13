@@ -121,6 +121,7 @@ jobs:
         env:
           STORE_RELEASE_PUBLIC_KEY: ${{ secrets.STORE_RELEASE_PUBLIC_KEY }}
           STORE_RELEASE_RELAY_URL: ${{ secrets.STORE_RELEASE_RELAY_URL }}
+          STORE_RELEASE_ALLOWED_RELAY_HOSTS: ${{ secrets.STORE_RELEASE_ALLOWED_RELAY_HOSTS }}
         run: python tools/build_windows.py --check --customer
       - name: Build tools
         if: steps.gate.outputs.configured == 'true'
@@ -133,6 +134,7 @@ jobs:
         env:
           STORE_RELEASE_PUBLIC_KEY: ${{ secrets.STORE_RELEASE_PUBLIC_KEY }}
           STORE_RELEASE_RELAY_URL: ${{ secrets.STORE_RELEASE_RELAY_URL }}
+          STORE_RELEASE_ALLOWED_RELAY_HOSTS: ${{ secrets.STORE_RELEASE_ALLOWED_RELAY_HOSTS }}
         run: python tools/build_windows.py --customer
       - name: Release proof (customer build; relay host only)
         if: steps.gate.outputs.configured == 'true'
@@ -140,6 +142,7 @@ jobs:
         env:
           STORE_RELEASE_PUBLIC_KEY: ${{ secrets.STORE_RELEASE_PUBLIC_KEY }}
           STORE_RELEASE_RELAY_URL: ${{ secrets.STORE_RELEASE_RELAY_URL }}
+          STORE_RELEASE_ALLOWED_RELAY_HOSTS: ${{ secrets.STORE_RELEASE_ALLOWED_RELAY_HOSTS }}
         run: |
           $setup = Get-ChildItem dist/Al-Store-Setup-*.exe | Select-Object -First 1
           $hash = (Get-FileHash $setup.FullName -Algorithm SHA256).Hash.ToLower()

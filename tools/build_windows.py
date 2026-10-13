@@ -30,10 +30,7 @@ SHIPPED = ('server/app.py', 'web/index.html', 'web/js/app.js', 'web/css/tokens.c
 DATA_DIRS = (('web', 'web'), ('guide', 'guide'))
 
 PUBLIC_KEY_LINE = re.compile(r'^(?:[A-Za-z0-9_-]+:)?[A-Za-z0-9_-]{43}$')
-# Host must end with one of these suffixes (add the owner's production domain here).
-ALLOWED_RELAY_HOST_SUFFIXES = ('.workers.dev', '.example.com')
-MAX_RELAY_SUBDOMAIN_WORD = 12
-MAX_RELAY_SUBDOMAIN_DIGITS = 4
+RELAY_HOSTS_ALLOWED_FILE = os.path.join(ROOT, 'tools', 'relay_hosts_allowed.txt')
 # Exact paths permitted after https://<host> (customer relay URLs only).
 ALLOWED_RELAY_PATHS = frozenset(('', '/api', '/licence-hub'))
 RELAY_SECRET_WORDS = re.compile(r'(?i)token|secret|key|pass')
@@ -63,6 +60,24 @@ def validate_public_key_line(line):
         raise CustomerLicenceError('only a 32-byte Ed25519 public key may be listed')
 
 
+def allowed_relay_hosts(root=ROOT):
+    """Hostnames permitted for STORE_RELEASE_RELAY_URL / licence_relay.txt in customer builds."""
+    hosts = set()
+    path = os.path.join(root, os.path.relpath(RELAY_HOSTS_ALLOWED_FILE, ROOT))
+    if os.path.isfile(path):
+        for line in open(path, encoding='utf-8'):
+            bit = line.split('#', 1)[0].strip().lower()
+            if bit:
+                hosts.add(bit)
+    extra = os.environ.get('STORE_RELEASE_ALLOWED_RELAY_HOSTS', '').strip()
+    if extra:
+        for part in re.split(r'[\s,]+', extra):
+            part = part.strip().lower()
+            if part:
+                hosts.add(part)
+    return hosts
+
+
 def _relay_host_is_ip_literal(host):
     probe = host
     if probe.startswith('[') and probe.endswith(']'):
@@ -74,54 +89,16 @@ def _relay_host_is_ip_literal(host):
         return False
 
 
-def _relay_subdomain_word_ok(word):
-    if not word or len(word) > MAX_RELAY_SUBDOMAIN_WORD:
-        return False
-    if re.fullmatch(r'[a-z]+', word):
-        return True
-    m = re.fullmatch(r'([a-z]+)([0-9]{1,%d})' % MAX_RELAY_SUBDOMAIN_DIGITS, word)
-    return bool(m) and len(m.group(1)) + len(m.group(2)) <= MAX_RELAY_SUBDOMAIN_WORD
-
-
-def _relay_host_suffix(host):
-    for suffix in sorted(ALLOWED_RELAY_HOST_SUFFIXES, key=len, reverse=True):
-        if host.endswith(suffix) and len(host) > len(suffix):
-            return suffix
-    return None
-
-
-def _validate_relay_label(label):
-    if not label or label != label.lower():
-        raise CustomerLicenceError('relay host labels must be lowercase')
-    if label.startswith('xn--'):
-        raise CustomerLicenceError('relay host must not use punycode labels')
-    if label.startswith('-') or label.endswith('-') or '--' in label:
-        raise CustomerLicenceError('relay host labels must not start or end with a hyphen or contain two hyphens in a row')
-    if not re.fullmatch(r'[a-z0-9-]+', label):
-        raise CustomerLicenceError('relay host labels may contain only lowercase letters, digits and hyphens')
-
-
-def _validate_relay_host(host):
+def _validate_relay_host(host, allowed):
     if not host or host != host.lower():
-        raise CustomerLicenceError('the relay host must use lowercase labels only')
+        raise CustomerLicenceError('the relay host must be lowercase')
     if _relay_host_is_ip_literal(host):
         raise CustomerLicenceError('the relay host must not be an IP address')
-    if not _relay_host_suffix(host):
-        raise CustomerLicenceError('the relay host must end with an allowed company domain suffix')
-    labels = host.split('.')
-    for label in labels:
-        _validate_relay_label(label)
-    leftmost = labels[0]
-    for word in leftmost.split('-'):
-        if not word:
-            raise CustomerLicenceError('the relay subdomain must be lowercase words separated by single hyphens')
-        if not _relay_subdomain_word_ok(word):
-            raise CustomerLicenceError(
-                'the relay subdomain must be short lowercase words (letters only, or letters with up to four digits at the end)'
-            )
+    if host not in allowed:
+        raise CustomerLicenceError('the relay host is not on the allowed list (tools/relay_hosts_allowed.txt or STORE_RELEASE_ALLOWED_RELAY_HOSTS)')
 
 
-def validate_relay_line(line):
+def validate_relay_line(line, allowed=None):
     line = line.strip()
     if not line.startswith('https://'):
         raise CustomerLicenceError('the relay address must start with https://')
@@ -142,7 +119,7 @@ def validate_relay_line(line):
         path = ''
     if path not in ALLOWED_RELAY_PATHS:
         raise CustomerLicenceError('the relay path is not on the allowed list')
-    _validate_relay_host(host)
+    _validate_relay_host(host, allowed if allowed is not None else allowed_relay_hosts())
     canonical = 'https://' + host + path
     if line != canonical:
         raise CustomerLicenceError('the relay address must be exactly https://<host> with an allowed path only')

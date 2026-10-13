@@ -72,12 +72,18 @@ class Manifest(unittest.TestCase):
 
 class CustomerRelease(unittest.TestCase):
     SAMPLE_KEY = 'trial-release:' + ('A' * 43)
-    SAMPLE_RELAY = 'https://relay.example.com'
+    SAMPLE_HOST = 'relay.test.invalid'
+    SAMPLE_RELAY = 'https://' + SAMPLE_HOST
 
     def _env_without_release_secrets(self, **extra):
-        env = {k: v for k, v in os.environ.items() if k not in ('STORE_RELEASE_PUBLIC_KEY', 'STORE_RELEASE_RELAY_URL')}
+        env = {k: v for k, v in os.environ.items()
+               if k not in ('STORE_RELEASE_PUBLIC_KEY', 'STORE_RELEASE_RELAY_URL', 'STORE_RELEASE_ALLOWED_RELAY_HOSTS')}
+        env.setdefault('STORE_RELEASE_ALLOWED_RELAY_HOSTS', self.SAMPLE_HOST)
         env.update(extra)
         return env
+
+    def _allowed_hosts(self, *hosts):
+        return {h.lower() for h in hosts}
 
     def _run_customer_check(self, **env_extra):
         return subprocess.run(
@@ -90,6 +96,11 @@ class CustomerRelease(unittest.TestCase):
         r = subprocess.run([sys.executable, 'tools/build_windows.py', '--check'], cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn(build_windows.VERSION, r.stdout)
+
+    def test_shipped_relay_hosts_file_lists_no_active_hostnames(self):
+        cleaned = {k: v for k, v in os.environ.items() if k != 'STORE_RELEASE_ALLOWED_RELAY_HOSTS'}
+        with mock.patch.dict(os.environ, cleaned, clear=True):
+            self.assertEqual(build_windows.allowed_relay_hosts(), set())
 
     def test_customer_check_accepts_a_public_key_and_https_relay(self):
         with tempfile.TemporaryDirectory(prefix='store-customer-') as tmp:
@@ -106,74 +117,72 @@ class CustomerRelease(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_customer_check_exits_nonzero_for_empty_templates_without_release_env(self):
-        r = self._run_customer_check()
+        env = self._env_without_release_secrets(STORE_RELEASE_ALLOWED_RELAY_HOSTS=self.SAMPLE_HOST)
+        env.pop('STORE_RELEASE_PUBLIC_KEY', None)
+        env.pop('STORE_RELEASE_RELAY_URL', None)
+        r = subprocess.run(
+            [sys.executable, 'tools/build_windows.py', '--check', '--customer'],
+            cwd=ROOT, capture_output=True, text=True, env=env,
+        )
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_customer_check_exits_nonzero_when_only_one_release_secret_is_set(self):
-        r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY)
+        r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
+                                     STORE_RELEASE_ALLOWED_RELAY_HOSTS=self.SAMPLE_HOST)
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
-        r = self._run_customer_check(STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY)
+        r = self._run_customer_check(STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY,
+                                     STORE_RELEASE_ALLOWED_RELAY_HOSTS=self.SAMPLE_HOST)
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_customer_check_exits_nonzero_for_http_relay_in_release_env(self):
         r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
-                                     STORE_RELEASE_RELAY_URL='http://relay.example.com')
+                                     STORE_RELEASE_RELAY_URL='http://' + self.SAMPLE_HOST,
+                                     STORE_RELEASE_ALLOWED_RELAY_HOSTS=self.SAMPLE_HOST)
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_customer_check_reads_release_environment_variables(self):
-        env = {k: v for k, v in os.environ.items() if k not in ('STORE_RELEASE_PUBLIC_KEY', 'STORE_RELEASE_RELAY_URL')}
-        env['STORE_RELEASE_PUBLIC_KEY'] = self.SAMPLE_KEY
-        env['STORE_RELEASE_RELAY_URL'] = self.SAMPLE_RELAY
-        with mock.patch.dict(os.environ, env, clear=True):
+        with mock.patch.dict(os.environ, self._env_without_release_secrets(
+            STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
+            STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY,
+        ), clear=True):
             keys, relay = build_windows.resolve_customer_licence()
         self.assertEqual(keys.strip(), self.SAMPLE_KEY)
         self.assertEqual(relay.strip(), self.SAMPLE_RELAY)
 
     def test_customer_check_rejects_bad_inputs(self):
         pem = '-----BEGIN ' + 'PRIVATE KEY-----'
+        allowed = self._allowed_hosts(self.SAMPLE_HOST)
         with self.assertRaises(build_windows.CustomerLicenceError):
             build_windows.validate_public_key_line(pem)
         with self.assertRaises(build_windows.CustomerLicenceError):
-            build_windows.validate_relay_line('http://relay.example.com')
+            build_windows.validate_relay_line('http://' + self.SAMPLE_HOST, allowed=allowed)
         with self.assertRaises(build_windows.CustomerLicenceError):
-            build_windows.validate_relay_line(self.SAMPLE_RELAY + '?token=abc')
-    def test_relay_strict_allowlist_rejects_review_cases(self):
+            build_windows.validate_relay_line(self.SAMPLE_RELAY + '?token=abc', allowed=allowed)
+
+    def test_relay_exact_host_allowlist_rejects_paths_and_unlisted_hosts(self):
+        allowed = self._allowed_hosts(self.SAMPLE_HOST)
         reject = (
-            'https://relay.example.com/eyjhbgci-oijiuzi1nij9',
-            'https://relay.example.com/eyjh-bgci/payl-oad/sig-ab12',
-            'https://relay.example.com/' + ('a' * 16),
-            'https://eyjhbccioijiuzi1nij9.payload.sig.relay.example.com',
-            'https://relay.example.com/eyJhbGciOiJIUzI1NiJ9.payload.sig',
+            self.SAMPLE_RELAY + '/eyjhbgci-oijiuzi1nij9',
+            self.SAMPLE_RELAY + '/eyjh-bgci/payl-oad/sig-ab12',
+            self.SAMPLE_RELAY + '/' + ('a' * 16),
             self.SAMPLE_RELAY + '/not-allowed',
+            'https://shop.eyjhbccioijiuzi1nij9.workers.dev',
+            'https://eyjh-bgci-oiji-uzi1.workers.dev',
+            'https://192.168.1.10',
+            'https://[2001:db8::1]',
         )
         for url in reject:
             with self.assertRaises(build_windows.CustomerLicenceError, msg=url):
-                build_windows.validate_relay_line(url)
+                build_windows.validate_relay_line(url, allowed=allowed)
 
-    def test_relay_host_rejects_ip_literals_punycode_hyphen_tricks_and_bad_suffix(self):
-        reject = (
-            ('https://192.168.1.10', 'ipv4'),
-            ('https://[2001:db8::1]', 'ipv6'),
-            ('https://-relay.example.com', 'leading hyphen'),
-            ('https://relay-.example.com', 'trailing hyphen'),
-            ('https://re--lay.example.com', 'double hyphen'),
-            ('https://xn--badlabel.example.com', 'punycode'),
-            ('https://relay.notallowed.com', 'suffix'),
-            ('https://eyjhbccioijiuzi1nij9.example.com', 'jwt-like subdomain'),
-        )
-        for url, _why in reject:
-            with self.assertRaises(build_windows.CustomerLicenceError, msg=url):
-                build_windows.validate_relay_line(url)
-
-    def test_relay_strict_allowlist_accepts_configured_paths(self):
-        for url in (
-            self.SAMPLE_RELAY,
-            self.SAMPLE_RELAY + '/licence-hub',
-            self.SAMPLE_RELAY + '/api',
-            'https://licence-hub.workers.dev',
-            'https://al-store-relay2.workers.dev',
-        ):
-            build_windows.validate_relay_line(url)
+    def test_relay_exact_host_allowlist_accepts_only_listed_host_and_paths(self):
+        allowed = self._allowed_hosts(self.SAMPLE_HOST)
+        for url in (self.SAMPLE_RELAY, self.SAMPLE_RELAY + '/licence-hub', self.SAMPLE_RELAY + '/api'):
+            build_windows.validate_relay_line(url, allowed=allowed)
+        other = self._allowed_hosts('licence-hub.workers.dev')
+        build_windows.validate_relay_line('https://licence-hub.workers.dev', allowed=other)
+        with self.assertRaises(build_windows.CustomerLicenceError):
+            build_windows.validate_relay_line(self.SAMPLE_RELAY, allowed=other)
 
     def test_release_proof_customer_cli_uses_validated_relay(self):
         env = self._env_without_release_secrets(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
@@ -185,8 +194,7 @@ class CustomerRelease(unittest.TestCase):
                          list(build_windows.release_proof_licence_lines(True, self.SAMPLE_RELAY)))
 
     def test_customer_mode_refuses_template_files_in_the_repo(self):
-        env = {k: v for k, v in os.environ.items() if k not in ('STORE_RELEASE_PUBLIC_KEY', 'STORE_RELEASE_RELAY_URL')}
-        with mock.patch.dict(os.environ, env, clear=True):
+        with mock.patch.dict(os.environ, self._env_without_release_secrets(), clear=True):
             with self.assertRaises(build_windows.CustomerLicenceError):
                 build_windows.resolve_customer_licence(ROOT)
 
@@ -194,7 +202,7 @@ class CustomerRelease(unittest.TestCase):
         self.assertEqual(build_windows.release_proof_licence_lines(False), ('customer_licence: no',))
         lines = build_windows.release_proof_licence_lines(True, self.SAMPLE_RELAY)
         self.assertEqual(lines[0], 'customer_licence: yes')
-        self.assertEqual(lines[1], 'relay_host: relay.example.com')
+        self.assertEqual(lines[1], 'relay_host: ' + self.SAMPLE_HOST)
 
 
 if __name__ == '__main__':
