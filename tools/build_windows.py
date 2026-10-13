@@ -30,9 +30,9 @@ DATA_DIRS = (('web', 'web'), ('guide', 'guide'))
 
 PUBLIC_KEY_LINE = re.compile(r'^(?:[A-Za-z0-9_-]+:)?[A-Za-z0-9_-]{43}$')
 RELAY_HOST = re.compile(r'^[A-Za-z0-9.-]+$')
-RELAY_PATH_SEGMENT = re.compile(r'^[A-Za-z0-9._~-]{1,48}$')
+RELAY_PATH_WORD = re.compile(r'^[a-z0-9-]{1,24}$')
+MAX_RELAY_PATH_SEGMENTS = 3
 RELAY_SECRET_WORDS = re.compile(r'(?i)token|secret|key|pass')
-RELAY_OPAQUE_SEGMENT = re.compile(r'^[A-Za-z0-9_-]{40,}$')
 
 
 class CustomerLicenceError(ValueError):
@@ -59,6 +59,17 @@ def validate_public_key_line(line):
         raise CustomerLicenceError('only a 32-byte Ed25519 public key may be listed')
 
 
+def _relay_path_segment_opaque(seg):
+    """Reject long opaque or base64/JWT-like path pieces (allowlist is lowercase words only)."""
+    if len(seg) > 16 and re.search(r'[A-Z]', seg) and re.search(r'[0-9]', seg):
+        return True
+    if len(seg) > 16 and re.fullmatch(r'[a-z0-9]+', seg) and any(c.isdigit() for c in seg):
+        return True
+    if len(seg) > 16 and re.fullmatch(r'[a-z]+', seg):
+        return True
+    return False
+
+
 def validate_relay_line(line):
     line = line.strip()
     if not line.startswith('https://'):
@@ -83,14 +94,20 @@ def validate_relay_line(line):
     if path:
         if not path.startswith('/'):
             raise CustomerLicenceError('the relay path must start with /')
+        if '.' in path:
+            raise CustomerLicenceError('the relay path must not contain dots')
         segments = path.split('/')[1:]
+        if any(not seg for seg in segments):
+            raise CustomerLicenceError('the relay path must not contain empty segments')
+        if len(segments) > MAX_RELAY_PATH_SEGMENTS:
+            raise CustomerLicenceError('the relay path may have at most three segments')
         for seg in segments:
-            if not seg:
-                raise CustomerLicenceError('the relay path must not contain empty segments')
-            if not RELAY_PATH_SEGMENT.fullmatch(seg):
-                raise CustomerLicenceError('each relay path segment must be short and simple (letters, digits, . _ - ~)')
-            if RELAY_OPAQUE_SEGMENT.fullmatch(seg) or (seg.count('.') >= 2 and len(seg) > 32):
-                raise CustomerLicenceError('the relay path must not carry a long opaque segment')
+            if not RELAY_PATH_WORD.fullmatch(seg):
+                raise CustomerLicenceError('each relay path segment must be a short lowercase word (a-z, 0-9, hyphen)')
+            if _relay_path_segment_opaque(seg):
+                raise CustomerLicenceError('the relay path must not carry opaque or token-like segments')
+        if len(segments) > 1 and any('-' not in seg for seg in segments):
+            raise CustomerLicenceError('multi-segment relay paths must use hyphenated word segments')
     canonical = 'https://' + host + (path or '')
     if line.rstrip('/') != canonical.rstrip('/'):
         raise CustomerLicenceError('the relay address must be only scheme, host and a simple path')

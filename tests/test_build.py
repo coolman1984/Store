@@ -93,9 +93,12 @@ class CustomerRelease(unittest.TestCase):
 
     def test_customer_check_accepts_a_public_key_and_https_relay(self):
         with tempfile.TemporaryDirectory(prefix='store-customer-') as tmp:
-            open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8').write(self.SAMPLE_KEY + '\n')
-            open(os.path.join(tmp, 'licence_relay.txt'), 'w', encoding='utf-8').write(self.SAMPLE_RELAY + '\n')
-            keys, relay = build_windows.resolve_customer_licence(tmp)
+            with open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8') as f:
+                f.write(self.SAMPLE_KEY + '\n')
+            with open(os.path.join(tmp, 'licence_relay.txt'), 'w', encoding='utf-8') as f:
+                f.write(self.SAMPLE_RELAY + '\n')
+            with mock.patch.dict(os.environ, self._env_without_release_secrets(), clear=True):
+                keys, relay = build_windows.resolve_customer_licence(tmp)
             self.assertEqual(keys.strip(), self.SAMPLE_KEY)
             self.assertEqual(relay.strip(), self.SAMPLE_RELAY)
         r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
@@ -137,6 +140,19 @@ class CustomerRelease(unittest.TestCase):
         jwtish = 'a' * 50 + '.' + 'b' * 50 + '.' + 'c' * 50
         with self.assertRaises(build_windows.CustomerLicenceError):
             build_windows.validate_relay_line(self.SAMPLE_RELAY + '/' + jwtish)
+
+    def test_relay_path_allowlist_rejects_jwt_opaque_and_split_token_paths(self):
+        reject = (
+            'https://relay.example.com/eyJhbGciOiJIUzI1NiJ9.payload.sig',
+            self.SAMPLE_RELAY + '/' + ('a' * 32),
+            self.SAMPLE_RELAY + '/' + ('a' * 39),
+            'https://relay.example.com/abcd1234/efgh5678/ijkl9012',
+        )
+        for url in reject:
+            with self.assertRaises(build_windows.CustomerLicenceError, msg=url):
+                build_windows.validate_relay_line(url)
+        build_windows.validate_relay_line(self.SAMPLE_RELAY)
+        build_windows.validate_relay_line(self.SAMPLE_RELAY + '/licence-hub')
 
     def test_release_proof_customer_cli_uses_validated_relay(self):
         env = self._env_without_release_secrets(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
