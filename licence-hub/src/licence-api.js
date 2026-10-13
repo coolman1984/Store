@@ -276,6 +276,7 @@ async function releaseLocksForRequest(env, requestId) {
   await env.DB.prepare('DELETE FROM machine_trials WHERE request_id = ?').bind(requestId).run();
 }
 
+/** @returns {{ outcome: 'won' | 'concurrent' | 'lost' }} */
 async function claimAndIssue(env, requestId, dkey, machineHash, signed, t, force) {
   if (force) await clearTrialLocks(env, dkey, machineHash);
 
@@ -294,16 +295,21 @@ async function claimAndIssue(env, requestId, dkey, machineHash, signed, t, force
        AND (SELECT COUNT(*) FROM machine_trials WHERE machine IN (${lockPlaceholders}) AND request_id = ?) = ?`,
     ).bind('issued', 'approved', ...issueBind),
   );
-  await env.DB.batch(stmts);
+  const results = await env.DB.batch(stmts);
+  const issueChanges = results[results.length - 1]?.meta?.changes ?? 0;
+
+  if (issueChanges > 0) return { outcome: 'won' };
 
   const after = await env.DB.prepare('SELECT code, status FROM licence_requests WHERE id = ?').bind(requestId).first();
-  if (after?.code && after.status === 'issued') return true;
+  if (after?.status === 'issued' && after?.code) {
+    return { outcome: 'concurrent' };
+  }
 
   await releaseLocksForRequest(env, requestId);
   await env.DB.prepare(
-    'UPDATE licence_requests SET status = ?, reason = ?, code = NULL, updated_at = ? WHERE id = ? AND status != ?',
-  ).bind('refused', 'already_used', t, requestId, 'issued').run();
-  return false;
+    'UPDATE licence_requests SET status = ?, reason = ?, code = NULL, updated_at = ? WHERE id = ? AND status NOT IN (?, ?, ?)',
+  ).bind('refused', 'already_used', t, requestId, 'issued', 'delivered', 'refused').run();
+  return { outcome: 'lost' };
 }
 
 export async function approveRequest(env, requestId, privateKey, options = {}) {
@@ -324,9 +330,9 @@ export async function approveRequest(env, requestId, privateKey, options = {}) {
     throw new Error('bad_device_code');
   }
   const machineHash = normalizeMachineHash(row.machine);
-  const priorStatus = row.status;
 
-  if (!force && row.status === 'issued' && row.code) {
+  if (row.status === 'issued' && row.code) {
+    if (force) return signedFromRow(row);
     if (await locksOwnedByRequest(env, dkey, machineHash, requestId)) {
       return signedFromRow(row);
     }
@@ -354,11 +360,10 @@ export async function approveRequest(env, requestId, privateKey, options = {}) {
     throw e;
   }
 
-  const ok = await claimAndIssue(env, requestId, dkey, machineHash, signed, t, force);
-  if (!ok) return null;
+  const claim = await claimAndIssue(env, requestId, dkey, machineHash, signed, t, force);
 
-  const issued = await env.DB.prepare('SELECT * FROM licence_requests WHERE id = ?').bind(requestId).first();
-  if (priorStatus !== 'issued') {
+  if (claim.outcome === 'won') {
+    const issued = await env.DB.prepare('SELECT * FROM licence_requests WHERE id = ?').bind(requestId).first();
     const existing = await env.DB.prepare(
       'SELECT id FROM customers WHERE device = ? AND serial = ? LIMIT 1',
     ).bind(signed.device, signed.serial).first();
@@ -367,8 +372,15 @@ export async function approveRequest(env, requestId, privateKey, options = {}) {
         'INSERT INTO customers(id, shop, device, kind, serial, first_day, last_day, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
       ).bind(crypto.randomUUID(), row.shop || '—', signed.device, row.kind, signed.serial, signed.first_day, signed.last_day, t).run();
     }
+    return signedFromRow(issued, signed);
   }
-  return signedFromRow(issued, signed);
+
+  if (claim.outcome === 'concurrent') {
+    const issued = await env.DB.prepare('SELECT * FROM licence_requests WHERE id = ?').bind(requestId).first();
+    return signedFromRow(issued);
+  }
+
+  return null;
 }
 
 export async function refuseRequest(env, requestId, reason = 'refused') {

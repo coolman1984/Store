@@ -246,6 +246,29 @@ test('approve retry returns the same code', async () => {
   assert.equal(first.code, second.code);
 });
 
+test('concurrent approve on one request yields one code and one customer', async () => {
+  const e = env();
+  const key = await importSigningKey(pemFromSeed(Buffer.alloc(32, 13)));
+  const { data } = await postRequest(e, body({ nonce: 'dbl-conc' }));
+  const [a, b] = await Promise.all([approveRequest(e, data.id, key), approveRequest(e, data.id, key)]);
+  assert.ok(a?.code);
+  assert.ok(b?.code);
+  assert.equal(a.code, b.code);
+  const customers = await e.DB.prepare('SELECT id FROM customers').bind().all();
+  assert.equal(customers.results.length, 1);
+});
+
+test('force with existing issued code returns stored code without extra customer', async () => {
+  const e = env();
+  const key = await importSigningKey(pemFromSeed(Buffer.alloc(32, 14)));
+  const { data } = await postRequest(e, body({ nonce: 'force-stored' }));
+  const first = await approveRequest(e, data.id, key);
+  const forced = await approveRequest(e, data.id, key, { force: true });
+  assert.equal(forced.code, first.code);
+  const customers = await e.DB.prepare('SELECT id FROM customers').bind().all();
+  assert.equal(customers.results.length, 1);
+});
+
 test('approve retry does not add a second customer row', async () => {
   const e = env();
   const key = await importSigningKey(pemFromSeed(Buffer.alloc(32, 8)));

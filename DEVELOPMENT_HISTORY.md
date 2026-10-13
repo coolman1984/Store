@@ -1,3 +1,7 @@
+## 2026-10-13 — Licence hub: concurrent approve idempotency (PR #33)
+
+- `claimAndIssue` uses D1 `changes` on the issue UPDATE: only the winner inserts a customer row; a concurrent loser re-reads the stored code and does not release locks for an already-issued request. `force` returns the stored code when present.
+
 ## 2026-10-13 — Licence hub security fixes round 2 (PR #33 re-review)
 
 - `trial-hub` codes: reject any grace (`trial_key_grace`) or trial span + grace > 14 days; hub approval idempotent (same code, one customer row); losing `claimAndIssue` rolls back `machine_trials` for that request so partial locks do not block the machine forever.
