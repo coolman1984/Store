@@ -7,6 +7,13 @@
 
 # Development history (newest first)
 
+## 2026-10-13 — Customer Windows installer build (`--customer`)
+**Why:** CI builds a tested Setup from empty `licence_keys.txt` / `licence_relay.txt` templates; a shop needs the vendor public key and relay address baked into the program folder at build time, without committing them to git.
+**What changed:** `tools/build_windows.py` adds `--customer` and `--check --customer`, reading `STORE_RELEASE_PUBLIC_KEY` / `STORE_RELEASE_RELAY_URL` or one line in each licence file, validating with the same rules as `tests/test_release.py`, and writing only into `build/app.dist` before Inno Setup. `RELEASE-PROOF.txt` from the main Windows job records `customer_licence: no`; an optional `customer-installer` job builds when both GitHub secrets are set. Docs (`BUILD_AND_RELEASE.md`, `README.md`, `docs/02-product-spec.md`) and `tests/test_build.py` extended.
+**Review follow-up:** customer job fails (not skips) when only one release secret is set; stricter relay URL (no userinfo/query/fragment/custom port; short simple path segments only); `verify_customer_licence_in_dist` after write; `--release-proof-customer` feeds `release_proof_licence_lines` from validated inputs; subprocess tests for `--check --customer` with a clean `STORE_RELEASE_*` environment.
+**Relay allowlist:** exact hostname match against `tools/relay_hosts_allowed.txt` and/or `STORE_RELEASE_ALLOWED_RELAY_HOSTS`; fixed paths `''`, `/api`, `/licence-hub` only (suffix/word heuristics removed).
+**Evidence:** `python tools/build_windows.py --check`; `python -m unittest tests.test_build tests.test_release`.
+
 ## 2026-10-13 — Receipt print page size, README and spec scope (trial-ready task 3)
 **Why:** thermal receipt printers need the browser print page to match 80 mm / 58 mm paper; the setting only changed a unused CSS variable and content width, so drivers scaled or clipped Arabic and the barcode. The README still said 1.0.2 and paste-only activation; the product spec still listed the installer and labels as out of scope.
 **What changed:** `web/css/pages.css` — named `@page receipt80` / `receipt58` with explicit `size: 80mm 200mm` / `58mm 120mm` (Chrome rejects `auto` height) and 2 mm margins, wired from `data-print="r80"` / `"r58"`; default `@page` stays 4 mm for A4 and labels. `README.md` — version 1.10.0, relay paths (`licence_relay.txt`, `STORE_LICENCE_RELAY`, `config.json`), automatic trial and paid requests when a relay is set, paste when not, installer mention. `docs/02-product-spec.md` — installer and sticker labels removed from «not in v1» (shipped 1.0.2). `tests/test_frontend.py` — CSS and `print.js` checks; `tests/test_e2e_browser.py` — print media `data-print`, named page and content width for 80 and 58 mm.
