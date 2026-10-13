@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>تفعيل يدوي — تراخيص Trip Orders</title>
+  <link rel="stylesheet" href="/owner/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a href="/owner/">طلبات</a>
+      <a href="/owner/offline.html">تفعيل يدوي</a>
+      <a href="/owner/customers.html">العملاء</a>
+      <form method="post" action="/owner/logout" style="margin-inline-start:auto"><button class="btn" type="submit">خروج</button></form>
+    </nav>
+    <div class="card">
+      <h1>تفعيل بدون طلب على الإنترنت</h1>
+      <p class="muted">أدخل رقم الجهاز القصير الذي أرسله العميل واسم الجهة.</p>
+      <form id="offline-form">
+        <div class="field">
+          <label for="device">رقم الجهاز</label>
+          <input id="device" name="device" dir="ltr" autocomplete="off" required>
+        </div>
+        <div class="field">
+          <label for="shop">اسم الجهة</label>
+          <input id="shop" name="shop" maxlength="60">
+        </div>
+        <button class="btn primary" type="submit">موافق — إصدار كود تجربة</button>
+      </form>
+      <div id="out" class="card" hidden></div>
+    </div>
+  </div>
+  <script type="module" src="/owner/offline-boot.js"></script>
+</body>
+</html>

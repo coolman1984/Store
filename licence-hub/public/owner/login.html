@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>تسجيل الدخول — تراخيص Trip Orders</title>
+  <link rel="stylesheet" href="/owner/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>لوحة الموافقة على التراخيص</h1>
+      <p class="muted">للمالك فقط. الجلسة قصيرة ومحمية.</p>
+      <p class="err" id="bad" hidden>كلمة المرور غير صحيحة.</p>
+      <form method="post" action="/owner/login">
+        <div class="field">
+          <label for="password">كلمة المرور</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn primary" type="submit">دخول</button>
+      </form>
+    </div>
+  </div>
+  <script src="/owner/login.js"></script>
+</body>
+</html>

@@ -86,6 +86,7 @@ export default {
   'lic.req.ref': 'Transfer number or payment reference (if you paid)',
   'lic.req.send': 'Send the request',
   'lic.req.refused.already_used': 'This PC already had a trial. Ask for a monthly subscription or a permanent activation.',
+  'lic.req.refused.paid_in_licence_studio': 'Monthly and permanent licences are issued on the owner\'s PC. Send your device code and ask for a paid code to paste here.',
   'lic.req.refused.owner_refused': 'The company refused the request. Talk to them on Telegram.',
   'lic.req.refused.other': 'The request was refused ({r}). Talk to the company on Telegram.',
   'err.trialOff': 'This copy cannot ask the company by itself. Send the device code to the company on Telegram and paste the code.',

@@ -1,3 +1,10 @@
+## 2026-10-13 — Licence hub template (trial activation end-to-end, task 1 of trial-ready plan)
+
+- Added `licence-hub/` Cloudflare Worker (D1, Arabic owner dashboard at `/owner`, same three shop URLs as `server/trial.py`), modelled on Yousef-Transportation PR #29: trial-only signing via `LICENCE_SIGNING_KEY` secret, paid monthly/permanent refused with `paid_in_licence_studio`, one trial per machine tag plus device locks as in the reference hub, 14-day default (`TRIAL_DAYS`, Cairo calendar).
+- Product id `al-store`; `licence_keys.txt` / `licence_relay.txt` stay comment-only in git until the owner deploys and fills customer builds (task 2).
+- Docs: `docs/HUB_SETUP.md`, `docs/BUILD_AND_RELEASE.md` hub steps; `.gitignore` for PEM/dev secrets; i18n for `paid_in_licence_studio`.
+- Tests: `licence-hub` Node suite (`npm test`), `tests/test_licence_hub_signer.py`, `tests/test_licence_hub_activation.py` (ephemeral Ed25519 key only).
+
 ## 2026-10-10 — Optional PRIVATE mobile preview via GitHub Codespaces (not deployed)
 
 - Added an opt-in Codespaces config that boots the **real Store practice server** with synthetic, isolated temporary data on port 8097, never on a regular Git push.

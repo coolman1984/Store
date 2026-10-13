@@ -9,3 +9,9 @@ shop-data-practice/
 *.log
 .DS_Store
 node_modules/
+*.pem
+*.key
+.dev.vars
+.env
+licence-private*
+.wrangler/
