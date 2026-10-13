@@ -5,12 +5,15 @@ to the program), put the web pages and the vendor's public keys beside it, then 
 
     python tools/build_windows.py            needs: pip install nuitka ordered-set zstandard pillow, and Inno Setup 6
     python tools/build_windows.py --check    only checks that every shipped file is there and the version is described (any OS)
+    python tools/build_windows.py --customer shop installer: needs a vendor public key and https relay (files or env); see --check --customer
 """
 import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
+from urllib.parse import urlparse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD = os.path.join(ROOT, 'build')
@@ -24,6 +27,82 @@ SHIPPED = ('server/app.py', 'web/index.html', 'web/js/app.js', 'web/css/tokens.c
            'guide/catalogue.json', 'guide/ar.json', 'guide/en.json')
 # Folders copied whole into the program folder (source folder -> folder inside app.dist).
 DATA_DIRS = (('web', 'web'), ('guide', 'guide'))
+
+PUBLIC_KEY_LINE = re.compile(r'^(?:[A-Za-z0-9_-]+:)?[A-Za-z0-9_-]{43}$')
+RELAY_LINE = re.compile(r'^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~-]*)*$')
+RELAY_SECRET_WORDS = re.compile(r'(?i)token|secret|key|pass')
+
+
+class CustomerLicenceError(ValueError):
+    """A customer installer was asked for without a safe public key and relay address."""
+
+
+def active_lines(path):
+    out = []
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            bit = line.split('#', 1)[0].strip()
+            if bit:
+                out.append(bit)
+    return out
+
+
+def validate_public_key_line(line):
+    if '-----BEGIN' in line or 'PRIVATE KEY' in line:
+        raise CustomerLicenceError('a private key must not be shipped in the installer')
+    if not PUBLIC_KEY_LINE.fullmatch(line):
+        raise CustomerLicenceError('licence key must be kid:key or a 43-character public key (url-safe base64)')
+    key = line.split(':', 1)[-1]
+    if not re.fullmatch(r'[A-Za-z0-9_-]{43}', key):
+        raise CustomerLicenceError('only a 32-byte Ed25519 public key may be listed')
+
+
+def validate_relay_line(line):
+    if not line.startswith('https://'):
+        raise CustomerLicenceError('the relay address must start with https://')
+    if RELAY_SECRET_WORDS.search(line):
+        raise CustomerLicenceError('the relay address must not contain token, secret, key or pass')
+    if not RELAY_LINE.fullmatch(line):
+        raise CustomerLicenceError('the relay must be an https address with no user, password or query')
+    parsed = urlparse(line)
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise CustomerLicenceError('the relay address must not carry a user, password or query string')
+
+
+def resolve_customer_licence(root=ROOT):
+    """Return (licence_keys.txt body, licence_relay.txt body) for a customer build.
+
+    Values come from STORE_RELEASE_PUBLIC_KEY and STORE_RELEASE_RELAY_URL when both are set; otherwise from
+    licence_keys.txt and licence_relay.txt in ``root`` (exactly one active line in each).
+    """
+    env_key = os.environ.get('STORE_RELEASE_PUBLIC_KEY', '').strip()
+    env_relay = os.environ.get('STORE_RELEASE_RELAY_URL', '').strip()
+    if env_key or env_relay:
+        if not env_key or not env_relay:
+            raise CustomerLicenceError('set both STORE_RELEASE_PUBLIC_KEY and STORE_RELEASE_RELAY_URL, or neither')
+        key_line, relay_line = env_key, env_relay
+    else:
+        keys = active_lines(os.path.join(root, 'licence_keys.txt'))
+        relays = active_lines(os.path.join(root, 'licence_relay.txt'))
+        if len(keys) != 1:
+            raise CustomerLicenceError('licence_keys.txt must hold exactly one public key line for a customer build')
+        if len(relays) != 1:
+            raise CustomerLicenceError('licence_relay.txt must hold exactly one https relay address for a customer build')
+        key_line, relay_line = keys[0], relays[0]
+    validate_public_key_line(key_line)
+    validate_relay_line(relay_line)
+    return key_line + '\n', relay_line + '\n'
+
+
+def relay_hostname(relay_url):
+    return urlparse(relay_url.strip()).hostname or ''
+
+
+def release_proof_licence_lines(customer, relay_url=''):
+    if customer:
+        host = relay_hostname(relay_url)
+        return ('customer_licence: yes', f'relay_host: {host}' if host else 'relay_host: (unknown)')
+    return ('customer_licence: no',)
 
 
 def runtime_files():
@@ -78,6 +157,12 @@ def preflight():
         sys.exit('web/js/_dev must not ship.')
 
 
+def write_customer_licence_to_dist(keys_body, relay_body):
+    for name, body in (('licence_keys.txt', keys_body), ('licence_relay.txt', relay_body)):
+        with open(os.path.join(DIST, name), 'w', encoding='utf-8', newline='\n') as f:
+            f.write(body)
+
+
 def compile_program(v4):
     run([sys.executable, '-m', 'nuitka', '--standalone', '--assume-yes-for-downloads', '--windows-console-mode=attach',
          f'--output-dir={BUILD}', f'--output-filename={EXE}', f'--windows-icon-from-ico={os.path.join(BUILD, "store.ico")}',
@@ -88,9 +173,18 @@ def compile_program(v4):
 
 
 def main():
+    customer = '--customer' in sys.argv
     preflight()
+    if customer:
+        try:
+            keys_body, relay_body = resolve_customer_licence()
+        except CustomerLicenceError as e:
+            sys.exit(str(e))
     if '--check' in sys.argv:
-        print('Everything the installer needs is here, version', VERSION)
+        if customer:
+            print('Customer release inputs are valid for version', VERSION)
+        else:
+            print('Everything the installer needs is here, version', VERSION)
         return
     os.makedirs(BUILD, exist_ok=True)
     run([sys.executable, 'tools/make_icon.py', os.path.join(BUILD, 'store.ico')])
@@ -99,6 +193,8 @@ def main():
     assert os.path.exists(os.path.join(DIST, EXE)), f'{EXE} was not built'
     leaks = glob.glob(os.path.join(DIST, '**', '*.py'), recursive=True)
     assert not leaks, f'source files in the program folder: {leaks}'
+    if customer:
+        write_customer_licence_to_dist(keys_body, relay_body)
     missing = [dest for _, dest in runtime_files() if not os.path.isfile(os.path.join(DIST, dest))]
     assert not missing, f'runtime files did not reach the program folder: {missing}'
     run([iscc(), f'/DAppVersion={VERSION}', os.path.join('installer', 'store.iss')])

@@ -6,9 +6,11 @@ so the compiled program could not start. These checks run on any OS, without Nui
 import importlib.util
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import harness  # noqa: F401  (puts server/ on sys.path)
 
@@ -66,6 +68,59 @@ class Manifest(unittest.TestCase):
         catalogue, texts = guide.load_dir(os.path.join(dist, 'guide'))
         self.assertTrue(catalogue['guides'] and texts['ar'])
         self.assertIsNotNone(load('aftelemetry')._taxonomy())
+
+
+class CustomerRelease(unittest.TestCase):
+    SAMPLE_KEY = 'trial-release:' + ('A' * 43)
+    SAMPLE_RELAY = 'https://relay.example.com'
+
+    def test_check_passes_on_template_files(self):
+        r = subprocess.run([sys.executable, 'tools/build_windows.py', '--check'], cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(build_windows.VERSION, r.stdout)
+
+    def test_customer_check_accepts_a_public_key_and_https_relay(self):
+        with tempfile.TemporaryDirectory(prefix='store-customer-') as tmp:
+            open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8').write(self.SAMPLE_KEY + '\n')
+            open(os.path.join(tmp, 'licence_relay.txt'), 'w', encoding='utf-8').write(self.SAMPLE_RELAY + '\n')
+            keys, relay = build_windows.resolve_customer_licence(tmp)
+            self.assertEqual(keys.strip(), self.SAMPLE_KEY)
+            self.assertEqual(relay.strip(), self.SAMPLE_RELAY)
+        r = subprocess.run([sys.executable, 'tools/build_windows.py', '--check', '--customer'],
+                           cwd=ROOT, capture_output=True, text=True,
+                           env={**os.environ, 'STORE_RELEASE_PUBLIC_KEY': self.SAMPLE_KEY,
+                                'STORE_RELEASE_RELAY_URL': self.SAMPLE_RELAY})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_customer_check_reads_release_environment_variables(self):
+        env = {k: v for k, v in os.environ.items() if k not in ('STORE_RELEASE_PUBLIC_KEY', 'STORE_RELEASE_RELAY_URL')}
+        env['STORE_RELEASE_PUBLIC_KEY'] = self.SAMPLE_KEY
+        env['STORE_RELEASE_RELAY_URL'] = self.SAMPLE_RELAY
+        with mock.patch.dict(os.environ, env, clear=True):
+            keys, relay = build_windows.resolve_customer_licence()
+        self.assertEqual(keys.strip(), self.SAMPLE_KEY)
+        self.assertEqual(relay.strip(), self.SAMPLE_RELAY)
+
+    def test_customer_check_rejects_bad_inputs(self):
+        pem = '-----BEGIN ' + 'PRIVATE KEY-----'
+        with self.assertRaises(build_windows.CustomerLicenceError):
+            build_windows.validate_public_key_line(pem)
+        with self.assertRaises(build_windows.CustomerLicenceError):
+            build_windows.validate_relay_line('http://relay.example.com')
+        with self.assertRaises(build_windows.CustomerLicenceError):
+            build_windows.validate_relay_line(self.SAMPLE_RELAY + '?token=abc')
+
+    def test_customer_mode_refuses_template_files_in_the_repo(self):
+        env = {k: v for k, v in os.environ.items() if k not in ('STORE_RELEASE_PUBLIC_KEY', 'STORE_RELEASE_RELAY_URL')}
+        with mock.patch.dict(os.environ, env, clear=True):
+            with self.assertRaises(build_windows.CustomerLicenceError):
+                build_windows.resolve_customer_licence(ROOT)
+
+    def test_release_proof_marks_factory_and_customer_builds(self):
+        self.assertEqual(build_windows.release_proof_licence_lines(False), ('customer_licence: no',))
+        lines = build_windows.release_proof_licence_lines(True, self.SAMPLE_RELAY)
+        self.assertEqual(lines[0], 'customer_licence: yes')
+        self.assertEqual(lines[1], 'relay_host: relay.example.com')
 
 
 if __name__ == '__main__':

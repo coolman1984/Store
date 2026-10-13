@@ -14,13 +14,12 @@ Since 1.5.0 the same workflow also:
 **Rollback:** run the previous Setup. Data is never touched by Setup. A newer database is refused by an older program, and the copy made before the upgrade (`…-before-upgrade.db`) can be restored from Settings → Backups.
 
 1. Change `server/version.py` (VERSION) and describe the version in `docs/RELEASE_NOTES.md` (the build refuses otherwise).
-2. Put the vendor's **public** key line(s) in `licence_keys.txt` (from Licence Studio → Keys). Never a private key. Put the licence relay's **https address** in `licence_relay.txt` (a public address, no token): with it the licence screen asks for the trial by itself; without it only the manual way is offered.
-3. Merge to `main` (every push to main builds a tested installer artifact), push a tag `vX.Y.Z` for a release, or run the workflow `windows installer` by hand. It: checks the files → compiles with Nuitka (no readable source
-   in the program folder) → builds `Al-Store-Setup-<version>.exe` with Inno Setup → starts the program folder and the installed copy and
-   checks they serve pages → uninstalls and checks the shop's data survived.
-4. Download the installer from the workflow's artifacts. Test on a clean PC: install, open, activate a trial code, sell, back up, restore.
+2. **Factory / CI installer** (empty `licence_keys.txt` and `licence_relay.txt` templates in git): every merge to `main` runs the `installer` job in `.github/workflows/windows.yml`. It builds with `python tools/build_windows.py`, runs the shop journey with a one-run test key in the environment, and writes `RELEASE-PROOF.txt` with `customer_licence: no`. That artifact is for regression only — a shop cannot activate from it.
+3. **Customer installer** (pilot and field proofs): supply the vendor **public** key and the relay **https address** at build time only — never a private key in git or in Actions. On the owner's PC you may put one key line in `licence_keys.txt` and one address in `licence_relay.txt` (still public values only), then `python tools/build_windows.py --customer`. In CI, set repository secrets `STORE_RELEASE_PUBLIC_KEY` and `STORE_RELEASE_RELAY_URL`; the optional `customer-installer` job runs when both are set, checks with `--check --customer`, builds with `--customer`, and uploads `Al-Store-Setup-customer` with `customer_licence: yes` and the relay hostname (not the full URL) in `RELEASE-PROOF.txt`. The workflow never prints secret values.
+4. Merge to `main`, push a tag `vX.Y.Z`, or run `windows installer` by hand. The main job: checks the files → Nuitka → Inno Setup → smoke and journey on the installed program → uninstall keeps data.
+5. Download the right artifact. Test on a clean PC with the **customer** Setup: install, open, request a trial or paste a code, sell, back up, restore.
 
-Locally on Windows: `pip install nuitka ordered-set zstandard pillow`, install Inno Setup 6, `python tools/build_windows.py`.
-Anywhere: `python tools/build_windows.py --check` (seconds) and `python tools/smoke_exe.py python server/app.py`.
+Locally on Windows: `pip install nuitka ordered-set zstandard pillow`, install Inno Setup 6, `python tools/build_windows.py` (factory) or `python tools/build_windows.py --customer` (shop copy).
+Anywhere: `python tools/build_windows.py --check` (seconds; templates OK) and `python tools/build_windows.py --check --customer` with `STORE_RELEASE_*` or filled licence files; `python tools/smoke_exe.py python server/app.py`.
 
 Updating a shop: run the newer Setup on the same PC. Only the program in Program Files is replaced; `%ProgramData%\Al-Store` (data, backups, config) is never touched, and a newer database schema is migrated after a verified copy.
