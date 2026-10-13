@@ -1,0 +1,68 @@
+# Licence hub: online trial activation (الستور / Al-Store)
+
+Al-Store can use **two different Cloudflare Workers** (different URLs). They are not interchangeable.
+
+| Worker | Role | Typical URL config |
+|---|---|---|
+| **Telemetry relay** (`Apps-Factory/templates/telemetry-relay`) | Problem reports (`/ingest`), usage counts, crash fingerprints | Settings → Support / `hub_url` in `config.json` when the shop opted in |
+| **Licence hub** (`licence-hub/` in this repository) | Online trial requests (`/licence/request`, `/licence/status`, `/licence/ack`) and the owner approval UI | `licence_relay.txt` next to `licence_keys.txt`, or `STORE_LICENCE_RELAY`, or `licence_relay` in `config.json` |
+
+Nothing is sent until the shop has a relay address configured. The licence hub needs **no secret in the program**.
+
+## What goes to the licence hub
+
+| What | When | Needs |
+|---|---|---|
+| Licence request (`/licence/request`, `/licence/status`, `/licence/ack`) | the owner pressed «اطلب تجربة» (or monthly/permanent under Details) | **licence hub** `https://` address only |
+
+Never sent: passwords, phone numbers, sales, customers, stock, amounts. A licence request may include the **shop name** from settings (`shop`, up to 60 characters) and the fields listed in `server/trial.py` (`SENT_FIELDS`). That name is not part of the signed activation code.
+
+## Configure (nothing secret is committed to the repository)
+
+- **Licence hub address:** `licence_relay.txt` (one `https://` line, no query string or token), or `STORE_LICENCE_RELAY`, or `"licence_relay"` in `config.json`.
+- **Licence public keys:** one or more `kid:key` lines in `licence_keys.txt` (or `STORE_LICENCE_KEYS`). With no key the program answers `no_keys` and does not enforce codes.
+- **Telegram (manual path only):** the company's public `@name` or `t.me` link in `config.json` as `vendor_telegram` on the installed PC — **not** in this public repository. Example placeholder used in tests: `@alstore_support`.
+
+### Trial-only hub signing key (separate from Licence Studio)
+
+The licence hub must **not** use the same private key as Licence Studio. Generate a dedicated Ed25519 pair for trials only:
+
+```bash
+# Example — run on the owner's PC; never commit the PEM or paste it in chat
+openssl genpkey -algorithm ED25519 -out trial-hub.pem
+openssl pkey -in trial-hub.pem -pubout -outform DER | tail -c 32 | base64 -w0
+```
+
+1. Deploy **licence hub** with `npx wrangler secret put LICENCE_SIGNING_KEY` ← PKCS#8 PEM of **trial-hub.pem** only.
+2. In customer `licence_keys.txt`, add **only** the trial public key with kid `trial-hub`, for example:  
+   `trial-hub:AbCdEfGh...` (43-character unpadded base64url raw public key).
+3. Keep the Licence Studio **paid** private key off Cloudflare. Monthly/permanent codes stay Studio-only; the hub refuses online monthly/permanent requests with `paid_in_licence_studio`.
+
+The shop checks every code on the PC with the public keys in `licence_keys.txt`, so a broken or hostile relay cannot invent a paid licence.
+
+## Register the product (owner, once)
+
+1. **Licence hub** (`licence-hub/`): deploy the Worker with `LICENCE_PRODUCTS` including `al-store` (`wrangler.toml` vars). Set `LICENCE_SIGNING_KEY` (trial-only). Owner login secrets (`SESSION_SECRET`, `OWNER_PASSWORD_HASH`) and optional `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`.
+2. **Licence Studio** on the owner's trusted PC: register product id `al-store` for monthly/permanent and manual paste codes (Studio key, different kid).
+3. Put `trial-hub:<public>` and the Studio **public** keys in `licence_keys.txt` of the customer build (task 2 — not committed here until the owner chooses).
+
+## Simple activation (same as Trip Orders hub model)
+
+Two paths use the **same** signed codes and rules.
+
+| Path | What the shop owner does |
+|---|---|
+| **Online (relay configured)** | Licence screen → confirm what will be sent → press **Ask for a trial**. The program posts to `/licence/request`, shows waiting, polls `/licence/status`, activates with the signed code, then `/licence/ack`. |
+| **Manual (no relay or refused)** | Copy the **device code**, contact the company (Telegram from `vendor_telegram`, WhatsApp, …), paste the **activation code** from Licence Studio, press activate. |
+
+**Owner one-time setup** (not from CI; do not deploy from a customer PC):
+
+1. Deploy `licence-hub/` and set secrets (see `licence-hub/README.md`).
+2. Licence Studio on the owner's PC for paid editions and manual codes.
+3. Customer installer gets `trial-hub:<public>` and the relay URL in `licence_relay.txt` (task 2).
+
+Commercial tiers (trial, monthly, permanent) match the factory SMB model documented in `docs/04-commercial-tiers.md` for the one-PC pilot; cloud sync and mobile plans are not part of the trial hub.
+
+## Proof still needed (not provable from the repository)
+
+A deployed Worker, a real trial from a clean Windows PC, and Studio signatures on real device codes. Automated checks: `cd licence-hub && npm test`, `python -m unittest tests.test_licence_hub_signer tests.test_licence_hub_activation`, and `tests/test_trial.py` against `tests/fake_relay.py`.

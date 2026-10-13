@@ -1,3 +1,36 @@
+## 2026-10-13 — Licence hub: concurrent approve tests without winner bias (PR #33)
+
+- Shared `assertExactlyOneConcurrentIssue` for same-device races (either request may win).
+
+## 2026-10-13 — Licence hub: deterministic race test + package-lock (PR #33)
+
+- Concurrent machine-lock test branches on which request actually issued; added `licence-hub/package-lock.json` for `npm ci`.
+
+## 2026-10-13 — Licence hub: force respects trial locks (PR #33)
+
+- `force` no longer clears `machine_trials`; returns an existing issued code (409 via owner API) instead of signing again. Offline mint records `licence_requests` and uses the same lock checks.
+
+## 2026-10-13 — Licence hub: concurrent approve idempotency (PR #33)
+
+- `claimAndIssue` uses D1 `changes` on the issue UPDATE: only the winner inserts a customer row; a concurrent loser re-reads the stored code and does not release locks for an already-issued request. `force` returns the stored code when present.
+
+## 2026-10-13 — Licence hub security fixes round 2 (PR #33 re-review)
+
+- `trial-hub` codes: reject any grace (`trial_key_grace`) or trial span + grace > 14 days; hub approval idempotent (same code, one customer row); losing `claimAndIssue` rolls back `machine_trials` for that request so partial locks do not block the machine forever.
+
+## 2026-10-13 — Licence hub security fixes (PR #33 review)
+
+- `server/licence.py` keeps key ids (`trial-hub:` lines); `trial_only_public_keys()` limits those keys to device-bound trials ≤14 days (`afcodes.read_code` + `tests/test_licence_trial_hub_key.py`), matching Yousef-Transportation policy.
+- `licence-hub`: reject non–64-hex `machine` at request; `claimAndIssue` issues a code only when all lock rows were claimed in the same D1 batch (no code publish without locks).
+- `tests/test_licence_hub_activation.py` restores `STORE_LICENCE_KEYS` after each test.
+
+## 2026-10-13 — Licence hub template (trial activation end-to-end, task 1 of trial-ready plan)
+
+- Added `licence-hub/` Cloudflare Worker (D1, Arabic owner dashboard at `/owner`, same three shop URLs as `server/trial.py`), modelled on Yousef-Transportation PR #29: trial-only signing via `LICENCE_SIGNING_KEY` secret, paid monthly/permanent refused with `paid_in_licence_studio`, one trial per machine tag plus device locks as in the reference hub, 14-day default (`TRIAL_DAYS`, Cairo calendar).
+- Product id `al-store`; `licence_keys.txt` / `licence_relay.txt` stay comment-only in git until the owner deploys and fills customer builds (task 2).
+- Docs: `docs/HUB_SETUP.md`, `docs/BUILD_AND_RELEASE.md` hub steps; `.gitignore` for PEM/dev secrets; i18n for `paid_in_licence_studio`.
+- Tests: `licence-hub` Node suite (`npm test`), `tests/test_licence_hub_signer.py`, `tests/test_licence_hub_activation.py` (ephemeral Ed25519 key only).
+
 ## 2026-10-10 — Optional PRIVATE mobile preview via GitHub Codespaces (not deployed)
 
 - Added an opt-in Codespaces config that boots the **real Store practice server** with synthetic, isolated temporary data on port 8097, never on a regular Git push.

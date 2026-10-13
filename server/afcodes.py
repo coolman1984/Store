@@ -169,7 +169,7 @@ class CodeResult:
 
 
 def read_code(text: str, trusted_public_keys: list[str], product_id: str, device: str | None = None,
-              today: date | None = None) -> CodeResult:
+              today: date | None = None, trial_only_keys: frozenset[str] | None = None) -> CodeResult:
     """Check a pasted code. Never raises on bad input. `trusted_public_keys`: base64url raw Ed25519 public keys."""
     bad = lambda reason: CodeResult(False, 'invalid', reason)  # noqa: E731
     try:
@@ -190,9 +190,20 @@ def read_code(text: str, trusted_public_keys: list[str], product_id: str, device
     keys = {key_tag(k): k for k in trusted_public_keys}
     if ktag not in keys:
         return bad('unknown_key')
-    public = base64.urlsafe_b64decode(keys[ktag] + '=' * (-len(keys[ktag]) % 4))
+    public_b64 = keys[ktag]
+    public = base64.urlsafe_b64decode(public_b64 + '=' * (-len(public_b64) % 4))
     if not _ed_verify(public, DOMAIN + payload, signature):
         return bad('bad_signature')
+    if trial_only_keys and public_b64 in trial_only_keys:
+        if EDITIONS.get(edition) != 'trial':
+            return bad('trial_key_edition')
+        trial_span = (_day(last) - _day(first)).days + 1
+        if trial_span > 14:
+            return bad('trial_key_days')
+        if trial_span + int(grace) > 14:
+            return bad('trial_key_grace')
+        if dtag == b'\0' * 6:
+            return bad('trial_key_unbound')
     if ptag != product_tag(product_id):
         return bad('wrong_product')
     if edition not in EDITIONS:

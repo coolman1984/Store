@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>العملاء — تراخيص Trip Orders</title>
+  <link rel="stylesheet" href="/owner/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a href="/owner/">طلبات</a>
+      <a href="/owner/offline.html">تفعيل يدوي</a>
+      <a href="/owner/customers.html">العملاء</a>
+      <form method="post" action="/owner/logout" style="margin-inline-start:auto"><button class="btn" type="submit">خروج</button></form>
+    </nav>
+    <div class="card" id="root">
+      <h1>العملاء</h1>
+      <ul class="list" data-customers></ul>
+    </div>
+  </div>
+  <script type="module" src="/owner/customers-boot.js"></script>
+</body>
+</html>
