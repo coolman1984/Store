@@ -1,3 +1,7 @@
+## 2026-10-14 — Licence hub owner panel branding (Al-Store)
+
+**What:** Owner HTML titles and worker root page no longer say Trip Orders; they use Al-Store (`licence-hub/public/owner/*.html`, `worker.js`).
+
 ## 2026-10-14 — Customer build requires `paid:` key; hub docs + pending list
 
 **What:** `tools/build_windows.py` requires exactly one `paid:` public key for customer installers. `licence-hub` pending API uses `EXISTS` so one device with trial and paid customer rows does not duplicate pending items. Docs (`HUB_SETUP.md`, `BUILD_AND_RELEASE.md`) state paid licences come from the hub owner panel paid key.

@@ -199,7 +199,7 @@ export default {
       }
       const owner = await ownerPages(request, env, url);
       if (owner) return owner;
-      if (url.pathname === '/') return html('<p>Trip Orders licence hub</p>');
+      if (url.pathname === '/') return html('<p>Al-Store licence hub</p>');
       return new Response('Not found', { status: 404, headers: HEADERS });
     } catch (e) {
       return json({ error: 'server' }, 500);
