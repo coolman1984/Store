@@ -56,16 +56,16 @@ Two paths use the **same** signed codes and rules.
 | Path | What the shop owner does |
 |---|---|
 | **Online (relay configured)** | Licence screen → confirm what will be sent → press **Ask for a trial**. The program posts to `/licence/request`, shows waiting, polls `/licence/status`, activates with the signed code, then `/licence/ack`. |
-| **Manual (no relay or refused)** | Copy the **device code**, contact the company (Telegram from `vendor_telegram`, WhatsApp, …), paste the **activation code** from Licence Studio, press activate. |
+| **Manual (no relay or refused)** | Copy the **device code**, contact the company (Telegram from `vendor_telegram`, WhatsApp, …), paste the **activation code** the owner issues (hub owner panel or optional Licence Studio `studio:` key), press activate. |
 
 **Owner one-time setup** (not from CI; do not deploy from a customer PC):
 
 1. Deploy `licence-hub/` and set secrets (see `licence-hub/README.md`).
-2. Licence Studio on the owner's PC for paid editions and manual codes.
+2. Set `LICENCE_PAID_SIGNING_KEY` on the hub so the owner panel can issue monthly and permanent codes (optional Licence Studio only for extra `studio:` paste codes).
 3. Customer installer gets `trial-hub:<public>`, `paid:<public>`, and the relay URL in `licence_relay.txt` (task 2).
 
 Commercial tiers (trial, monthly, permanent) match the factory SMB model documented in `docs/04-commercial-tiers.md` for the one-PC pilot; cloud sync and mobile plans are not part of the trial hub.
 
 ## Proof still needed (not provable from the repository)
 
-A deployed Worker, a real trial from a clean Windows PC, and Studio signatures on real device codes. Automated checks: `cd licence-hub && npm test`, `python -m unittest tests.test_licence_hub_signer tests.test_licence_hub_activation`, and `tests/test_trial.py` against `tests/fake_relay.py`.
+A deployed Worker, a real trial from a clean Windows PC, and hub-paid signatures on real device codes. Automated checks: `cd licence-hub && npm test`, `python -m unittest tests.test_licence_hub_signer tests.test_licence_hub_activation`, and `tests/test_trial.py` against `tests/fake_relay.py`.
