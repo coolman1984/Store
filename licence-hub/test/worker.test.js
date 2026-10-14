@@ -65,6 +65,31 @@ function pemFromSeed(seed32) {
   return pk.export({ type: 'pkcs8', format: 'pem' });
 }
 
+test('pending list shows one row per request when device has trial and paid customers', async () => {
+  const e = env();
+  const device = '7KD2M-QX9TP';
+  await e.DB.prepare(
+    'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind('pend-1', 'h', 'al-store', 'monthly', device, deviceKey(device), 'm', 'n', 'Shop', '', '', 'pending', 1, 1).run();
+  await e.DB.prepare(
+    'INSERT INTO customers(id, shop, device, kind, serial, first_day, last_day, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind('c-trial', 'Shop', device, 'trial', 'AA', '2026-01-01', '2026-01-14', 1).run();
+  await e.DB.prepare(
+    'INSERT INTO customers(id, shop, device, kind, serial, first_day, last_day, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind('c-paid', 'Shop', device, 'monthly', 'BB', '2026-01-01', '2026-02-01', 1).run();
+  const csrf = 'csrf-pending';
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  await e.DB.prepare('INSERT INTO owner_sessions(id, csrf, expires_at) VALUES(?, ?, ?)').bind('s-pend', csrf, exp).run();
+  const token = await signSession('sess', 's-pend');
+  const res = await worker.fetch(new Request('https://hub.test/owner/api/pending', {
+    headers: { Cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}` },
+  }), e);
+  const data = await res.json();
+  assert.equal(data.items.length, 1);
+  assert.equal(data.items[0].id, 'pend-1');
+  assert.equal(data.items[0].has_customer, 1);
+});
+
 test('owner paid approve requires session and CSRF', async () => {
   const trialPem = pemFromSeed(Buffer.alloc(32, 1));
   const paidPem = pemFromSeed(Buffer.alloc(32, 2));

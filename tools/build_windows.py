@@ -72,11 +72,12 @@ def _licence_key_kid(line):
 
 
 def validate_customer_licence_key_lines(lines):
-    """Validate one or more public-key lines for a customer build (trial-hub required; studio and paid allowed)."""
+    """Validate one or more public-key lines for a customer build (trial-hub and paid required; studio optional)."""
     if not lines:
         raise CustomerLicenceError('licence_keys.txt must hold at least one public key line for a customer build')
     seen = set()
     trial_hub = 0
+    paid_hub = 0
     normalized = []
     for line in lines:
         if line in seen:
@@ -91,9 +92,13 @@ def validate_customer_licence_key_lines(lines):
             raise CustomerLicenceError('unknown licence key id; only trial-hub, paid, and studio are allowed in a customer build')
         if kid_l == 'trial-hub':
             trial_hub += 1
+        if kid_l == 'paid':
+            paid_hub += 1
         normalized.append(f'{kid_l}:{line.split(":", 1)[1]}')
     if trial_hub != 1:
         raise CustomerLicenceError('a customer build must ship exactly one trial-hub public key line')
+    if paid_hub != 1:
+        raise CustomerLicenceError('a customer build must ship exactly one paid public key line')
     kids_seen = set()
     pub_kids = {}
     for line in normalized:
@@ -188,7 +193,7 @@ def resolve_customer_licence(root=ROOT):
 
     Values come from STORE_RELEASE_PUBLIC_KEY and STORE_RELEASE_RELAY_URL when both are set; otherwise from
     licence_keys.txt and licence_relay.txt in ``root``. Public keys: one or more ``kid:key`` lines with exactly
-    one ``trial-hub:`` line and optional ``paid:`` / ``studio:`` lines (no duplicate kids or lines).
+    one ``trial-hub:`` line, exactly one ``paid:`` line, and optional ``studio:`` (no duplicate kids or lines).
     """
     env_key = os.environ.get('STORE_RELEASE_PUBLIC_KEY', '').strip()
     env_relay = os.environ.get('STORE_RELEASE_RELAY_URL', '').strip()

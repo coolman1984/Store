@@ -75,7 +75,10 @@ class CustomerRelease(unittest.TestCase):
     SAMPLE_STUDIO_KEY = 'studio:' + ('B' * 43)
     SAMPLE_PAID_KEY = 'paid:' + ('C' * 43)
     SAMPLE_HOST = 'relay.test.invalid'
-    SAMPLE_RELAY = 'https://' + SAMPLE_HOST
+    SAMPLE_RELAY = 'https://relay.test.invalid'
+
+    def _customer_pubkeys(self):
+        return self.SAMPLE_KEY + '\n' + self.SAMPLE_PAID_KEY
 
     def _env_without_release_secrets(self, **extra):
         env = {k: v for k, v in os.environ.items()
@@ -107,12 +110,12 @@ class CustomerRelease(unittest.TestCase):
     def test_customer_check_accepts_a_public_key_and_https_relay(self):
         with tempfile.TemporaryDirectory(prefix='store-customer-') as tmp:
             with open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8') as f:
-                f.write(self.SAMPLE_KEY + '\n')
+                f.write(self.SAMPLE_KEY + '\n' + self.SAMPLE_PAID_KEY + '\n')
             with open(os.path.join(tmp, 'licence_relay.txt'), 'w', encoding='utf-8') as f:
                 f.write(self.SAMPLE_RELAY + '\n')
             with mock.patch.dict(os.environ, self._env_without_release_secrets(), clear=True):
                 keys, relay = build_windows.resolve_customer_licence(tmp)
-            self.assertEqual(keys.strip(), self.SAMPLE_KEY)
+            self.assertEqual(keys.strip().splitlines(), [self.SAMPLE_KEY, self.SAMPLE_PAID_KEY])
             self.assertEqual(relay.strip(), self.SAMPLE_RELAY)
 
     def test_customer_build_accepts_trial_hub_paid_and_studio_key_lines(self):
@@ -143,6 +146,10 @@ class CustomerRelease(unittest.TestCase):
                 with self.assertRaises(build_windows.CustomerLicenceError):
                     build_windows.resolve_customer_licence(tmp)
                 with open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8') as f:
+                    f.write(self.SAMPLE_KEY + '\n')
+                with self.assertRaises(build_windows.CustomerLicenceError):
+                    build_windows.resolve_customer_licence(tmp)
+                with open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8') as f:
                     f.write('trial-release:' + ('C' * 43) + '\n')
                 with self.assertRaises(build_windows.CustomerLicenceError):
                     build_windows.resolve_customer_licence(tmp)
@@ -159,7 +166,7 @@ class CustomerRelease(unittest.TestCase):
                     f.write(f'trial-hub:{pub}\npaid:{pub}\n')
                 with self.assertRaises(build_windows.CustomerLicenceError):
                     build_windows.resolve_customer_licence(tmp)
-        r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
+        r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self._customer_pubkeys(),
                                      STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
@@ -174,7 +181,7 @@ class CustomerRelease(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_customer_check_exits_nonzero_when_only_one_release_secret_is_set(self):
-        r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
+        r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self._customer_pubkeys(),
                                      STORE_RELEASE_ALLOWED_RELAY_HOSTS=self.SAMPLE_HOST)
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
         r = self._run_customer_check(STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY,
@@ -182,18 +189,18 @@ class CustomerRelease(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_customer_check_exits_nonzero_for_http_relay_in_release_env(self):
-        r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
+        r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self._customer_pubkeys(),
                                      STORE_RELEASE_RELAY_URL='http://' + self.SAMPLE_HOST,
                                      STORE_RELEASE_ALLOWED_RELAY_HOSTS=self.SAMPLE_HOST)
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_customer_check_reads_release_environment_variables(self):
         with mock.patch.dict(os.environ, self._env_without_release_secrets(
-            STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
+            STORE_RELEASE_PUBLIC_KEY=self._customer_pubkeys(),
             STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY,
         ), clear=True):
             keys, relay = build_windows.resolve_customer_licence()
-        self.assertEqual(keys.strip(), self.SAMPLE_KEY)
+        self.assertEqual(keys.strip().splitlines(), [self.SAMPLE_KEY, self.SAMPLE_PAID_KEY])
         self.assertEqual(relay.strip(), self.SAMPLE_RELAY)
 
     def test_customer_check_rejects_bad_inputs(self):
@@ -232,7 +239,7 @@ class CustomerRelease(unittest.TestCase):
             build_windows.validate_relay_line(self.SAMPLE_RELAY, allowed=other)
 
     def test_release_proof_customer_cli_uses_validated_relay(self):
-        env = self._env_without_release_secrets(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
+        env = self._env_without_release_secrets(STORE_RELEASE_PUBLIC_KEY=self._customer_pubkeys(),
                                                  STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY)
         r = subprocess.run([sys.executable, 'tools/build_windows.py', '--release-proof-customer'],
                            cwd=ROOT, capture_output=True, text=True, env=env)

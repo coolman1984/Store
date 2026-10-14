@@ -55,12 +55,12 @@ async function ownerApi(request, env, url, session) {
   }
   if (path === '/pending' && request.method === 'GET') {
     const rows = await env.DB.prepare(
-      "SELECT r.id, r.kind, r.shop, r.device, r.machine, r.version, r.created_at, CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END AS has_customer FROM licence_requests r LEFT JOIN customers c ON c.device = r.device WHERE r.status IN ('pending', 'approved') ORDER BY r.created_at ASC LIMIT 50",
-    ).all();
+      "SELECT r.id, r.kind, r.shop, r.device, r.machine, r.version, r.created_at, CASE WHEN EXISTS (SELECT 1 FROM customers c WHERE c.device = r.device) THEN 1 ELSE 0 END AS has_customer FROM licence_requests r WHERE r.status IN ('pending', 'approved') ORDER BY r.created_at ASC LIMIT 50",
+    ).bind().all();
     return json({ items: rows.results || [] });
   }
   if (path === '/customers' && request.method === 'GET') {
-    const rows = await env.DB.prepare('SELECT shop, device, kind, first_day, last_day, created_at FROM customers ORDER BY created_at DESC LIMIT 200').all();
+    const rows = await env.DB.prepare('SELECT shop, device, kind, first_day, last_day, created_at FROM customers ORDER BY created_at DESC LIMIT 200').bind().all();
     const items = (rows.results || []).map((r) => {
       let daysLeft = null;
       if (r.last_day) {
@@ -199,7 +199,7 @@ export default {
       }
       const owner = await ownerPages(request, env, url);
       if (owner) return owner;
-      if (url.pathname === '/') return html('<p>Trip Orders licence hub</p>');
+      if (url.pathname === '/') return html('<p>Al-Store licence hub</p>');
       return new Response('Not found', { status: 404, headers: HEADERS });
     } catch (e) {
       return json({ error: 'server' }, 500);
