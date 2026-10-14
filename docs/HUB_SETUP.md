@@ -1,11 +1,13 @@
-# Licence hub: online trial activation (الستور / Al-Store)
+# Licence hub: online activation (الستور / Al-Store)
 
 Al-Store can use **two different Cloudflare Workers** (different URLs). They are not interchangeable.
 
 | Worker | Role | Typical URL config |
 |---|---|---|
 | **Telemetry relay** (`Apps-Factory/templates/telemetry-relay`) | Problem reports (`/ingest`), usage counts, crash fingerprints | Settings → Support / `hub_url` in `config.json` when the shop opted in |
-| **Licence hub** (`licence-hub/` in this repository) | Online trial requests (`/licence/request`, `/licence/status`, `/licence/ack`) and the owner approval UI | `licence_relay.txt` next to `licence_keys.txt`, or `STORE_LICENCE_RELAY`, or `licence_relay` in `config.json` |
+| **Shared licence hub** ([`Yousef-Transportation`](https://github.com/coolman1984/Yousef-Transportation) `licence-hub/` on `main`, PR #34 product isolation) | Online trial, monthly, and permanent requests + owner panel (`product`: `al-store`) | `https://trip-orders-licence-hub.mflma2040.workers.dev` (hostname in `tools/relay_hosts_allowed.txt`); build via `STORE_RELEASE_RELAY_URL` + `STORE_RELEASE_PUBLIC_KEY` |
+
+The copy under `licence-hub/` in **this** repository is **dev-only** (local protocol tests). Production shops use the shared multi-product hub, not a URL committed in git.
 
 Nothing is sent until the shop has a relay address configured. The licence hub needs **no secret in the program**.
 
@@ -13,59 +15,46 @@ Nothing is sent until the shop has a relay address configured. The licence hub n
 
 | What | When | Needs |
 |---|---|---|
-| Licence request (`/licence/request`, `/licence/status`, `/licence/ack`) | the owner pressed «اطلب تجربة» (or monthly/permanent under Details) | **licence hub** `https://` address only |
+| Licence request (`/licence/request`, `/licence/status`, `/licence/ack`) | Owner pressed «اطلب تجربة» or monthly/permanent | Hub `https://` base URL (optional path prefix `/api` or `/licence-hub`) |
+| Hub calendar (`GET /licence/time` or `/licence/clock`, once per program run) | Background sync while online | Same URL; response must be **signed** (`calendar_day`, `kid`, `sig`) with a trusted `trial-hub` or `paid` public key |
 
-Never sent: passwords, phone numbers, sales, customers, stock, amounts. A licence request may include the **shop name** from settings (`shop`, up to 60 characters) and the fields listed in `server/trial.py` (`SENT_FIELDS`). That name is not part of the signed activation code.
+Never sent: passwords, phone numbers, sales, customers, stock, amounts. Requests include `product` (`al-store`), `kind`, `device`, `machine`, `shop` (≤60 chars), and fields in `server/trial.py` (`SENT_FIELDS`).
 
 ## Configure (nothing secret is committed to the repository)
 
-- **Licence hub address:** `licence_relay.txt` (one `https://` line, no query string or token), or `STORE_LICENCE_RELAY`, or `"licence_relay"` in `config.json`.
-- **Licence public keys:** one or more `kid:key` lines in `licence_keys.txt` (or `STORE_LICENCE_KEYS`). With no key the program answers `no_keys` and does not enforce codes.
-- **Telegram (manual path only):** the company's public `@name` or `t.me` link in `config.json` as `vendor_telegram` on the installed PC — **not** in this public repository. Example placeholder used in tests: `@alstore_support`.
+- **Hub address:** `licence_relay.txt` (one `https://` line), `STORE_LICENCE_RELAY`, `licence_relay` in `config.json`, or **`STORE_RELEASE_RELAY_URL`** when building `python tools/build_windows.py --customer`. Hostname must be on `tools/relay_hosts_allowed.txt` or `STORE_RELEASE_ALLOWED_RELAY_HOSTS`. Allowed path suffixes: `` (none), `/api`, `/licence-hub`.
+- **Public keys in the installer:** `trial-hub:<public>` (14-day device trials only), `paid:<public>` (hub owner panel monthly/permanent), optional `studio:<public>` for manual Licence Studio paste.
+- **Telegram (manual contact only):** `vendor_telegram` in the shop's `config.json` on the installed PC.
 
-### Trial-only hub signing key (separate from Licence Studio)
+### Shared hub secrets (owner deploys on Cloudflare — not in git)
 
-The licence hub must **not** use the same private key as Licence Studio. Generate a dedicated Ed25519 pair for trials only:
+1. `LICENCE_SIGNING_KEY` — PKCS#8 PEM, trial-only, kid `trial-hub`.
+2. `PAID_SIGNING_KEY` (or `LICENCE_PAID_SIGNING_KEY` on the dev template) — PKCS#8 PEM, kid `paid`, for monthly/permanent from the owner panel.
+3. `LICENCE_PRODUCTS` includes `al-store` (and other products as needed).
+4. Optional per-product overrides: `LICENCE_SIGNING_KEY_AL_STORE`, `PAID_SIGNING_KEY_AL_STORE` (activation codes only; hub calendar uses global trial/paid keys).
 
-```bash
-# Example — run on the owner's PC; never commit the PEM or paste it in chat
-openssl genpkey -algorithm ED25519 -out trial-hub.pem
-openssl pkey -in trial-hub.pem -pubout -outform DER | tail -c 32 | base64 -w0
-```
+The shop verifies every activation code and hub calendar signature on the PC. A hostile relay cannot forge paid dates (paid end date comes only from the signed code) or unsigned calendar days.
 
-1. Deploy **licence hub** with `npx wrangler secret put LICENCE_SIGNING_KEY` ← PKCS#8 PEM of **trial-hub.pem** only (trials).
-2. Generate a **second** Ed25519 pair for paid hub signing (`paid-hub.pem`). Set `npx wrangler secret put LICENCE_PAID_SIGNING_KEY` ← PKCS#8 PEM of **paid-hub.pem** only. The owner panel signs monthly (`standard` edition, 30 days + grace) and permanent codes with this key — same byte format as `server/afcodes.py`.
-3. In customer `licence_keys.txt`, ship at least `trial-hub:<public>` and `paid:<public>` (optional `studio:<public>` for Licence Studio paste codes). Example:  
-   `trial-hub:AbCdEfGh...` and `paid:XyZ...` (43-character unpadded base64url raw public keys).
-4. Hub-paid monthly/permanent codes use kid `paid` in the shop installer. Licence Studio (optional manual paste) uses kid `studio` and stays off Cloudflare unless you choose otherwise.
+While online, signed hub time is stored in `meta.licence_trusted_date`. Local date before that is clock rollback; hub date past signed `last_day` (+ grace) locks writes even if the PC clock lies. Offline or failed checks never lock; read/export/backup always work.
 
-The shop checks every code on the PC with the public keys in `licence_keys.txt`, so a broken or hostile relay cannot invent a paid licence.
-
-While the shop polls the relay (or calls public `GET /licence/clock` once per program run), the hub's `calendar_day` / `serverTime` is stored in the shop database (`licence_trusted_date` in `meta`). A local date before that is treated like a clock rollback; a hub date past the signed last day (plus grace) locks paid actions even if the PC clock lies. If the network is down, nothing new is written and the shop keeps working on the signed code and the local clock only (never-online edge case).
-
-## Register the product (owner, once)
-
-1. **Licence hub** (`licence-hub/`): deploy the Worker with `LICENCE_PRODUCTS` including `al-store` (`wrangler.toml` vars). Set `LICENCE_SIGNING_KEY` (trial-only) and `LICENCE_PAID_SIGNING_KEY` (monthly/permanent from the owner panel). Owner login secrets (`SESSION_SECRET`, `OWNER_PASSWORD_HASH`) and optional `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`.
-2. **Licence Studio** on the owner's trusted PC (optional): register product id `al-store` for manual paste codes (`studio:` public key).
-3. Put `trial-hub:<public>`, `paid:<public>`, and any `studio:<public>` lines in `licence_keys.txt` of the customer build (task 2 — not committed here until the owner chooses).
-
-## Simple activation (same as Trip Orders hub model)
-
-Two paths use the **same** signed codes and rules.
+## Activation paths
 
 | Path | What the shop owner does |
 |---|---|
-| **Online (relay configured)** | Licence screen → confirm what will be sent → press **Ask for a trial**. The program posts to `/licence/request`, shows waiting, polls `/licence/status`, activates with the signed code, then `/licence/ack`. |
-| **Manual (no relay or refused)** | Copy the **device code**, contact the company (Telegram from `vendor_telegram`, WhatsApp, …), paste the **activation code** the owner issues (hub owner panel or optional Licence Studio `studio:` key), press activate. |
+| **Online** | Licence screen → ask for trial / monthly / permanent → poll until the owner approves in the **shared hub owner panel** → code activates automatically. |
+| **Manual** | Send device code to the company → paste code from the owner panel (or optional `studio:` Licence Studio code). |
 
-**Owner one-time setup** (not from CI; do not deploy from a customer PC):
+## API assumptions (shared hub, `main` after PR #34)
 
-1. Deploy `licence-hub/` and set secrets (see `licence-hub/README.md`).
-2. Set `LICENCE_PAID_SIGNING_KEY` on the hub so the owner panel can issue monthly and permanent codes (optional Licence Studio only for extra `studio:` paste codes).
-3. Customer installer gets `trial-hub:<public>`, `paid:<public>`, and the relay URL in `licence_relay.txt` (task 2).
+| Route | Notes |
+|---|---|
+| `POST /licence/request` | Store always sends `product: "al-store"` (hub default is `trip-orders` when omitted). Kinds: `trial`, `monthly`, `permanent`. Trial locks are **per product** (`pd:al-store:…` / `ph:al-store:…`); the same device code may still request another product on the hub. Pending rows are scoped by `product` + `device_key`. |
+| `GET /licence/status?id=` | Bearer poll token; signed `calendar_day` + `kid` + `sig` (older signed days than the shop already stored are ignored). |
+| `POST /licence/ack` | Body `{ id }` + Bearer poll token after successful `licence.activate`. |
+| `GET /licence/time` or `/licence/clock` | Signed business calendar; Store uses `/licence/clock` once per run. Forward jump capped at 7 days per accepted update. |
 
-Commercial tiers (trial, monthly, permanent) match the factory SMB model documented in `docs/04-commercial-tiers.md` for the one-PC pilot; cloud sync and mobile plans are not part of the trial hub.
+Prefixes `/api/licence/*` and `/licence-hub/licence/*` are equivalent to `/licence/*`. Activation codes are signed with per-product keys when configured (`LICENCE_SIGNING_KEY_AL_STORE`, `PAID_SIGNING_KEY_AL_STORE`); the shop still trusts only the **public** keys baked at build time.
 
-## Proof still needed (not provable from the repository)
+## Proof still needed (field)
 
-A deployed Worker, a real trial from a clean Windows PC, and hub-paid signatures on real device codes. Automated checks: `cd licence-hub && npm test`, `python -m unittest tests.test_licence_hub_signer tests.test_licence_hub_activation`, and `tests/test_trial.py` against `tests/fake_relay.py`.
+Deployed shared hub, clean Windows PC trial, and hub-paid codes on real device ids. Automated checks: `cd licence-hub && npm test`, `python -m unittest tests.test_licence_hub_signer tests.test_hub_time tests.test_trial`, and `tests/test_licence_online.py`.

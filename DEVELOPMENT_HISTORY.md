@@ -1,3 +1,16 @@
+## 2026-10-14 — Shared hub main (PR #34): allowlist, product isolation, remove note_online
+
+**What:** `tools/relay_hosts_allowed.txt` — production hostname `trip-orders-licence-hub.mflma2040.workers.dev` (no keys in git). `licence-hub/src/licence-api.js` synced to Yousef `main` product-isolation API; dev hub keeps `LICENCE_PAID_SIGNING_KEY` alias. Removed public `note_online` (unsigned dates cannot write meta). Tests: second +7-day sync, older signed day rejected; licence online tests use signed hub time only. Docs: `docs/HUB_SETUP.md`.
+
+## 2026-10-14 — PR #37 review: signed hub time only + 7-day cap
+
+**What:** `trial._note_hub_time` no longer falls back to unsigned HTTP `Date`. `licence._note_hub_calendar_day` caps forward trusted-day jumps to `HUB_CALENDAR_MAX_JUMP_DAYS` (7). Tests: `tests/test_hub_calendar_trust.py`.
+
+## 2026-10-14 — Wire Store client to shared multi-product licence hub
+
+**Why:** Production trial, monthly, and permanent for `al-store` are issued from the shared hub in `coolman1984/Yousef-Transportation` (`feat/owner-panel-paid`, round 6), not Licence Studio.
+**What:** `server/hub_time.py` — verify signed hub calendar (`trial-hub` / `paid` kids). `server/licence.py` — `accept_hub_calendar`; `server/trial.py` — unsigned hub time ignored. `licence-hub/` marked dev-only; afcodes aligned with shared hub round 6; signed `/licence/clock`. Tests: `tests/test_hub_time.py`, `tests/shared_hub/yousef_round6_export.mjs`, wrong-product cross-check in `tests/test_licence_hub_signer.py`; `fake_relay` signs calendar when configured. Docs: `README.md`, `docs/HUB_SETUP.md`, `licence-hub/README.md`.
+
 ## 2026-10-14 — Licence hub owner panel branding (Al-Store)
 
 **What:** Owner HTML titles and worker root page no longer say Trip Orders; they use Al-Store (`licence-hub/public/owner/*.html`, `worker.js`).

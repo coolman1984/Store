@@ -1,71 +1,49 @@
-# Al-Store (الستور) — licence hub (Cloudflare Worker template)
+# Al-Store (الستور) — licence hub (**dev-only** local template)
 
-قالب Worker لاستقبال طلبات التفعيل عبر الإنترنت ولوحة موافقة للمالك. **لا يُنشر من هذا المستودع تلقائيًا** — املأ `wrangler.toml` وضَع الأسرار على Cloudflare فقط.
+> **Production:** online trial, monthly, and permanent licences for الستور use the **shared multi-product licence hub** in [`coolman1984/Yousef-Transportation`](https://github.com/coolman1984/Yousef-Transportation) (`feat/owner-panel-paid`, product id `al-store`). Customer builds point at that hub with `STORE_RELEASE_RELAY_URL` and `tools/relay_hosts_allowed.txt` — never a hard-coded production URL in git.
 
-Template Cloudflare Worker for online licence requests and an owner approval dashboard. **Nothing here deploys from CI by default** — configure `wrangler.toml` and set secrets in Cloudflare only.
+This folder is a **local Cloudflare Worker template** for developers to exercise the same `/licence/*` protocol offline. **Nothing here deploys from CI by default** — configure `wrangler.toml` and set secrets on Cloudflare only if you need a private sandbox.
 
-This worker is **not** the factory telemetry relay (`/ingest`). Deploy it on its own URL; put that `https://` address in `licence_relay.txt` (or `STORE_LICENCE_RELAY`) for customer builds so the shop can ask for a trial online.
+The worker is **not** the factory telemetry relay (`/ingest`). For shop apps, put the hub `https://` address in `licence_relay.txt` (or `STORE_LICENCE_RELAY` / `STORE_RELEASE_RELAY_URL` at build time).
 
 ## What it does / ماذا يفعل
 
-- نفس بروتوكول البرنامج: `POST /licence/request`, `GET /licence/status`, `POST /licence/ack` (حقول `server/trial.py`, اختبار `tests/test_trial.py` و`tests/fake_relay.py`).
-- Same protocol as the shop app (`server/trial.py`, exercised by `tests/test_trial.py` and `tests/fake_relay.py`).
-- لوحة المالك على `/owner` (عربي، RTL): موافقة على الطلبات (يُعرض الكود بعد الموافقة)، تفعيل يدوي برقم الجهاز، قائمة العملاء.
-- Owner dashboard at `/owner` (Arabic, RTL): pending requests (issued code shown on approve), offline device entry, customer list.
-- توقيع تجربة 14 يومًا بـ `LICENCE_SIGNING_KEY` واشتراك شهري/دائم من لوحة المالك بـ `LICENCE_PAID_SIGNING_KEY` — متوافق مع `server/afcodes.py`.
-- Signs trials with `LICENCE_SIGNING_KEY` and **monthly/permanent** from the owner panel with `LICENCE_PAID_SIGNING_KEY` (`al-store`) — byte-compatible with `server/afcodes.py`. Customer builds trust `trial-hub:` and `paid:` public keys (kid `paid` for hub-paid codes; optional `studio:` for Licence Studio paste codes).
-- One trial per PC online: locks both the normalized device code and the stable `machine` hash the app sends. Pending requests expire after a short TTL so a squatted poll token cannot block the real customer forever.
+- Same shop protocol as `server/trial.py`: `POST /licence/request`, `GET /licence/status`, `POST /licence/ack`, `GET /licence/time` or `/licence/clock` (signed calendar when signing keys are set).
+- Route prefixes `/licence/*`, `/api/licence/*`, and `/licence-hub/licence/*` are equivalent (matches the shared hub).
+- Owner dashboard at `/owner` (Arabic, RTL) for local testing only.
+- Signs trials (`LICENCE_SIGNING_KEY`, kid `trial-hub`) and paid/permanent (`PAID_SIGNING_KEY` or `LICENCE_PAID_SIGNING_KEY`, kid `paid`) — byte-compatible with `server/afcodes.py`.
+- `LICENCE_PRODUCTS` must include `al-store` for Store requests (`product` field in `server/trial.py`).
 
-**بديل التوقيع:** Licence Studio على جهاز المالك يبقى الطريقة الأكثر أمانًا للتوقيع؛ هذا القالب يوازن بين الراحة (موافقة من الهاتف) ومخاطر سر التوقيع على Cloudflare (انظر أدناه).
-
-**Alternative signer:** Licence Studio on the owner PC remains the strongest option; this template trades convenience for signing-key exposure on Cloudflare (see tradeoff).
+**Licence Studio** on the owner PC is optional (`studio:` public key for manual paste only). Trial, monthly, and permanent for customers come from the **shared hub owner panel**, not Studio.
 
 ## Signing key tradeoff / مخاطر مفتاح التوقيع
 
 | Convenience | Risk |
 |---|---|
-| `LICENCE_SIGNING_KEY` في Worker secret → موافقة من أي مكان | إذا اُخترق حساب Cloudflare يمكن إصدار أكواد |
-| Mitigations: **kid منفصل** (`trial-hub`) — البرنامج يقبل من هذا المفتاح تجربة ≤14 يوم فقط؛ إزالة المفتاح العام من `licence_keys` في الإصدار التالي؛ كلمة مرور قوية + 2FA على Cloudflare؛ أو الإبقاء على التوقيع في Licence Studio فقط |
+| Signing keys in Worker secrets → approve from anywhere | Compromised Cloudflare account could issue codes |
+| Mitigations: kid `trial-hub` (≤14-day device trials only), kid `paid` for hub-paid codes, remove revoked public keys in the next installer, strong Cloudflare 2FA |
 
-Never put the Licence Studio **paid** private key in `LICENCE_SIGNING_KEY`. Generate a dedicated trial key pair; customers trust only `trial-hub:<public>` for hub-signed trials.
+Never put a Licence Studio **paid** private key in `LICENCE_SIGNING_KEY`.
 
 ## Setup (documented only) / الإعداد (توثيق فقط)
 
+See the shared hub README in Yousef-Transportation `licence-hub/README.md` for production deployment. For this dev copy:
+
 ```bash
 cd licence-hub
-npx wrangler d1 create al-store-licence
-# Put database_id in wrangler.toml
-npx wrangler d1 execute al-store-licence --file=schema.sql
-
-# Trial-only Ed25519 key (example — run locally, do not commit trial-hub.pem):
-openssl genpkey -algorithm ED25519 -out trial-hub.pem
-
-# Hash the owner password (example — run locally, do not commit output):
-# python3 -c "import hashlib,secrets; s=secrets.token_hex(16); print('pbkdf2-sha256:100000:'+s+':'+hashlib.pbkdf2_hmac('sha256', b'YOUR_PASSWORD', bytes.fromhex(s), 100000).hex())"
-
-npx wrangler secret put LICENCE_SIGNING_KEY       # PKCS#8 PEM of trial-hub.pem ONLY
-npx wrangler secret put LICENCE_PAID_SIGNING_KEY  # PKCS#8 PEM of paid-hub.pem ONLY (owner panel monthly/permanent)
-npx wrangler secret put SESSION_SECRET
-npx wrangler secret put OWNER_PASSWORD_HASH
-# Optional:
-npx wrangler secret put TELEGRAM_BOT_TOKEN
-npx wrangler secret put TELEGRAM_CHAT_ID
-
+npx wrangler d1 create al-store-licence-dev
+# database_id in wrangler.toml, schema.sql, secrets (trial + paid keys, SESSION_SECRET, OWNER_PASSWORD_HASH)
 npx wrangler deploy
 ```
 
-ضع في `licence_keys.txt` سطر `trial-hub:<public>` و`paid:<public>` (واختياريًا `studio:<public>` لأكواد Licence Studio اليدوية).
-
-Put `trial-hub:<public>` and `paid:<public>` in `licence_keys.txt` for customer builds (optional `studio:<public>` for manual Studio codes). Revoke a Worker key by removing its public line in the next release.
-
-See also `docs/HUB_SETUP.md` for how this worker differs from the telemetry relay.
+Customer builds: `trial-hub:<public>` and `paid:<public>` via `python tools/build_windows.py --customer` (`STORE_RELEASE_RELAY_URL` + allowlist).
 
 ## Tests / الاختبارات
 
 ```bash
 node --check licence-hub/src/worker.js
 cd licence-hub && npm test
-cd tests && python3 -m unittest test_licence_hub_signer.py
+python -m unittest tests.test_licence_hub_signer tests.test_hub_time
 ```
 
-No runtime npm dependencies — only Node built-ins and `node --test`.
+See also `docs/HUB_SETUP.md`.

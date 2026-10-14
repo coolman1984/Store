@@ -102,10 +102,13 @@ class CustomerRelease(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn(build_windows.VERSION, r.stdout)
 
-    def test_shipped_relay_hosts_file_lists_no_active_hostnames(self):
+    def test_shipped_relay_hosts_file_lists_shared_hub_hostname(self):
         cleaned = {k: v for k, v in os.environ.items() if k != 'STORE_RELEASE_ALLOWED_RELAY_HOSTS'}
         with mock.patch.dict(os.environ, cleaned, clear=True):
-            self.assertEqual(build_windows.allowed_relay_hosts(), set())
+            self.assertEqual(
+                build_windows.allowed_relay_hosts(),
+                {'trip-orders-licence-hub.mflma2040.workers.dev'},
+            )
 
     def test_customer_check_accepts_a_public_key_and_https_relay(self):
         with tempfile.TemporaryDirectory(prefix='store-customer-') as tmp:

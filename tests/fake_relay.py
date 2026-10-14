@@ -14,7 +14,9 @@ class Quiet(ThreadingHTTPServer):
 
 
 class FakeRelay:
-    def __init__(self, port=0):
+    def __init__(self, port=0, hub_sign_pem=None, hub_sign_kid='trial-hub'):
+        self.hub_sign_pem = hub_sign_pem
+        self.hub_sign_kid = hub_sign_kid
         self.requests = {}      # id -> dict(body, token, status, reason, code, acked)
         self.by_nonce = {}
         self.log = []           # every call: (method, path)
@@ -63,15 +65,14 @@ class FakeRelay:
                     if not r:
                         return self.send(401, {'error': 'unauthorised'})
                     out = {'status': r['status'], 'reason': r['reason'], **({'stage': r['stage']} if r.get('stage') and r['status'] == 'pending' else {})}
-                    if r.get('calendar_day'):
-                        out['calendar_day'] = r['calendar_day']
-                        out['serverTime'] = r['calendar_day']
+                    day = r.get('calendar_day') or relay.clock_day or time.strftime('%Y-%m-%d', time.gmtime())
+                    out.update(relay._calendar_fields(day))
                     if r['status'] == 'issued':
                         out['code'] = r['code']
                     return self.send(200, out)
-                if self.path == '/licence/clock':
+                if self.path in ('/licence/clock', '/licence/time'):
                     day = relay.clock_day or time.strftime('%Y-%m-%d', time.gmtime())
-                    return self.send(200, {'calendar_day': day, 'serverTime': day})
+                    return self.send(200, relay._calendar_fields(day))
                 self.send(404, {})
 
         self.httpd = Quiet(('127.0.0.1', port), H)
@@ -80,6 +81,14 @@ class FakeRelay:
         self.base = f'http://127.0.0.1:{self.port}'
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
+
+    def _calendar_fields(self, day):
+        if self.hub_sign_pem:
+            from hub_calendar_sign import sign_calendar_payload
+
+            payload, _ = sign_calendar_payload(self.hub_sign_pem, self.hub_sign_kid, day)
+            return payload
+        return {'calendar_day': day, 'serverTime': day}
 
     def own(self, headers, rid):
         r = self.requests.get(rid)

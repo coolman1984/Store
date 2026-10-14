@@ -43,16 +43,13 @@ _lock = threading.Lock()
 
 
 def _note_hub_time(db, url, payload):
-    """Remember the relay's calendar day when online; fail-open on network errors."""
-    if not isinstance(payload, dict):
-        payload = {}
-    moment = payload.get('serverTime') or payload.get('calendar_day')
-    if moment:
-        licence.note_online(db, moment)
-        return
-    probed = licence.probe_http_date(url)
-    if probed:
-        licence.note_online(db, probed.isoformat(timespec='seconds'))
+    """Apply verified signed hub calendar only; fail-open on network errors.
+
+    The shared multi-product hub signs `calendar_day` (kid `trial-hub` or `paid`). Unsigned JSON, bad signatures,
+    and HTTP Date headers never write `licence_trusted_date` or `max_seen` (a hostile relay cannot push time forward).
+    """
+    if isinstance(payload, dict):
+        licence.accept_hub_calendar(db, payload)
 
 
 def sync_hub_clock(app, force=False):

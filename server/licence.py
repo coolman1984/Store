@@ -1,7 +1,7 @@
 """Is this copy allowed to sell today? The licence code pasted by the shop, checked on this PC.
 
-- The vendor's Licence Studio (Apps-Factory apps/licence-studio) signs a code for this PC's device code.
-  A trial's length is whatever the company signs into the code (14 days unless it set another for the product). A new code is needed after that.
+- The company's shared licence hub (or optional Licence Studio `studio:` key) signs a code for this PC's device code.
+  Product id inside every code must be `al-store`. A trial's length is whatever the company signs (hub trial key ≤14 days). A new code is needed after expiry.
 - Only the vendor's public keys are inside the program (licence_keys.txt). They cannot make codes.
 - Without a working code the shop can still open everything, read, print, export and back up (constitution 8):
   only actions that change data are refused, with a clear message and the device code to send to the vendor.
@@ -19,6 +19,7 @@ import urllib.request
 from datetime import date, datetime, time as dt_time, timedelta, timezone
 
 import afcodes
+import hub_time
 import ids
 from version import PRODUCT_ID, ROOT
 
@@ -27,6 +28,7 @@ KEYS_FILE = os.path.join(ROOT, 'licence_keys.txt')
 CLOCK_TOLERANCE_HOURS = 24
 META_TRUSTED = 'licence_trusted_date'
 META_ONLINE = 'licence_online_at'
+HUB_CALENDAR_MAX_JUMP_DAYS = 7
 TRIAL_HUB_KIDS = frozenset({'trial-hub', 'trial_hub', 'hub-trial'})
 # Hub-paid monthly/permanent codes use kid `paid:` in licence_keys.txt (separate from trial-hub and Licence Studio).
 PAID_HUB_KIDS = frozenset({'paid'})
@@ -65,6 +67,61 @@ def trusted_keys():
     return [key for _, key in trusted_key_entries()]
 
 
+def trusted_key_by_kid():
+    """Map licence key id → public key (url-safe base64) for hub calendar signatures."""
+    out = {}
+    for kid, key in trusted_key_entries():
+        if kid:
+            out[kid.lower()] = key
+    return out
+
+
+def accept_hub_calendar(db, data):
+    """Trust hub calendar only when signed by a pinned kid; unsigned payloads are ignored."""
+    day = hub_time.verify_hub_calendar(data, trusted_key_by_kid())
+    if not day:
+        return False
+    return _note_hub_calendar_day(db, day)
+
+
+def _note_hub_calendar_day(db, hub_day):
+    """Record hub business calendar from verified signed time; forward jump capped per session."""
+    if not isinstance(hub_day, str) or len(hub_day) != 10:
+        return False
+    try:
+        hub_date = date.fromisoformat(hub_day)
+    except ValueError:
+        return False
+    if hub_date.isoformat() != hub_day:
+        return False
+    prev = trusted_day(db)
+    if prev and hub_date <= prev:
+        _meta(db, META_ONLINE, ids.iso(ids.utcnow()))
+        with _lock:
+            _cache.clear()
+        return prev == hub_date
+    today = date.fromisoformat(ids.local_day())
+    effective = today
+    if prev and prev > effective:
+        effective = prev
+    last = ids.parse(_meta(db, 'max_seen'))
+    if last and last.date() > effective:
+        effective = last.date()
+    capped = hub_date
+    if capped > effective + timedelta(days=HUB_CALENDAR_MAX_JUMP_DAYS):
+        capped = effective + timedelta(days=HUB_CALENDAR_MAX_JUMP_DAYS)
+    if prev is None or capped > prev:
+        _meta(db, META_TRUSTED, capped.isoformat())
+    mark = datetime.combine(capped, dt_time(12, 0), tzinfo=timezone.utc)
+    last = ids.parse(_meta(db, 'max_seen'))
+    if not last or mark > last:
+        _meta(db, 'max_seen', ids.iso(mark))
+    _meta(db, META_ONLINE, ids.iso(ids.utcnow()))
+    with _lock:
+        _cache.clear()
+    return True
+
+
 def trial_only_public_keys():
     """Public keys that may sign device-bound trials of at most 14 days only (licence hub trial key).
 
@@ -84,23 +141,6 @@ def trial_only_public_keys():
         if entry:
             keys.add(entry[1])
     return frozenset(keys)
-
-
-def parse_server_moment(value):
-    """A calendar moment from the licence hub (ISO date or date-time). None when unknown."""
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value.replace(tzinfo=None) if value.tzinfo else value
-    try:
-        s = str(value)
-        if 'T' in s:
-            moment = datetime.fromisoformat(s[:19])
-        else:
-            moment = datetime.combine(date.fromisoformat(s[:10]), dt_time(12, 0))
-        return moment
-    except (ValueError, TypeError):
-        return None
 
 
 def probe_http_date(url, timeout=10, opener=None):
@@ -177,28 +217,6 @@ def trusted_day(db):
         return date.fromisoformat(str(raw)[:10])
     except ValueError:
         return None
-
-
-def note_online(db, server_moment):
-    """Trusted hub time (polling or HTTPS Date). Fail-open: None does nothing; never locks because the network failed."""
-    when = parse_server_moment(server_moment)
-    if when is None:
-        return
-    day = when.date()
-    prev = trusted_day(db)
-    if prev is None or day > prev:
-        _meta(db, META_TRUSTED, day.isoformat())
-    if 'T' in str(server_moment):
-        mark = when.astimezone(timezone.utc) if when.tzinfo else when.replace(tzinfo=timezone.utc)
-    else:
-        mark = datetime.combine(day, dt_time(12, 0), tzinfo=timezone.utc)
-    last = ids.parse(_meta(db, 'max_seen'))
-    mark_utc = mark if mark.tzinfo else mark.replace(tzinfo=timezone.utc)
-    if not last or mark_utc > last:
-        _meta(db, 'max_seen', ids.iso(mark_utc))
-    _meta(db, META_ONLINE, ids.iso(ids.utcnow()))
-    with _lock:
-        _cache.clear()
 
 
 def _billing_day(today, trust):

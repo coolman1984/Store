@@ -9,14 +9,14 @@ function wrapStmt(stmt) {
   return {
     bind(...args) {
       return {
-        run() {
+        async run() {
           const info = stmt.run(...args);
           return { meta: { changes: info.changes } };
         },
-        first() {
+        async first() {
           return stmt.get(...args) ?? null;
         },
-        all() {
+        async all() {
           return { results: stmt.all(...args) };
         },
       };
@@ -36,7 +36,7 @@ export function newD1() {
       try {
         const results = [];
         for (const s of stmts) {
-          results.push(s.run());
+          results.push(await s.run());
         }
         db.exec('COMMIT');
         return results;

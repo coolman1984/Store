@@ -1,4 +1,5 @@
 """Online hub calendar + local clock rules (Teachers PR #35 standard, adapted for Al-Store meta storage)."""
+import base64
 import os
 import shutil
 import unittest
@@ -14,11 +15,29 @@ import afcodes  # noqa: E402
 import licence  # noqa: E402
 import trial  # noqa: E402
 from fake_relay import FakeRelay  # noqa: E402
-from harness import HAVE_CRYPTO, Server, Shop, code_for  # noqa: E402
+from harness import HAVE_CRYPTO, PUBLIC, Server, Shop, code_for  # noqa: E402
+from hub_calendar_sign import trust_signed_hub_day  # noqa: E402
 
 
+@unittest.skipUnless(HAVE_CRYPTO, 'cryptography needed to sign test hub time')
 class LicenceOnlineTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        cls._hub_private = Ed25519PrivateKey.generate()
+        cls.hub_pem = cls._hub_private.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode()
+        cls.hub_pub = base64.urlsafe_b64encode(
+            cls._hub_private.public_key().public_bytes_raw()
+        ).decode().rstrip('=')
+
     def setUp(self):
+        os.environ['STORE_LICENCE_KEYS'] = f'{PUBLIC},trial-hub:{self.hub_pub},paid:{self.hub_pub}'
         self.shop = Shop(licensed=False)
         self.dev = licence.device(self.shop.db)
         self.today = date.fromisoformat(__import__('ids').local_day())
@@ -26,7 +45,12 @@ class LicenceOnlineTests(unittest.TestCase):
 
     def tearDown(self):
         shutil.rmtree(self.shop.dir, ignore_errors=True)
+        if PUBLIC:
+            os.environ['STORE_LICENCE_KEYS'] = PUBLIC
         licence._cache.clear()
+
+    def _trust_hub_day(self, day):
+        trust_signed_hub_day(self.shop.db, self.hub_pem, 'trial-hub', day.isoformat() if isinstance(day, date) else day)
 
     def activate(self, last, grace=3, edition='standard', first=None):
         first = first or self.today
@@ -39,7 +63,7 @@ class LicenceOnlineTests(unittest.TestCase):
         self.activate(last)
         st = licence.status(self.shop.db)
         self.assertIn(st['state'], ('active', 'trial', 'grace'))
-        licence.note_online(self.shop.db, (last + timedelta(days=10)).isoformat())
+        self._trust_hub_day(last + timedelta(days=10))
         licence._cache.clear()
         st = licence.status(self.shop.db)
         self.assertEqual(st['state'], 'expired')
@@ -48,7 +72,6 @@ class LicenceOnlineTests(unittest.TestCase):
     def test_offline_failure_does_not_add_a_hub_lock(self):
         last = self.today + timedelta(days=20)
         self.activate(last)
-        licence.note_online(self.shop.db, None)
         self.assertIsNone(licence.probe_http_date('https://invalid.invalid', timeout=1))
         self.assertIsNone(licence.trusted_day(self.shop.db))
         self.assertIn(licence.status(self.shop.db)['state'], ('active', 'trial'))
@@ -62,7 +85,7 @@ class LicenceOnlineTests(unittest.TestCase):
     def test_hub_trusted_date_blocks_local_rollback(self):
         last = self.today + timedelta(days=30)
         self.activate(last)
-        licence.note_online(self.shop.db, (self.today + timedelta(days=5)).isoformat())
+        self._trust_hub_day(self.today + timedelta(days=5))
         licence._cache.clear()
         st = licence.status(self.shop.db)
         self.assertEqual(st['state'], 'clock_back')
@@ -73,7 +96,6 @@ class LicenceOnlineTests(unittest.TestCase):
         first = last - timedelta(days=29)
         code = code_for(self.dev, 30, first, edition='standard', grace=3)
         licence.activate(self.shop.db, code)
-        licence.note_online(self.shop.db, '2029-06-01')
         r = afcodes.read_code(code, licence.trusted_keys(), 'al-store', self.dev, date(2029, 6, 1))
         self.assertEqual(r.terms['last_day'], last.isoformat())
 
@@ -81,7 +103,18 @@ class LicenceOnlineTests(unittest.TestCase):
 @unittest.skipUnless(HAVE_CRYPTO, 'cryptography needed to sign test codes')
 class HubClockAfterActivationTests(unittest.TestCase):
     def setUp(self):
-        self.relay = FakeRelay()
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        self._hub_private = Ed25519PrivateKey.generate()
+        pem = self._hub_private.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode()
+        pub = base64.urlsafe_b64encode(self._hub_private.public_key().public_bytes_raw()).decode().rstrip('=')
+        os.environ['STORE_LICENCE_KEYS'] = f'{PUBLIC},trial-hub:{pub},paid:{pub}'
+        self.relay = FakeRelay(hub_sign_pem=pem)
         os.environ['STORE_LICENCE_RELAY'] = self.relay.base
         self.S = Server(licensed=False)
         self.app = self.S.app
@@ -94,6 +127,8 @@ class HubClockAfterActivationTests(unittest.TestCase):
         self.S.stop()
         self.relay.stop()
         os.environ.pop('STORE_LICENCE_RELAY', None)
+        if PUBLIC:
+            os.environ['STORE_LICENCE_KEYS'] = PUBLIC
         licence._cache.clear()
 
     def test_sync_hub_clock_after_activation_expires_when_pc_clock_lags(self):

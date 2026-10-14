@@ -1,4 +1,4 @@
 # Customer installer builds accept only relay hostnames listed here (one per line, lowercase, no scheme or path).
 # Add the real Worker hostname before a shop release, or pass the same names in STORE_RELEASE_ALLOWED_RELAY_HOSTS at build time.
-# Example (commented — not active in git):
-# al-store-licence.mycompany.workers.dev
+# Shared multi-product hub (Yousef-Transportation); keys still only via STORE_RELEASE_PUBLIC_KEY at build time.
+trip-orders-licence-hub.mflma2040.workers.dev

@@ -1,5 +1,7 @@
-// AF licence codes — byte-compatible with server/afcodes.py (verify in Al-Store with the matching public key).
-import { calendarDateInTz, addCalendarDays, DEFAULT_CALENDAR_TZ } from './calendar.js';
+// AF licence codes — byte-compatible with server/afcodes.py (shared multi-product hub, round 6).
+import { calendarDateInTz, addCalendarDays, addCalendarMonths, DEFAULT_CALENDAR_TZ } from './calendar.js';
+
+export { addCalendarMonths };
 
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const DOMAIN = new TextEncoder().encode('AF-LICENCE-CODE/1');
@@ -8,7 +10,7 @@ const EPOCH_MS = Date.UTC(2024, 0, 1);
 const EDITION_TRIAL = 1;
 const EDITION_STANDARD = 2;
 const EDITION_PERPETUAL = 4;
-const FOREVER_DAY_NUM = 65535;
+const FOREVER_DAY = 65535;
 const PAYLOAD_LEN = 26;
 const CODE_LEN = PAYLOAD_LEN + 64;
 
@@ -79,7 +81,7 @@ function packPayload(fields) {
   return new Uint8Array(buf);
 }
 
-/** Import Ed25519 private key — PKCS#8 PEM only (same as Licence Studio / server/afcodes.py). */
+/** Import Ed25519 private key — PKCS#8 PEM only (same as server/afcodes.py). */
 export async function importSigningKey(secret) {
   const raw = secret.trim();
   if (!raw.includes('BEGIN')) {
@@ -90,11 +92,6 @@ export async function importSigningKey(secret) {
   return crypto.subtle.importKey('pkcs8', der, { name: 'Ed25519' }, true, ['sign']);
 }
 
-export async function publicKeyB64Url(privateKey) {
-  const jwk = await crypto.subtle.exportKey('jwk', privateKey);
-  return jwk.x;
-}
-
 async function keyTagFromPrivate(privateKey) {
   const jwk = await crypto.subtle.exportKey('jwk', privateKey);
   const raw = Uint8Array.from(atob(jwk.x.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
@@ -102,20 +99,8 @@ async function keyTagFromPrivate(privateKey) {
   return hash.slice(0, 2);
 }
 
-/** Sign a device-bound paid code from the hub (`monthly` → standard edition, `permanent` → perpetual). */
-export async function issuePaidCode(privateKey, productId, device, kind, when = new Date(), timeZone = DEFAULT_CALENDAR_TZ, options = {}) {
-  if (kind !== 'monthly' && kind !== 'permanent') throw new Error('bad_paid_kind');
+async function issueEditionCode(privateKey, productId, device, edition, firstIso, lastIso, when = new Date(), timeZone = DEFAULT_CALENDAR_TZ) {
   const issuedIso = calendarDateInTz(when, timeZone).iso;
-  const firstIso = issuedIso;
-  const perpetual = kind === 'permanent';
-  const monthlyDays = Math.floor(Number(options.monthlyDays ?? 30));
-  const monthlyGrace = Number(options.monthlyGrace ?? 3);
-  if (!perpetual && (!Number.isFinite(monthlyDays) || monthlyDays < 1 || monthlyDays > 3660)) {
-    throw new Error('monthly_days_out_of_range');
-  }
-  const edition = perpetual ? EDITION_PERPETUAL : EDITION_STANDARD;
-  const lastDayNum = perpetual ? FOREVER_DAY_NUM : dayNumFromIso(addCalendarDays(firstIso, monthlyDays));
-  const grace = perpetual ? 0 : Math.min(60, Math.max(0, Math.floor(monthlyGrace)));
   const serial = crypto.getRandomValues(new Uint8Array(4));
   const [ptag, dtag, ktag] = await Promise.all([
     productTag(productId),
@@ -126,49 +111,6 @@ export async function issuePaidCode(privateKey, productId, device, kind, when = 
     version: VERSION,
     productTag: ptag,
     edition,
-    issued: dayNumFromIso(issuedIso),
-    first: dayNumFromIso(firstIso),
-    last: lastDayNum,
-    grace,
-    deviceTag: dtag,
-    serial,
-    seats: 1,
-    keyTag: ktag,
-  });
-  const msg = new Uint8Array(DOMAIN.length + payload.length);
-  msg.set(DOMAIN, 0);
-  msg.set(payload, DOMAIN.length);
-  const sig = new Uint8Array(await crypto.subtle.sign('Ed25519', privateKey, msg));
-  const raw = new Uint8Array(CODE_LEN);
-  raw.set(payload, 0);
-  raw.set(sig, PAYLOAD_LEN);
-  const norm = b32(raw);
-  const code = group(norm);
-  return {
-    code,
-    serial: [...serial].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase(),
-    first_day: firstIso,
-    last_day: perpetual ? null : addCalendarDays(firstIso, monthlyDays),
-    edition: perpetual ? 'perpetual' : 'standard',
-    product: productId,
-    device: group(normalize(device), 5),
-  };
-}
-
-export async function issueTrialCode(privateKey, productId, device, days = 14, when = new Date(), timeZone = DEFAULT_CALENDAR_TZ) {
-  const issuedIso = calendarDateInTz(when, timeZone).iso;
-  const firstIso = issuedIso;
-  const lastIso = addCalendarDays(firstIso, days);
-  const serial = crypto.getRandomValues(new Uint8Array(4));
-  const [ptag, dtag, ktag] = await Promise.all([
-    productTag(productId),
-    deviceTag(device),
-    keyTagFromPrivate(privateKey),
-  ]);
-  const payload = packPayload({
-    version: VERSION,
-    productTag: ptag,
-    edition: EDITION_TRIAL,
     issued: dayNumFromIso(issuedIso),
     first: dayNumFromIso(firstIso),
     last: dayNumFromIso(lastIso),
@@ -187,15 +129,94 @@ export async function issueTrialCode(privateKey, productId, device, days = 14, w
   raw.set(sig, PAYLOAD_LEN);
   const norm = b32(raw);
   const code = group(norm);
+  const editionName = edition === EDITION_TRIAL ? 'trial' : edition === EDITION_STANDARD ? 'standard' : 'perpetual';
+  const lastDayOut = edition === EDITION_PERPETUAL ? null : lastIso;
   return {
     code,
     serial: [...serial].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase(),
     first_day: firstIso,
-    last_day: lastIso,
-    edition: 'trial',
+    last_day: lastDayOut,
+    edition: editionName,
     product: productId,
     device: group(normalize(device), 5),
   };
+}
+
+/** Sign a device-bound trial code (edition trial, `days` calendar days inclusive in `timeZone`). */
+export async function issueTrialCode(privateKey, productId, device, days = 14, when = new Date(), timeZone = DEFAULT_CALENDAR_TZ) {
+  const issuedIso = calendarDateInTz(when, timeZone).iso;
+  const firstIso = issuedIso;
+  const lastIso = addCalendarDays(firstIso, days);
+  return issueEditionCode(privateKey, productId, device, EDITION_TRIAL, firstIso, lastIso, when, timeZone);
+}
+
+/** Paid subscription until inclusive `lastDayIso` (edition standard, bound to device). */
+export async function issuePaidUntilCode(privateKey, productId, device, lastDayIso, when = new Date(), timeZone = DEFAULT_CALENDAR_TZ) {
+  const firstIso = calendarDateInTz(when, timeZone).iso;
+  if (lastDayIso < firstIso) throw new Error('paid_until_before_first');
+  return issueEditionCode(privateKey, productId, device, EDITION_STANDARD, firstIso, lastDayIso, when, timeZone);
+}
+
+/** Permanent paid licence (edition perpetual, device-bound). */
+export async function issuePermanentCode(privateKey, productId, device, when = new Date(), timeZone = DEFAULT_CALENDAR_TZ) {
+  const firstIso = calendarDateInTz(when, timeZone).iso;
+  const lastNum = FOREVER_DAY;
+  const issuedIso = calendarDateInTz(when, timeZone).iso;
+  const serial = crypto.getRandomValues(new Uint8Array(4));
+  const [ptag, dtag, ktag] = await Promise.all([
+    productTag(productId),
+    deviceTag(device),
+    keyTagFromPrivate(privateKey),
+  ]);
+  const payload = packPayload({
+    version: VERSION,
+    productTag: ptag,
+    edition: EDITION_PERPETUAL,
+    issued: dayNumFromIso(issuedIso),
+    first: dayNumFromIso(firstIso),
+    last: lastNum,
+    grace: 0,
+    deviceTag: dtag,
+    serial,
+    seats: 1,
+    keyTag: ktag,
+  });
+  const msg = new Uint8Array(DOMAIN.length + payload.length);
+  msg.set(DOMAIN, 0);
+  msg.set(payload, DOMAIN.length);
+  const sig = new Uint8Array(await crypto.subtle.sign('Ed25519', privateKey, msg));
+  const raw = new Uint8Array(CODE_LEN);
+  raw.set(payload, 0);
+  raw.set(sig, PAYLOAD_LEN);
+  const norm = b32(raw);
+  return {
+    code: group(norm),
+    serial: [...serial].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase(),
+    first_day: firstIso,
+    last_day: null,
+    edition: 'perpetual',
+    product: productId,
+    device: group(normalize(device), 5),
+  };
+}
+
+/** Dev hub helper: monthly span from first day (30 days + optional grace in caller). */
+export async function issuePaidCode(privateKey, productId, device, kind, when = new Date(), timeZone = DEFAULT_CALENDAR_TZ, options = {}) {
+  if (kind === 'permanent') return issuePermanentCode(privateKey, productId, device, when, timeZone);
+  const monthlyDays = Math.floor(Number(options.monthlyDays ?? 30));
+  if (!Number.isFinite(monthlyDays) || monthlyDays < 1 || monthlyDays > 3660) {
+    throw new Error('monthly_days_out_of_range');
+  }
+  const firstIso = calendarDateInTz(when, timeZone).iso;
+  const lastIso = addCalendarDays(firstIso, monthlyDays);
+  return issuePaidUntilCode(privateKey, productId, device, lastIso, when, timeZone);
+}
+
+export function paidPresetLastDay(preset, when = new Date(), timeZone = DEFAULT_CALENDAR_TZ) {
+  const first = calendarDateInTz(when, timeZone).iso;
+  const months = { '1m': 1, '3m': 3, '6m': 6, '1y': 12 }[preset];
+  if (!months) throw new Error('bad_preset');
+  return addCalendarMonths(first, months);
 }
 
 export function codeCharLength() {

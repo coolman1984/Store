@@ -18,7 +18,7 @@ test('trial code length and device binding', async () => {
   const pem = pemFromSeed(seed);
   const privateKey = await importSigningKey(pem);
   const device = group(normalize('7KD2MQX9TP'), 5);
-  const signed = await issueTrialCode(privateKey, 'al-store', device, 14);
+  const signed = await issueTrialCode(privateKey, 'trip-orders', device, 14);
   const norm = normalize(signed.code);
   assert.equal(norm.length, codeCharLength());
   assert.match(signed.code, /^[0-9A-Z-]+$/);
@@ -37,6 +37,6 @@ test('trial first day uses Africa/Cairo calendar', async () => {
   const device = group(normalize('7KD2MQX9TP'), 5);
   const when = new Date('2026-10-13T22:30:00Z');
   assert.equal(calendarDateInTz(when, 'Africa/Cairo').iso, '2026-10-14');
-  const signed = await issueTrialCode(privateKey, 'al-store', device, 14, when, 'Africa/Cairo');
+  const signed = await issueTrialCode(privateKey, 'trip-orders', device, 14, when, 'Africa/Cairo');
   assert.equal(signed.first_day, '2026-10-14');
 });
