@@ -5,7 +5,7 @@ Al-Store can use **two different Cloudflare Workers** (different URLs). They are
 | Worker | Role | Typical URL config |
 |---|---|---|
 | **Telemetry relay** (`Apps-Factory/templates/telemetry-relay`) | Problem reports (`/ingest`), usage counts, crash fingerprints | Settings → Support / `hub_url` in `config.json` when the shop opted in |
-| **Shared licence hub** ([`Yousef-Transportation`](https://github.com/coolman1984/Yousef-Transportation) `licence-hub/`, branch `feat/owner-panel-paid`) | Online trial, monthly, and permanent requests + owner panel (`product`: `al-store`) | `licence_relay.txt`, `STORE_LICENCE_RELAY`, or `STORE_RELEASE_RELAY_URL` at build time + `tools/relay_hosts_allowed.txt` |
+| **Shared licence hub** ([`Yousef-Transportation`](https://github.com/coolman1984/Yousef-Transportation) `licence-hub/` on `main`, PR #34 product isolation) | Online trial, monthly, and permanent requests + owner panel (`product`: `al-store`) | `https://trip-orders-licence-hub.mflma2040.workers.dev` (hostname in `tools/relay_hosts_allowed.txt`); build via `STORE_RELEASE_RELAY_URL` + `STORE_RELEASE_PUBLIC_KEY` |
 
 The copy under `licence-hub/` in **this** repository is **dev-only** (local protocol tests). Production shops use the shared multi-product hub, not a URL committed in git.
 
@@ -44,16 +44,16 @@ While online, signed hub time is stored in `meta.licence_trusted_date`. Local da
 | **Online** | Licence screen → ask for trial / monthly / permanent → poll until the owner approves in the **shared hub owner panel** → code activates automatically. |
 | **Manual** | Send device code to the company → paste code from the owner panel (or optional `studio:` Licence Studio code). |
 
-## API assumptions (shared hub round 6)
+## API assumptions (shared hub, `main` after PR #34)
 
 | Route | Notes |
 |---|---|
-| `POST /licence/request` | Body includes `product: "al-store"`. Kinds: `trial`, `monthly`, `permanent`. |
-| `GET /licence/status?id=` | Bearer poll token; may include signed calendar fields. |
-| `POST /licence/ack` | After successful `licence.activate` on the PC. |
-| `GET /licence/time` or `/licence/clock` | Signed business calendar; Store client uses `/licence/clock`. |
+| `POST /licence/request` | Store always sends `product: "al-store"` (hub default is `trip-orders` when omitted). Kinds: `trial`, `monthly`, `permanent`. Trial locks are **per product** (`pd:al-store:…` / `ph:al-store:…`); the same device code may still request another product on the hub. Pending rows are scoped by `product` + `device_key`. |
+| `GET /licence/status?id=` | Bearer poll token; signed `calendar_day` + `kid` + `sig` (older signed days than the shop already stored are ignored). |
+| `POST /licence/ack` | Body `{ id }` + Bearer poll token after successful `licence.activate`. |
+| `GET /licence/time` or `/licence/clock` | Signed business calendar; Store uses `/licence/clock` once per run. Forward jump capped at 7 days per accepted update. |
 
-Prefixes `/api/licence/*` and `/licence-hub/licence/*` are equivalent to `/licence/*`.
+Prefixes `/api/licence/*` and `/licence-hub/licence/*` are equivalent to `/licence/*`. Activation codes are signed with per-product keys when configured (`LICENCE_SIGNING_KEY_AL_STORE`, `PAID_SIGNING_KEY_AL_STORE`); the shop still trusts only the **public** keys baked at build time.
 
 ## Proof still needed (field)
 

@@ -13,6 +13,16 @@ def _pub_b64url(raw32: bytes) -> str:
     return base64.urlsafe_b64encode(raw32).decode().rstrip('=')
 
 
+def trust_signed_hub_day(db, private_pem: str, kid: str, day: str, public_b64: str | None = None):
+    """Apply a signed hub calendar day through licence.accept_hub_calendar (tests only)."""
+    import licence
+
+    payload, pub = sign_calendar_payload(private_pem, kid, day)
+    if public_b64:
+        os.environ['STORE_LICENCE_KEYS'] = f'trial-hub:{public_b64},paid:{public_b64}'
+    return licence.accept_hub_calendar(db, payload)
+
+
 def sign_calendar_payload(private_pem: str, kid: str, day: str):
     """Return (payload dict, public key b64url) matching GET /licence/clock from the shared hub."""
     from cryptography.hazmat.primitives import serialization

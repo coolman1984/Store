@@ -113,6 +113,24 @@ class HubCalendarTrustTests(unittest.TestCase):
         licence.accept_hub_calendar(self.db, payload)
         self.assertEqual(licence.trusted_day(self.db), today + timedelta(days=licence.HUB_CALENDAR_MAX_JUMP_DAYS))
 
+    def test_second_sync_advances_another_seven_days(self):
+        today = self._today()
+        self.relay = FakeRelay(hub_sign_pem=self.hub_pem)
+        os.environ['STORE_LICENCE_RELAY'] = self.relay.base
+        self.relay.clock_day = (today + timedelta(days=7)).isoformat()
+        trial.sync_hub_clock(self.app, force=True)
+        self.assertEqual(licence.trusted_day(self.db), today + timedelta(days=7))
+        self.relay.clock_day = (today + timedelta(days=30)).isoformat()
+        trial.sync_hub_clock(self.app, force=True)
+        self.assertEqual(licence.trusted_day(self.db), today + timedelta(days=14))
+
+    def test_older_signed_day_does_not_move_stored_day(self):
+        today = self._today()
+        licence.accept_hub_calendar(self.db, self._signed((today + timedelta(days=5)).isoformat()))
+        self.assertEqual(licence.trusted_day(self.db), today + timedelta(days=5))
+        licence.accept_hub_calendar(self.db, self._signed((today + timedelta(days=3)).isoformat()))
+        self.assertEqual(licence.trusted_day(self.db), today + timedelta(days=5))
+
 
 if __name__ == '__main__':
     unittest.main()

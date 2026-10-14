@@ -143,23 +143,6 @@ def trial_only_public_keys():
     return frozenset(keys)
 
 
-def parse_server_moment(value):
-    """A calendar moment from the licence hub (ISO date or date-time). None when unknown."""
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value.replace(tzinfo=None) if value.tzinfo else value
-    try:
-        s = str(value)
-        if 'T' in s:
-            moment = datetime.fromisoformat(s[:19])
-        else:
-            moment = datetime.combine(date.fromisoformat(s[:10]), dt_time(12, 0))
-        return moment
-    except (ValueError, TypeError):
-        return None
-
-
 def probe_http_date(url, timeout=10, opener=None):
     """Lightweight online check: HTTPS Date header from the relay (fail-open: None on any error)."""
     url = (url or '').rstrip('/')
@@ -234,28 +217,6 @@ def trusted_day(db):
         return date.fromisoformat(str(raw)[:10])
     except ValueError:
         return None
-
-
-def note_online(db, server_moment):
-    """Trusted hub time (polling or HTTPS Date). Fail-open: None does nothing; never locks because the network failed."""
-    when = parse_server_moment(server_moment)
-    if when is None:
-        return
-    day = when.date()
-    prev = trusted_day(db)
-    if prev is None or day > prev:
-        _meta(db, META_TRUSTED, day.isoformat())
-    if 'T' in str(server_moment):
-        mark = when.astimezone(timezone.utc) if when.tzinfo else when.replace(tzinfo=timezone.utc)
-    else:
-        mark = datetime.combine(day, dt_time(12, 0), tzinfo=timezone.utc)
-    last = ids.parse(_meta(db, 'max_seen'))
-    mark_utc = mark if mark.tzinfo else mark.replace(tzinfo=timezone.utc)
-    if not last or mark_utc > last:
-        _meta(db, 'max_seen', ids.iso(mark_utc))
-    _meta(db, META_ONLINE, ids.iso(ids.utcnow()))
-    with _lock:
-        _cache.clear()
 
 
 def _billing_day(today, trust):
