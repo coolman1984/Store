@@ -190,7 +190,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     try {
-      if (url.pathname.startsWith('/licence/')) {
+      if (url.pathname.startsWith('/licence/') || url.pathname.startsWith('/api/licence/') || url.pathname.startsWith('/licence-hub/licence/')) {
         const res = await handleLicence(request, env, url);
         if (res) {
           Object.entries(HEADERS).forEach(([k, v]) => res.headers.set(k, v));

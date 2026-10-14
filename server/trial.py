@@ -43,12 +43,11 @@ _lock = threading.Lock()
 
 
 def _note_hub_time(db, url, payload):
-    """Remember the relay's calendar day when online; fail-open on network errors."""
-    if not isinstance(payload, dict):
-        payload = {}
-    moment = payload.get('serverTime') or payload.get('calendar_day')
-    if moment:
-        licence.note_online(db, moment)
+    """Remember the relay's calendar day when online; fail-open on network errors.
+
+    The shared multi-product hub signs `calendar_day` (kid `trial-hub` or `paid`). Unsigned hub time never moves expiry.
+    """
+    if isinstance(payload, dict) and licence.accept_hub_calendar(db, payload):
         return
     probed = licence.probe_http_date(url)
     if probed:

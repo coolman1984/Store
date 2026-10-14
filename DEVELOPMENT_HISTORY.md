@@ -1,3 +1,8 @@
+## 2026-10-14 — Wire Store client to shared multi-product licence hub
+
+**Why:** Production trial, monthly, and permanent for `al-store` are issued from the shared hub in `coolman1984/Yousef-Transportation` (`feat/owner-panel-paid`, round 6), not Licence Studio.
+**What:** `server/hub_time.py` — verify signed hub calendar (`trial-hub` / `paid` kids). `server/licence.py` — `accept_hub_calendar`; `server/trial.py` — unsigned hub time ignored. `licence-hub/` marked dev-only; afcodes aligned with shared hub round 6; signed `/licence/clock`. Tests: `tests/test_hub_time.py`, `tests/shared_hub/yousef_round6_export.mjs`, wrong-product cross-check in `tests/test_licence_hub_signer.py`; `fake_relay` signs calendar when configured. Docs: `README.md`, `docs/HUB_SETUP.md`, `licence-hub/README.md`.
+
 ## 2026-10-14 — Licence hub owner panel branding (Al-Store)
 
 **What:** Owner HTML titles and worker root page no longer say Trip Orders; they use Al-Store (`licence-hub/public/owner/*.html`, `worker.js`).

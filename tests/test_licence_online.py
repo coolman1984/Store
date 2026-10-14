@@ -1,4 +1,5 @@
 """Online hub calendar + local clock rules (Teachers PR #35 standard, adapted for Al-Store meta storage)."""
+import base64
 import os
 import shutil
 import unittest
@@ -14,7 +15,7 @@ import afcodes  # noqa: E402
 import licence  # noqa: E402
 import trial  # noqa: E402
 from fake_relay import FakeRelay  # noqa: E402
-from harness import HAVE_CRYPTO, Server, Shop, code_for  # noqa: E402
+from harness import HAVE_CRYPTO, PUBLIC, Server, Shop, code_for  # noqa: E402
 
 
 class LicenceOnlineTests(unittest.TestCase):
@@ -81,7 +82,18 @@ class LicenceOnlineTests(unittest.TestCase):
 @unittest.skipUnless(HAVE_CRYPTO, 'cryptography needed to sign test codes')
 class HubClockAfterActivationTests(unittest.TestCase):
     def setUp(self):
-        self.relay = FakeRelay()
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        self._hub_private = Ed25519PrivateKey.generate()
+        pem = self._hub_private.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode()
+        pub = base64.urlsafe_b64encode(self._hub_private.public_key().public_bytes_raw()).decode().rstrip('=')
+        os.environ['STORE_LICENCE_KEYS'] = f'{PUBLIC},trial-hub:{pub},paid:{pub}'
+        self.relay = FakeRelay(hub_sign_pem=pem)
         os.environ['STORE_LICENCE_RELAY'] = self.relay.base
         self.S = Server(licensed=False)
         self.app = self.S.app
@@ -94,6 +106,8 @@ class HubClockAfterActivationTests(unittest.TestCase):
         self.S.stop()
         self.relay.stop()
         os.environ.pop('STORE_LICENCE_RELAY', None)
+        if PUBLIC:
+            os.environ['STORE_LICENCE_KEYS'] = PUBLIC
         licence._cache.clear()
 
     def test_sync_hub_clock_after_activation_expires_when_pc_clock_lags(self):

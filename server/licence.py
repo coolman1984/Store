@@ -1,7 +1,7 @@
 """Is this copy allowed to sell today? The licence code pasted by the shop, checked on this PC.
 
-- The vendor's Licence Studio (Apps-Factory apps/licence-studio) signs a code for this PC's device code.
-  A trial's length is whatever the company signs into the code (14 days unless it set another for the product). A new code is needed after that.
+- The company's shared licence hub (or optional Licence Studio `studio:` key) signs a code for this PC's device code.
+  Product id inside every code must be `al-store`. A trial's length is whatever the company signs (hub trial key ≤14 days). A new code is needed after expiry.
 - Only the vendor's public keys are inside the program (licence_keys.txt). They cannot make codes.
 - Without a working code the shop can still open everything, read, print, export and back up (constitution 8):
   only actions that change data are refused, with a clear message and the device code to send to the vendor.
@@ -19,6 +19,7 @@ import urllib.request
 from datetime import date, datetime, time as dt_time, timedelta, timezone
 
 import afcodes
+import hub_time
 import ids
 from version import PRODUCT_ID, ROOT
 
@@ -63,6 +64,24 @@ def trusted_key_entries():
 
 def trusted_keys():
     return [key for _, key in trusted_key_entries()]
+
+
+def trusted_key_by_kid():
+    """Map licence key id → public key (url-safe base64) for hub calendar signatures."""
+    out = {}
+    for kid, key in trusted_key_entries():
+        if kid:
+            out[kid.lower()] = key
+    return out
+
+
+def accept_hub_calendar(db, data):
+    """Trust hub calendar only when signed by a pinned kid; unsigned payloads are ignored."""
+    day = hub_time.verify_hub_calendar(data, trusted_key_by_kid())
+    if not day:
+        return False
+    note_online(db, day)
+    return True
 
 
 def trial_only_public_keys():

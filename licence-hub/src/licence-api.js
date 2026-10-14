@@ -1,6 +1,7 @@
-import { issuePaidCode, issueTrialCode, normalize } from './afcodes.js';
+import { issuePaidCode, issueTrialCode, importSigningKey, normalize } from './afcodes.js';
 import { hex } from './auth.js';
 import { calendarDateInTz } from './calendar.js';
+import { signHubCalendar } from './hub-time.js';
 
 const enc = new TextEncoder();
 const now = () => Math.floor(Date.now() / 1000);
@@ -8,6 +9,8 @@ const WINDOW = 600;
 
 const REQUIRED = ['product', 'kind', 'device', 'machine', 'nonce', 'shop', 'ref', 'version'];
 export const REASON_PAID_IN_STUDIO = 'paid_in_licence_studio';
+const HUB_TIME_KID_TRIAL = 'trial-hub';
+const HUB_TIME_KID_PAID = 'paid';
 
 const MAX_DEVICE = 32;
 const MAX_MACHINE = 128;
@@ -124,6 +127,34 @@ function hubCalendarDay(env) {
   return calendarDateInTz(new Date(), tz).iso;
 }
 
+export function hubTimeSigningMaterial(env) {
+  const trialPem = env.LICENCE_SIGNING_KEY || null;
+  const paidPem = env.PAID_SIGNING_KEY || env.LICENCE_PAID_SIGNING_KEY || null;
+  if (!trialPem && !paidPem) return null;
+  if (trialPem) return { pem: trialPem, kid: HUB_TIME_KID_TRIAL };
+  if (paidPem) return { pem: paidPem, kid: HUB_TIME_KID_PAID };
+  return null;
+}
+
+export async function hubCalendarSigned(env) {
+  const day = hubCalendarDay(env);
+  const material = hubTimeSigningMaterial(env);
+  const serverTime = now();
+  if (!material) return { calendar_day: day, serverTime };
+  const key = await importSigningKey(material.pem);
+  const signed = await signHubCalendar(key, material.kid, day);
+  return { ...signed, serverTime };
+}
+
+export function licencePathname(pathname) {
+  let p = pathname;
+  for (const prefix of ['/api', '/licence-hub']) {
+    if (p === prefix) p = '/';
+    else if (p.startsWith(prefix + '/')) p = p.slice(prefix.length);
+  }
+  return p;
+}
+
 async function locksOwnedByRequest(env, dkey, machineHash, requestId) {
   const locks = [deviceLockKey(dkey)];
   if (machineHash) locks.push(machineLockKey(machineHash));
@@ -168,17 +199,17 @@ function existingTrialResponse(req, forRequestId) {
 
 export async function handleLicence(request, env, url) {
   const ip = request.headers.get('CF-Connecting-IP') || 'local';
+  const path = licencePathname(url.pathname);
+  if ((path === '/licence/time' || path === '/licence/clock') && request.method === 'GET') {
+    return json(await hubCalendarSigned(env));
+  }
+
   if (await limited(env, 'lic:ip:' + ip, 120)) return json({ error: 'rate' }, 429);
   if (!env.SESSION_SECRET) return json({ error: 'config' }, 503);
 
   await expireStalePending(env);
 
-  if (url.pathname === '/licence/clock' && request.method === 'GET') {
-    const calendarDay = hubCalendarDay(env);
-    return json({ calendar_day: calendarDay, serverTime: calendarDay });
-  }
-
-  if (url.pathname === '/licence/request' && request.method === 'POST') {
+  if (path === '/licence/request' && request.method === 'POST') {
     let body;
     try { body = await request.json(); } catch { return json({ error: 'json' }, 400); }
     for (const f of REQUIRED) {
@@ -233,7 +264,7 @@ export async function handleLicence(request, env, url) {
     return json({ id, poll_token: poll, status: 'pending' });
   }
 
-  if (url.pathname === '/licence/status' && request.method === 'GET') {
+  if (path === '/licence/status' && request.method === 'GET') {
     const id = url.searchParams.get('id') || '';
     const auth = request.headers.get('Authorization') || '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
@@ -241,8 +272,7 @@ export async function handleLicence(request, env, url) {
     const pollHash = await sha256Hex(token);
     const row = await env.DB.prepare('SELECT * FROM licence_requests WHERE id = ? AND poll_token_hash = ?').bind(id, pollHash).first();
     if (!row) return json({}, 401);
-    const calendarDay = hubCalendarDay(env);
-    const time = { calendar_day: calendarDay, serverTime: calendarDay };
+    const time = await hubCalendarSigned(env);
     if (row.status === 'pending') return json({ status: 'pending', stage: row.stage || '', ...time });
     if (row.status === 'approved') return json({ status: 'pending', stage: 'approved', ...time });
     if (row.status === 'issued' && row.code) return json({ status: 'issued', code: row.code, ...time });
@@ -252,7 +282,7 @@ export async function handleLicence(request, env, url) {
     return json({ status: row.status, ...time });
   }
 
-  if (url.pathname === '/licence/ack' && request.method === 'POST') {
+  if (path === '/licence/ack' && request.method === 'POST') {
     let body;
     try { body = await request.json(); } catch { return json({ error: 'json' }, 400); }
     const id = body.id || '';
