@@ -73,6 +73,7 @@ class Manifest(unittest.TestCase):
 class CustomerRelease(unittest.TestCase):
     SAMPLE_KEY = 'trial-hub:' + ('A' * 43)
     SAMPLE_STUDIO_KEY = 'studio:' + ('B' * 43)
+    SAMPLE_PAID_KEY = 'paid:' + ('C' * 43)
     SAMPLE_HOST = 'relay.test.invalid'
     SAMPLE_RELAY = 'https://' + SAMPLE_HOST
 
@@ -114,8 +115,8 @@ class CustomerRelease(unittest.TestCase):
             self.assertEqual(keys.strip(), self.SAMPLE_KEY)
             self.assertEqual(relay.strip(), self.SAMPLE_RELAY)
 
-    def test_customer_build_accepts_trial_hub_and_studio_key_lines(self):
-        lines = (self.SAMPLE_KEY, self.SAMPLE_STUDIO_KEY)
+    def test_customer_build_accepts_trial_hub_paid_and_studio_key_lines(self):
+        lines = (self.SAMPLE_KEY, self.SAMPLE_PAID_KEY, self.SAMPLE_STUDIO_KEY)
         with tempfile.TemporaryDirectory(prefix='store-customer-') as tmp:
             with open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8') as f:
                 f.write('\n'.join(lines) + '\n')

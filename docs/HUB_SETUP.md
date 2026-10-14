@@ -33,10 +33,11 @@ openssl genpkey -algorithm ED25519 -out trial-hub.pem
 openssl pkey -in trial-hub.pem -pubout -outform DER | tail -c 32 | base64 -w0
 ```
 
-1. Deploy **licence hub** with `npx wrangler secret put LICENCE_SIGNING_KEY` ← PKCS#8 PEM of **trial-hub.pem** only.
-2. In customer `licence_keys.txt`, add **only** the trial public key with kid `trial-hub`, for example:  
-   `trial-hub:AbCdEfGh...` (43-character unpadded base64url raw public key).
-3. Keep the Licence Studio **paid** private key off Cloudflare. Monthly/permanent codes stay Studio-only; the hub refuses online monthly/permanent requests with `paid_in_licence_studio`.
+1. Deploy **licence hub** with `npx wrangler secret put LICENCE_SIGNING_KEY` ← PKCS#8 PEM of **trial-hub.pem** only (trials).
+2. Generate a **second** Ed25519 pair for paid hub signing (`paid-hub.pem`). Set `npx wrangler secret put LICENCE_PAID_SIGNING_KEY` ← PKCS#8 PEM of **paid-hub.pem** only. The owner panel signs monthly (`standard` edition, 30 days + grace) and permanent codes with this key — same byte format as `server/afcodes.py`.
+3. In customer `licence_keys.txt`, ship at least `trial-hub:<public>` and `paid:<public>` (optional `studio:<public>` for Licence Studio paste codes). Example:  
+   `trial-hub:AbCdEfGh...` and `paid:XyZ...` (43-character unpadded base64url raw public keys).
+4. Keep the Licence Studio **private** key off Cloudflare unless you also use Studio for manual paste; hub-paid codes use kid `paid`, not `studio`.
 
 The shop checks every code on the PC with the public keys in `licence_keys.txt`, so a broken or hostile relay cannot invent a paid licence.
 
@@ -44,9 +45,9 @@ While the shop polls the relay (or calls public `GET /licence/clock` once per pr
 
 ## Register the product (owner, once)
 
-1. **Licence hub** (`licence-hub/`): deploy the Worker with `LICENCE_PRODUCTS` including `al-store` (`wrangler.toml` vars). Set `LICENCE_SIGNING_KEY` (trial-only). Owner login secrets (`SESSION_SECRET`, `OWNER_PASSWORD_HASH`) and optional `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`.
-2. **Licence Studio** on the owner's trusted PC: register product id `al-store` for monthly/permanent and manual paste codes (Studio key, different kid).
-3. Put `trial-hub:<public>` and the Studio **public** keys in `licence_keys.txt` of the customer build (task 2 — not committed here until the owner chooses).
+1. **Licence hub** (`licence-hub/`): deploy the Worker with `LICENCE_PRODUCTS` including `al-store` (`wrangler.toml` vars). Set `LICENCE_SIGNING_KEY` (trial-only) and `LICENCE_PAID_SIGNING_KEY` (monthly/permanent from the owner panel). Owner login secrets (`SESSION_SECRET`, `OWNER_PASSWORD_HASH`) and optional `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`.
+2. **Licence Studio** on the owner's trusted PC (optional): register product id `al-store` for manual paste codes (`studio:` public key).
+3. Put `trial-hub:<public>`, `paid:<public>`, and any `studio:<public>` lines in `licence_keys.txt` of the customer build (task 2 — not committed here until the owner chooses).
 
 ## Simple activation (same as Trip Orders hub model)
 
@@ -61,7 +62,7 @@ Two paths use the **same** signed codes and rules.
 
 1. Deploy `licence-hub/` and set secrets (see `licence-hub/README.md`).
 2. Licence Studio on the owner's PC for paid editions and manual codes.
-3. Customer installer gets `trial-hub:<public>` and the relay URL in `licence_relay.txt` (task 2).
+3. Customer installer gets `trial-hub:<public>`, `paid:<public>`, and the relay URL in `licence_relay.txt` (task 2).
 
 Commercial tiers (trial, monthly, permanent) match the factory SMB model documented in `docs/04-commercial-tiers.md` for the one-PC pilot; cloud sync and mobile plans are not part of the trial hub.
 

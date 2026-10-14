@@ -13,7 +13,7 @@ This worker is **not** the factory telemetry relay (`/ingest`). Deploy it on its
 - لوحة المالك على `/owner` (عربي، RTL): موافقة على الطلبات (يُعرض الكود بعد الموافقة)، تفعيل يدوي برقم الجهاز، قائمة العملاء.
 - Owner dashboard at `/owner` (Arabic, RTL): pending requests (issued code shown on approve), offline device entry, customer list.
 - توقيع **تجربة فقط** 14 يومًا (منتج `al-store`) بـ Ed25519 في Worker — متوافق مع `server/afcodes.py`. الطلبات الشهرية/الدائمة تُرفض هنا؛ الإصدار المدفوع من Licence Studio.
-- Signs **trial-only** 14-day codes (`al-store`) with Ed25519 in the Worker — byte-compatible with `server/afcodes.py`. Monthly/permanent online requests are refused; paid editions stay in Licence Studio.
+- Signs **trial-only** 14-day codes with `LICENCE_SIGNING_KEY` and **monthly/permanent** codes with `LICENCE_PAID_SIGNING_KEY` (`al-store`) — byte-compatible with `server/afcodes.py`. Customer builds trust `trial-hub:` and `paid:` public keys (kid `paid` for hub-paid codes).
 - One trial per PC online: locks both the normalized device code and the stable `machine` hash the app sends. Pending requests expire after a short TTL so a squatted poll token cannot block the real customer forever.
 
 **بديل التوقيع:** Licence Studio على جهاز المالك يبقى الطريقة الأكثر أمانًا للتوقيع؛ هذا القالب يوازن بين الراحة (موافقة من الهاتف) ومخاطر سر التوقيع على Cloudflare (انظر أدناه).
@@ -43,7 +43,8 @@ openssl genpkey -algorithm ED25519 -out trial-hub.pem
 # Hash the owner password (example — run locally, do not commit output):
 # python3 -c "import hashlib,secrets; s=secrets.token_hex(16); print('pbkdf2-sha256:100000:'+s+':'+hashlib.pbkdf2_hmac('sha256', b'YOUR_PASSWORD', bytes.fromhex(s), 100000).hex())"
 
-npx wrangler secret put LICENCE_SIGNING_KEY   # PKCS#8 PEM of trial-hub.pem ONLY
+npx wrangler secret put LICENCE_SIGNING_KEY       # PKCS#8 PEM of trial-hub.pem ONLY
+npx wrangler secret put LICENCE_PAID_SIGNING_KEY  # PKCS#8 PEM of paid-hub.pem ONLY (owner panel monthly/permanent)
 npx wrangler secret put SESSION_SECRET
 npx wrangler secret put OWNER_PASSWORD_HASH
 # Optional:

@@ -28,6 +28,8 @@ CLOCK_TOLERANCE_HOURS = 24
 META_TRUSTED = 'licence_trusted_date'
 META_ONLINE = 'licence_online_at'
 TRIAL_HUB_KIDS = frozenset({'trial-hub', 'trial_hub', 'hub-trial'})
+# Hub-paid monthly/permanent codes use kid `paid:` in licence_keys.txt (separate from trial-hub and Licence Studio).
+PAID_HUB_KIDS = frozenset({'paid'})
 _lock = threading.Lock()
 _cache = {}
 
@@ -64,10 +66,18 @@ def trusted_keys():
 
 
 def trial_only_public_keys():
-    """Public keys that may sign device-bound trials of at most 14 days only (licence hub)."""
+    """Public keys that may sign device-bound trials of at most 14 days only (licence hub trial key).
+
+    Keys listed with kid ``paid`` or ``studio`` are never trial-only and may sign monthly or permanent codes.
+    """
     keys = set()
     for kid, key in trusted_key_entries():
-        if kid and kid.lower() in TRIAL_HUB_KIDS:
+        if not kid:
+            continue
+        kid_l = kid.lower()
+        if kid_l in PAID_HUB_KIDS or kid_l == 'studio':
+            continue
+        if kid_l in TRIAL_HUB_KIDS:
             keys.add(key)
     for raw in os.environ.get('STORE_TRIAL_HUB_KEYS', '').split(','):
         entry = _parse_key_entry(raw)

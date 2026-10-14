@@ -1,4 +1,4 @@
-import { issueTrialCode, normalize } from './afcodes.js';
+import { issuePaidCode, issueTrialCode, normalize } from './afcodes.js';
 import { hex } from './auth.js';
 import { calendarDateInTz } from './calendar.js';
 
@@ -212,14 +212,7 @@ export async function handleLicence(request, env, url) {
     const id = crypto.randomUUID();
     const t = now();
 
-    if (body.kind !== 'trial') {
-      await env.DB.prepare(
-        'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, reason, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      ).bind(id, pollHash, body.product, body.kind, body.device, dkey, body.machine, body.nonce, body.shop.slice(0, 60), body.ref.slice(0, 60), body.version.slice(0, 40), 'refused', REASON_PAID_IN_STUDIO, t, t).run();
-      return json({ id, poll_token: poll, status: 'refused', reason: REASON_PAID_IN_STUDIO });
-    }
-
-    if (await trialUsedOnline(env, dkey, machineHash)) {
+    if (body.kind === 'trial' && await trialUsedOnline(env, dkey, machineHash)) {
       await env.DB.prepare(
         'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, reason, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ).bind(id, pollHash, body.product, body.kind, body.device, dkey, body.machine, body.nonce, body.shop.slice(0, 60), body.ref.slice(0, 60), body.version.slice(0, 40), 'refused', 'already_used', t, t).run();
@@ -342,14 +335,67 @@ async function claimAndIssue(env, requestId, dkey, machineHash, signed, t) {
   return { outcome: 'lost' };
 }
 
+async function approvePaidRequest(env, row, paidPrivateKey, options = {}) {
+  const force = options.force === true;
+  if (row.status === 'issued' && row.code) {
+    return signedFromRow(row);
+  }
+  let dkey;
+  try {
+    dkey = deviceKey(row.device_key || row.device);
+  } catch {
+    await refuseRequest(env, row.id, 'bad_device');
+    throw new Error('bad_device_code');
+  }
+  const t = now();
+  const tz = env.LICENCE_CALENDAR_TZ || 'Africa/Cairo';
+  const monthlyDays = Number(env.MONTHLY_DAYS || 30);
+  const monthlyGrace = Number(env.MONTHLY_GRACE || 3);
+  let signed;
+  try {
+    signed = await issuePaidCode(paidPrivateKey, row.product, row.device, row.kind, new Date(), tz, { monthlyDays, monthlyGrace });
+  } catch (e) {
+    if (e?.message === 'bad_device_code') {
+      await refuseRequest(env, row.id, 'bad_device');
+    }
+    throw e;
+  }
+  const updated = await env.DB.prepare(
+    'UPDATE licence_requests SET status = ?, stage = ?, code = ?, updated_at = ? WHERE id = ? AND code IS NULL AND status NOT IN (?, ?)',
+  ).bind('issued', 'approved', signed.code, t, row.id, 'refused', 'delivered').run();
+  if (!updated.meta?.changes) {
+    const existing = await env.DB.prepare('SELECT * FROM licence_requests WHERE id = ?').bind(row.id).first();
+    if (existing?.code) return signedFromRow(existing, signed);
+    return null;
+  }
+  const existingCustomer = await env.DB.prepare(
+    'SELECT id FROM customers WHERE device = ? AND serial = ? LIMIT 1',
+  ).bind(signed.device, signed.serial).first();
+  if (!existingCustomer) {
+    await env.DB.prepare(
+      'INSERT INTO customers(id, shop, device, kind, serial, first_day, last_day, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
+    ).bind(crypto.randomUUID(), row.shop || '—', signed.device, row.kind, signed.serial, signed.first_day, signed.last_day, t).run();
+  }
+  return signed;
+}
+
 export async function approveRequest(env, requestId, privateKey, options = {}) {
   const force = options.force === true;
+  const paidPrivateKey = options.paidPrivateKey || null;
   const row = await env.DB.prepare('SELECT * FROM licence_requests WHERE id = ?').bind(requestId).first();
   if (!row || row.status === 'refused' || row.status === 'delivered') return null;
 
   if (row.kind !== 'trial') {
-    await refuseRequest(env, requestId, REASON_PAID_IN_STUDIO);
-    return { refused: true, reason: REASON_PAID_IN_STUDIO };
+    if (!paidPrivateKey) {
+      await refuseRequest(env, requestId, REASON_PAID_IN_STUDIO);
+      return { refused: true, reason: REASON_PAID_IN_STUDIO };
+    }
+    try {
+      return await approvePaidRequest(env, row, paidPrivateKey, options);
+    } catch (e) {
+      if (e?.message === 'bad_device_code') throw e;
+      throw e;
+    }
   }
 
   let dkey;

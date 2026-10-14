@@ -32,22 +32,22 @@ export async function loadPending(host) {
     const li = document.createElement('li');
     const when = new Date(item.created_at * 1000).toLocaleString('ar-EG');
     const kindLabel = kindLabelAr(item.kind);
-    const paidNote = item.kind !== 'trial' ? '<div class="err">الاشتراك الشهري والدائم يُصدر من Licence Studio فقط — لا يمكن الموافقة من هنا.</div>' : '';
-    const usedNote = item.has_customer ? '<div class="err">هذا الجهاز لديه عميل مسجّل — الموافقة العادية مرفوضة؛ استخدم «إعادة إصدار» إن فُقد الكود.</div>' : '';
+    const usedNote = item.kind === 'trial' && item.has_customer
+      ? '<div class="err">هذا الجهاز لديه عميل مسجّل — الموافقة العادية مرفوضة؛ استخدم «إعادة إصدار» إن فُقد الكود.</div>'
+      : '';
     li.innerHTML = '<div><strong>' + escape(item.shop || '—') + '</strong><div class="muted">' + escape(kindLabel) + ' · ' + escape(item.device) + '</div>' + paidNote + usedNote + '<div class="muted">' + when + '</div></div>';
     const row = document.createElement('div');
     row.className = 'row';
     const ok = document.createElement('button');
     ok.className = 'btn primary';
     ok.type = 'button';
-    ok.textContent = 'موافق — تجربة';
-    ok.disabled = item.kind !== 'trial';
+    ok.textContent = item.kind === 'trial' ? 'موافق — تجربة' : (item.kind === 'monthly' ? 'موافق — شهري' : 'موافق — دائم');
     ok.addEventListener('click', async () => {
       ok.disabled = true;
       const force = item.has_customer && confirm('إعادة إصدار تجربة لهذا الجهاز؟ (فقدان الكود فقط)');
       const res = await api('/approve', { method: 'POST', headers: headers(), body: JSON.stringify({ id: item.id, csrf, force }) });
       if (res && res.error === 'paid_in_licence_studio') {
-        alert('هذا الطلب اشتراك مدفوع — استخدم Licence Studio على جهاز المكتب.');
+        alert('مفتاح التوقيع المدفوع غير مضبوط على الوسيط (LICENCE_PAID_SIGNING_KEY).');
       } else if (res && res.error === 'bad_device') {
         alert('رمز الجهاز غير صالح — ارفض الطلب.');
         ok.disabled = false;
@@ -123,7 +123,7 @@ function escape(s) {
 
 function kindLabelAr(kind) {
   if (kind === 'trial') return 'تجربة';
-  if (kind === 'monthly') return 'شهري (Licence Studio)';
-  if (kind === 'permanent') return 'دائم (Licence Studio)';
+  if (kind === 'monthly') return 'شهري';
+  if (kind === 'permanent') return 'دائم';
   return kind;
 }

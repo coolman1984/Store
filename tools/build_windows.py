@@ -30,7 +30,7 @@ SHIPPED = ('server/app.py', 'web/index.html', 'web/js/app.js', 'web/css/tokens.c
 DATA_DIRS = (('web', 'web'), ('guide', 'guide'))
 
 PUBLIC_KEY_LINE = re.compile(r'^(?:[A-Za-z0-9_-]+:)?[A-Za-z0-9_-]{43}$')
-CUSTOMER_LICENCE_KIDS = frozenset({'trial-hub', 'studio'})
+CUSTOMER_LICENCE_KIDS = frozenset({'trial-hub', 'studio', 'paid'})
 RELAY_HOSTS_ALLOWED_FILE = os.path.join(ROOT, 'tools', 'relay_hosts_allowed.txt')
 # Exact paths permitted after https://<host> (customer relay URLs only).
 ALLOWED_RELAY_PATHS = frozenset(('', '/api', '/licence-hub'))
@@ -72,7 +72,7 @@ def _licence_key_kid(line):
 
 
 def validate_customer_licence_key_lines(lines):
-    """Validate one or more public-key lines for a customer build (trial-hub required; studio allowed)."""
+    """Validate one or more public-key lines for a customer build (trial-hub required; studio and paid allowed)."""
     if not lines:
         raise CustomerLicenceError('licence_keys.txt must hold at least one public key line for a customer build')
     seen = set()
@@ -85,10 +85,10 @@ def validate_customer_licence_key_lines(lines):
         validate_public_key_line(line)
         kid = _licence_key_kid(line)
         if not kid:
-            raise CustomerLicenceError('each customer licence key line must be kid:key (trial-hub and studio only)')
+            raise CustomerLicenceError('each customer licence key line must be kid:key (trial-hub, paid, and studio only)')
         kid_l = kid.lower()
         if kid_l not in CUSTOMER_LICENCE_KIDS:
-            raise CustomerLicenceError('unknown licence key id; only trial-hub and studio are allowed in a customer build')
+            raise CustomerLicenceError('unknown licence key id; only trial-hub, paid, and studio are allowed in a customer build')
         if kid_l == 'trial-hub':
             trial_hub += 1
         normalized.append(f'{kid_l}:{line.split(":", 1)[1]}')
@@ -183,7 +183,7 @@ def resolve_customer_licence(root=ROOT):
 
     Values come from STORE_RELEASE_PUBLIC_KEY and STORE_RELEASE_RELAY_URL when both are set; otherwise from
     licence_keys.txt and licence_relay.txt in ``root``. Public keys: one or more ``kid:key`` lines with exactly
-    one ``trial-hub:`` line and any number of ``studio:`` lines (no duplicate kids or lines).
+    one ``trial-hub:`` line and optional ``paid:`` / ``studio:`` lines (no duplicate kids or lines).
     """
     env_key = os.environ.get('STORE_RELEASE_PUBLIC_KEY', '').strip()
     env_relay = os.environ.get('STORE_RELEASE_RELAY_URL', '').strip()

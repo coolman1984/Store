@@ -85,12 +85,12 @@ async function getStatus(e, id, poll) {
   return { res, data: await res.json() };
 }
 
-test('monthly and permanent requests are refused at submit', async () => {
+test('monthly and permanent requests queue for owner approval', async () => {
   const e = env();
+  const devices = { monthly: '7KD2M-QX9TP', permanent: 'ABCDE-FGHJK' };
   for (const kind of ['monthly', 'permanent']) {
-    const { data } = await postRequest(e, body({ kind }));
-    assert.equal(data.status, 'refused');
-    assert.equal(data.reason, REASON_PAID_IN_STUDIO);
+    const { data } = await postRequest(e, body({ kind, nonce: 'paid-' + kind, device: devices[kind] }));
+    assert.equal(data.status, 'pending');
     assert.ok(data.poll_token);
   }
 });
@@ -360,15 +360,27 @@ test('second approve for same device does not leave a stray machine lock', async
   assert.equal(later.data.status, 'pending');
 });
 
-test('paid pending request approval is refused', async () => {
+test('paid approve without paid signing key is refused', async () => {
   const e = env();
-  const key = await importSigningKey(pemFromSeed(Buffer.alloc(32, 5)));
+  const trialKey = await importSigningKey(pemFromSeed(Buffer.alloc(32, 5)));
   await e.DB.prepare(
-    'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  ).bind('id1', 'hash', 'al-store', 'monthly', '7KD2M-QX9TP', 'm1', 'n-old', '', '', '', 'pending', 1, 1).run();
-  const out = await approveRequest(e, 'id1', key);
-  assert.equal(out.refused, true);
-  assert.equal(out.reason, REASON_PAID_IN_STUDIO);
+    'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind('id-refuse', 'hash', 'al-store', 'monthly', '7KD2M-QX9TP', deviceKey('7KD2M-QX9TP'), 'm1', 'n-old', '', '', '', 'pending', 1, 1).run();
+  const refused = await approveRequest(e, 'id-refuse', trialKey);
+  assert.equal(refused.refused, true);
+  assert.equal(refused.reason, REASON_PAID_IN_STUDIO);
+});
+
+test('paid approve with paid signing key issues a code', async () => {
+  const e = env();
+  const trialKey = await importSigningKey(pemFromSeed(Buffer.alloc(32, 5)));
+  const paidKey = await importSigningKey(pemFromSeed(Buffer.alloc(32, 6)));
+  await e.DB.prepare(
+    'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind('id-paid', 'hash2', 'al-store', 'monthly', '7KD2M-QX9TP', deviceKey('7KD2M-QX9TP'), 'm1', 'n-paid', '', '', '', 'pending', 1, 1).run();
+  const signed = await approveRequest(e, 'id-paid', trialKey, { paidPrivateKey: paidKey });
+  assert.ok(signed?.code);
+  assert.match(signed.code, /^[0-9A-Z-]+$/);
 });
 
 test('derivePollToken is stable for a nonce', async () => {

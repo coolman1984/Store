@@ -1,7 +1,7 @@
-## 2026-10-14 — Customer installer: trial-hub + studio public keys
+## 2026-10-14 — Hub paid signing (`paid:` kid) + customer installer keys
 
-**Why:** A shop installer must trust Licence Studio paid codes as well as hub-signed trials; a single-key customer build accepted only one line and could not ship both kids.
-**What:** `tools/build_windows.py` — `resolve_customer_licence` accepts several newline-separated `kid:key` lines (env or `licence_keys.txt`): exactly one `trial-hub:`, any number of `studio:`, duplicate kids/lines and unknown kids rejected; all lines written to `licence_keys.txt` in the program folder. Docs: `docs/BUILD_AND_RELEASE.md`. Tests: `tests/test_build.py`.
+**Why:** Paid monthly/permanent codes are signed on the licence hub (owner panel), not only in Licence Studio; customer builds must ship the `paid:` public key alongside `trial-hub:` while trial-only limits stay on the hub trial key.
+**What:** `licence-hub/` — `LICENCE_PAID_SIGNING_KEY`, `issuePaidCode`, owner approve for monthly/permanent. `tools/build_windows.py` — allow `paid:` key lines. `server/licence.py` — `paid`/`studio` kids never trial-only. Docs: `BUILD_AND_RELEASE.md`, `HUB_SETUP.md`. Tests: `tests/test_build.py`, `tests/test_licence_trial_hub_key.py`, `licence-hub/test/*`.
 
 ## 2026-10-13 — Hub clock after activation (PR #34 follow-up)
 

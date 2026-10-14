@@ -38,6 +38,11 @@ async function signingKey(env) {
   return importSigningKey(env.LICENCE_SIGNING_KEY);
 }
 
+async function paidSigningKey(env) {
+  if (!env.LICENCE_PAID_SIGNING_KEY) return null;
+  return importSigningKey(env.LICENCE_PAID_SIGNING_KEY);
+}
+
 async function ownerApi(request, env, url, session) {
   const path = url.pathname.replace(/^\/owner\/api/, '') || '/';
 
@@ -70,8 +75,9 @@ async function ownerApi(request, env, url, session) {
 
   if (path === '/approve') {
     const key = await signingKey(env);
+    const paidKey = await paidSigningKey(env);
     try {
-      const signed = await approveRequest(env, body.id, key, { force: body.force === true });
+      const signed = await approveRequest(env, body.id, key, { force: body.force === true, paidPrivateKey: paidKey });
       if (!signed) return json({ error: 'not_found' }, 404);
       if (signed.refused) {
         return json({ error: signed.reason || REASON_PAID_IN_STUDIO, message: 'paid_in_studio' }, 400);
