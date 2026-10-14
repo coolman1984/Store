@@ -1,3 +1,8 @@
+## 2026-10-14 — Customer installer: trial-hub + studio public keys
+
+**Why:** A shop installer must trust Licence Studio paid codes as well as hub-signed trials; a single-key customer build accepted only one line and could not ship both kids.
+**What:** `tools/build_windows.py` — `resolve_customer_licence` accepts several newline-separated `kid:key` lines (env or `licence_keys.txt`): exactly one `trial-hub:`, any number of `studio:`, duplicate kids/lines and unknown kids rejected; all lines written to `licence_keys.txt` in the program folder. Docs: `docs/BUILD_AND_RELEASE.md`. Tests: `tests/test_build.py`.
+
 ## 2026-10-13 — Hub clock after activation (PR #34 follow-up)
 
 - Builds on PR #33 (licence hub activation + force respects trial locks). `GET /licence/clock`; `trial.sync_hub_clock` once per program run (fail-open offline). Fixes trusted date freezing when `step` stops after `activated`. Hub expiry wins over `clock_back` when the subscription ended on hub time.

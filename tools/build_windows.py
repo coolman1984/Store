@@ -30,6 +30,7 @@ SHIPPED = ('server/app.py', 'web/index.html', 'web/js/app.js', 'web/css/tokens.c
 DATA_DIRS = (('web', 'web'), ('guide', 'guide'))
 
 PUBLIC_KEY_LINE = re.compile(r'^(?:[A-Za-z0-9_-]+:)?[A-Za-z0-9_-]{43}$')
+CUSTOMER_LICENCE_KIDS = frozenset({'trial-hub', 'studio'})
 RELAY_HOSTS_ALLOWED_FILE = os.path.join(ROOT, 'tools', 'relay_hosts_allowed.txt')
 # Exact paths permitted after https://<host> (customer relay URLs only).
 ALLOWED_RELAY_PATHS = frozenset(('', '/api', '/licence-hub'))
@@ -58,6 +59,48 @@ def validate_public_key_line(line):
     key = line.split(':', 1)[-1]
     if not re.fullmatch(r'[A-Za-z0-9_-]{43}', key):
         raise CustomerLicenceError('only a 32-byte Ed25519 public key may be listed')
+
+
+def _licence_key_kid(line):
+    """Return the kid from a validated kid:key line, or '' when the line is key-only."""
+    if ':' not in line:
+        return ''
+    kid = line.split(':', 1)[0]
+    if len(kid) > 40:
+        return ''
+    return kid
+
+
+def validate_customer_licence_key_lines(lines):
+    """Validate one or more public-key lines for a customer build (trial-hub required; studio allowed)."""
+    if not lines:
+        raise CustomerLicenceError('licence_keys.txt must hold at least one public key line for a customer build')
+    seen = set()
+    trial_hub = 0
+    normalized = []
+    for line in lines:
+        if line in seen:
+            raise CustomerLicenceError('duplicate licence public key line')
+        seen.add(line)
+        validate_public_key_line(line)
+        kid = _licence_key_kid(line)
+        if not kid:
+            raise CustomerLicenceError('each customer licence key line must be kid:key (trial-hub and studio only)')
+        kid_l = kid.lower()
+        if kid_l not in CUSTOMER_LICENCE_KIDS:
+            raise CustomerLicenceError('unknown licence key id; only trial-hub and studio are allowed in a customer build')
+        if kid_l == 'trial-hub':
+            trial_hub += 1
+        normalized.append(f'{kid_l}:{line.split(":", 1)[1]}')
+    if trial_hub != 1:
+        raise CustomerLicenceError('a customer build must ship exactly one trial-hub public key line')
+    kids_seen = set()
+    for line in normalized:
+        kid_l = _licence_key_kid(line).lower()
+        if kid_l in kids_seen:
+            raise CustomerLicenceError('duplicate licence key id')
+        kids_seen.add(kid_l)
+    return normalized
 
 
 def allowed_relay_hosts(root=ROOT):
@@ -125,29 +168,38 @@ def validate_relay_line(line, allowed=None):
         raise CustomerLicenceError('the relay address must be exactly https://<host> with an allowed path only')
 
 
+def _release_public_key_lines(env_value):
+    """Split STORE_RELEASE_PUBLIC_KEY into active kid:key lines (newline-separated)."""
+    out = []
+    for bit in env_value.replace('\r\n', '\n').replace('\r', '\n').split('\n'):
+        bit = bit.strip()
+        if bit:
+            out.append(bit)
+    return out
+
+
 def resolve_customer_licence(root=ROOT):
     """Return (licence_keys.txt body, licence_relay.txt body) for a customer build.
 
     Values come from STORE_RELEASE_PUBLIC_KEY and STORE_RELEASE_RELAY_URL when both are set; otherwise from
-    licence_keys.txt and licence_relay.txt in ``root`` (exactly one active line in each).
+    licence_keys.txt and licence_relay.txt in ``root``. Public keys: one or more ``kid:key`` lines with exactly
+    one ``trial-hub:`` line and any number of ``studio:`` lines (no duplicate kids or lines).
     """
     env_key = os.environ.get('STORE_RELEASE_PUBLIC_KEY', '').strip()
     env_relay = os.environ.get('STORE_RELEASE_RELAY_URL', '').strip()
     if env_key or env_relay:
         if not env_key or not env_relay:
             raise CustomerLicenceError('set both STORE_RELEASE_PUBLIC_KEY and STORE_RELEASE_RELAY_URL, or neither')
-        key_line, relay_line = env_key, env_relay
+        key_lines, relay_line = _release_public_key_lines(env_key), env_relay
     else:
-        keys = active_lines(os.path.join(root, 'licence_keys.txt'))
+        key_lines = active_lines(os.path.join(root, 'licence_keys.txt'))
         relays = active_lines(os.path.join(root, 'licence_relay.txt'))
-        if len(keys) != 1:
-            raise CustomerLicenceError('licence_keys.txt must hold exactly one public key line for a customer build')
         if len(relays) != 1:
             raise CustomerLicenceError('licence_relay.txt must hold exactly one https relay address for a customer build')
-        key_line, relay_line = keys[0], relays[0]
-    validate_public_key_line(key_line)
+        relay_line = relays[0]
+    key_lines = validate_customer_licence_key_lines(key_lines)
     validate_relay_line(relay_line)
-    return key_line + '\n', relay_line + '\n'
+    return '\n'.join(key_lines) + '\n', relay_line + '\n'
 
 
 def relay_hostname(relay_url):
@@ -230,9 +282,9 @@ def verify_customer_licence_in_dist(keys_body, relay_body):
             raise CustomerLicenceError(f'{name} in the program folder does not match the customer release inputs')
     key_lines = active_lines(os.path.join(DIST, 'licence_keys.txt'))
     relay_lines = active_lines(os.path.join(DIST, 'licence_relay.txt'))
-    if len(key_lines) != 1 or len(relay_lines) != 1:
-        raise CustomerLicenceError('the program folder must ship exactly one key line and one relay address')
-    validate_public_key_line(key_lines[0])
+    if len(relay_lines) != 1:
+        raise CustomerLicenceError('the program folder must ship exactly one relay address')
+    validate_customer_licence_key_lines(key_lines)
     validate_relay_line(relay_lines[0])
 
 
