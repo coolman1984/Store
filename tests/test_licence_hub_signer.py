@@ -23,6 +23,16 @@ class LicenceHubSignerTest(unittest.TestCase):
         self.assertEqual(result.state, 'active')
         self.assertEqual(result.terms.get('edition'), 'trial')
 
+    def test_node_signed_paid_monthly_code_is_valid(self):
+        script = os.path.join(ROOT, 'licence-hub', 'test', 'export_paid_code.mjs')
+        out = subprocess.check_output(['node', script], cwd=ROOT, text=True)
+        data = json.loads(out)
+        cairo_today = datetime.now(ZoneInfo('Africa/Cairo')).date()
+        result = afcodes.read_code(data['code'], [data['public']], 'al-store', device=data['device'], today=cairo_today)
+        self.assertTrue(result.valid)
+        self.assertEqual(result.state, 'active')
+        self.assertEqual(result.terms.get('edition'), 'standard')
+
 
 if __name__ == '__main__':
     unittest.main()

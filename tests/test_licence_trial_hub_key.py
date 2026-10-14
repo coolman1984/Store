@@ -70,11 +70,24 @@ class TrialHubKeyPolicy(unittest.TestCase):
         st = licence.activate(self.shop.db, self._hub(days=7, grace=7))
         self.assertIn(st['state'], ('trial', 'active'))
 
-    def test_studio_key_still_allows_longer_trial(self):
-        from harness import PUBLIC
+    def test_trial_hub_stays_trial_only_when_paid_key_is_also_trusted(self):
+        from harness import PRIVATE_PEM, PUBLIC
         os.environ['STORE_LICENCE_KEYS'] = f'trial-hub:{HUB_PUB},paid:{PUBLIC}'
-        st = licence.activate(self.shop.db, code_for(self.dev, days=30, edition='standard'))
+        with self.assertRaises(ValueError) as ctx:
+            licence.activate(self.shop.db, self._hub(edition='standard', days=30))
+        self.assertEqual(ctx.exception.args[0], 'trial_key_edition')
+
+    def test_paid_hub_key_allows_monthly_and_perpetual(self):
+        from harness import PRIVATE_PEM, PUBLIC
+        os.environ['STORE_LICENCE_KEYS'] = f'trial-hub:{HUB_PUB},paid:{PUBLIC}'
+        monthly = afcodes.issue_code(PRIVATE_PEM, 'al-store', 'standard', self.first, 30, self.dev, grace_days=3)['code']
+        st = licence.activate(self.shop.db, monthly)
         self.assertEqual(st['edition'], 'standard')
+        self.assertTrue(st['full'])
+        perpetual = afcodes.issue_code(PRIVATE_PEM, 'al-store', 'perpetual', self.first, 0, self.dev)['code']
+        st2 = licence.activate(self.shop.db, perpetual)
+        self.assertEqual(st2['edition'], 'perpetual')
+        self.assertTrue(st2['full'])
 
 
 if __name__ == '__main__':

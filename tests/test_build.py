@@ -71,7 +71,9 @@ class Manifest(unittest.TestCase):
 
 
 class CustomerRelease(unittest.TestCase):
-    SAMPLE_KEY = 'trial-release:' + ('A' * 43)
+    SAMPLE_KEY = 'trial-hub:' + ('A' * 43)
+    SAMPLE_STUDIO_KEY = 'studio:' + ('B' * 43)
+    SAMPLE_PAID_KEY = 'paid:' + ('C' * 43)
     SAMPLE_HOST = 'relay.test.invalid'
     SAMPLE_RELAY = 'https://' + SAMPLE_HOST
 
@@ -112,6 +114,51 @@ class CustomerRelease(unittest.TestCase):
                 keys, relay = build_windows.resolve_customer_licence(tmp)
             self.assertEqual(keys.strip(), self.SAMPLE_KEY)
             self.assertEqual(relay.strip(), self.SAMPLE_RELAY)
+
+    def test_customer_build_accepts_trial_hub_paid_and_studio_key_lines(self):
+        lines = (self.SAMPLE_KEY, self.SAMPLE_PAID_KEY, self.SAMPLE_STUDIO_KEY)
+        with tempfile.TemporaryDirectory(prefix='store-customer-') as tmp:
+            with open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8') as f:
+                f.write('\n'.join(lines) + '\n')
+            with open(os.path.join(tmp, 'licence_relay.txt'), 'w', encoding='utf-8') as f:
+                f.write(self.SAMPLE_RELAY + '\n')
+            with mock.patch.dict(os.environ, self._env_without_release_secrets(), clear=True):
+                keys, relay = build_windows.resolve_customer_licence(tmp)
+            self.assertEqual(keys.strip().splitlines(), list(lines))
+        env_keys = '\n'.join(lines)
+        with mock.patch.dict(os.environ, self._env_without_release_secrets(
+            STORE_RELEASE_PUBLIC_KEY=env_keys,
+            STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY,
+        ), clear=True):
+            keys, relay = build_windows.resolve_customer_licence()
+        self.assertEqual(keys.strip().splitlines(), list(lines))
+
+    def test_customer_build_rejects_missing_trial_hub_or_bad_kids(self):
+        with tempfile.TemporaryDirectory(prefix='store-customer-') as tmp:
+            with open(os.path.join(tmp, 'licence_relay.txt'), 'w', encoding='utf-8') as f:
+                f.write(self.SAMPLE_RELAY + '\n')
+            with mock.patch.dict(os.environ, self._env_without_release_secrets(), clear=True):
+                with open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8') as f:
+                    f.write(self.SAMPLE_STUDIO_KEY + '\n')
+                with self.assertRaises(build_windows.CustomerLicenceError):
+                    build_windows.resolve_customer_licence(tmp)
+                with open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8') as f:
+                    f.write('trial-release:' + ('C' * 43) + '\n')
+                with self.assertRaises(build_windows.CustomerLicenceError):
+                    build_windows.resolve_customer_licence(tmp)
+                with open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8') as f:
+                    f.write('\n'.join((self.SAMPLE_KEY, self.SAMPLE_KEY)) + '\n')
+                with self.assertRaises(build_windows.CustomerLicenceError):
+                    build_windows.resolve_customer_licence(tmp)
+                with open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8') as f:
+                    f.write('\n'.join((self.SAMPLE_KEY, self.SAMPLE_STUDIO_KEY, self.SAMPLE_STUDIO_KEY)) + '\n')
+                with self.assertRaises(build_windows.CustomerLicenceError):
+                    build_windows.resolve_customer_licence(tmp)
+                with open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8') as f:
+                    pub = 'D' * 43
+                    f.write(f'trial-hub:{pub}\npaid:{pub}\n')
+                with self.assertRaises(build_windows.CustomerLicenceError):
+                    build_windows.resolve_customer_licence(tmp)
         r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
                                      STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

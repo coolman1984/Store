@@ -1,3 +1,12 @@
+## 2026-10-14 — PR #35 review fixes (owner panel, paid approve race, purge)
+
+**What:** Fixed owner `app.js` `paidNote` ReferenceError; paid approve confirm/cancel; paid concurrent approve returns D1 code; purge retains paid codes longer; cross-language paid signer test; build rejects same pubkey under two kids; malformed `LICENCE_PAID_SIGNING_KEY` blocks paid only.
+
+## 2026-10-14 — Hub paid signing (`paid:` kid) + customer installer keys
+
+**Why:** Paid monthly/permanent codes are signed on the licence hub (owner panel), not only in Licence Studio; customer builds must ship the `paid:` public key alongside `trial-hub:` while trial-only limits stay on the hub trial key.
+**What:** `licence-hub/` — `LICENCE_PAID_SIGNING_KEY`, `issuePaidCode`, owner approve for monthly/permanent. `tools/build_windows.py` — allow `paid:` key lines. `server/licence.py` — `paid`/`studio` kids never trial-only. Docs: `BUILD_AND_RELEASE.md`, `HUB_SETUP.md`. Tests: `tests/test_build.py`, `tests/test_licence_trial_hub_key.py`, `licence-hub/test/*`.
+
 ## 2026-10-13 — Hub clock after activation (PR #34 follow-up)
 
 - Builds on PR #33 (licence hub activation + force respects trial locks). `GET /licence/clock`; `trial.sync_hub_clock` once per program run (fail-open offline). Fixes trusted date freezing when `step` stops after `activated`. Hub expiry wins over `clock_back` when the subscription ended on hub time.
