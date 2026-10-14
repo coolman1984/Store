@@ -1,3 +1,8 @@
+## 2026-10-14 — P1: trial-only keys compare decoded Ed25519 bytes (Apps-Factory PR #74)
+
+**Why:** Matching `trial_only_keys` by exact base64 spelling let a padded or standard-base64 copy of the trial-hub public key in `licence_keys.txt` verify paid/permanent codes signed with the same key material.
+**What:** Re-vendored `server/afcodes.py` from Apps-Factory `9bbd827` (`packages/af-license` 0.3.1): `canonical_key_bytes`, trusted-key lookup and trial-only enforcement on raw 32-byte keys. `server/ed25519.py` header only (logic unchanged). Tests: alternate trial-hub key spellings and malformed key refusal in `tests/test_licence_trial_hub_key.py`.
+
 ## 2026-10-14 — Shared hub main (PR #34): allowlist, product isolation, remove note_online
 
 **What:** `tools/relay_hosts_allowed.txt` — production hostname `trip-orders-licence-hub.mflma2040.workers.dev` (no keys in git). `licence-hub/src/licence-api.js` synced to Yousef `main` product-isolation API; dev hub keeps `LICENCE_PAID_SIGNING_KEY` alias. Removed public `note_online` (unsigned dates cannot write meta). Tests: second +7-day sync, older signed day rejected; licence online tests use signed hub time only. Docs: `docs/HUB_SETUP.md`.

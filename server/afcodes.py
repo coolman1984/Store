@@ -1,4 +1,4 @@
-# Vendored from Apps-Factory packages/af-license 0.3.0 af_license/codes.py - do not edit here.
+# Vendored from Apps-Factory packages/af-license 0.3.1 af_license/codes.py - do not edit here.
 # Update with: python scripts/vendor_licence.py <product repo> (from the Apps-Factory checkout)
 """Licence *codes*: a signed licence short enough to send on WhatsApp and paste into the program.
 
@@ -23,8 +23,10 @@ file and *verify* with the standard library only (`ed25519_verify.py`). The priv
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import os
+import re
 import struct
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -105,9 +107,51 @@ def product_tag(product_id: str) -> bytes:
     return hashlib.sha256(b'AF-PRODUCT/1|' + product_id.encode('utf-8')).digest()[:4]
 
 
-def key_tag(public_b64: str) -> bytes:
-    raw = base64.urlsafe_b64decode(public_b64 + '=' * (-len(public_b64) % 4))
+_LABEL_PREFIX_RE = re.compile(r'^[a-z0-9][a-z0-9-]*:', re.I)
+
+
+def canonical_key_bytes(s: str) -> bytes | None:
+    """Normalize a trusted or trial-only Ed25519 public key to exactly 32 raw bytes."""
+    if not isinstance(s, str):
+        return None
+    text = s.strip()
+    if _LABEL_PREFIX_RE.match(text):
+        text = text.split(':', 1)[1]
+    text = ''.join(text.split())
+    text = text.rstrip('=').replace('+', '-').replace('/', '_')
+    pad = '=' * (-len(text) % 4)
+    try:
+        raw = base64.urlsafe_b64decode(text + pad)
+    except (binascii.Error, ValueError):
+        return None
+    return raw if len(raw) == 32 else None
+
+
+def _decode_ed25519_public_b64(text: str) -> bytes:
+    """Raw 32-byte Ed25519 public key (urlsafe or standard base64, optional padding)."""
+    raw = canonical_key_bytes(text)
+    if raw is None:
+        raise ValueError('bad_public_key_length')
+    return raw
+
+
+def _key_tag_raw(raw: bytes) -> bytes:
     return hashlib.sha256(raw).digest()[:2]
+
+
+def key_tag(public_b64: str) -> bytes:
+    return _key_tag_raw(_decode_ed25519_public_b64(public_b64))
+
+
+def _trial_only_raw_keys(trial_only_keys: frozenset[str] | None) -> frozenset[bytes]:
+    if not trial_only_keys:
+        return frozenset()
+    out: set[bytes] = set()
+    for k in trial_only_keys:
+        raw = canonical_key_bytes(k)
+        if raw is not None:
+            out.add(raw)
+    return frozenset(out)
 
 
 def _day(n: int) -> date:
@@ -187,14 +231,19 @@ def read_code(text: str, trusted_public_keys: list[str], product_id: str, device
     (version, ptag, edition, issued, first, last, grace, dtag, serial, seats, ktag) = struct.unpack(_LAYOUT, payload)
     if version != VERSION:
         return bad('unknown_version')
-    keys = {key_tag(k): k for k in trusted_public_keys}
+    keys: dict[bytes, bytes] = {}
+    for k in trusted_public_keys:
+        raw = canonical_key_bytes(k)
+        if raw is None:
+            continue
+        keys[_key_tag_raw(raw)] = raw
     if ktag not in keys:
         return bad('unknown_key')
-    public_b64 = keys[ktag]
-    public = base64.urlsafe_b64decode(public_b64 + '=' * (-len(public_b64) % 4))
+    public = keys[ktag]
     if not _ed_verify(public, DOMAIN + payload, signature):
         return bad('bad_signature')
-    if trial_only_keys and public_b64 in trial_only_keys:
+    trial_only_raw = _trial_only_raw_keys(trial_only_keys)
+    if trial_only_raw and public in trial_only_raw:
         if EDITIONS.get(edition) != 'trial':
             return bad('trial_key_edition')
         trial_span = (_day(last) - _day(first)).days + 1
