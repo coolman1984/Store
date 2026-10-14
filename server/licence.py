@@ -28,6 +28,7 @@ KEYS_FILE = os.path.join(ROOT, 'licence_keys.txt')
 CLOCK_TOLERANCE_HOURS = 24
 META_TRUSTED = 'licence_trusted_date'
 META_ONLINE = 'licence_online_at'
+HUB_CALENDAR_MAX_JUMP_DAYS = 7
 TRIAL_HUB_KIDS = frozenset({'trial-hub', 'trial_hub', 'hub-trial'})
 # Hub-paid monthly/permanent codes use kid `paid:` in licence_keys.txt (separate from trial-hub and Licence Studio).
 PAID_HUB_KIDS = frozenset({'paid'})
@@ -80,7 +81,44 @@ def accept_hub_calendar(db, data):
     day = hub_time.verify_hub_calendar(data, trusted_key_by_kid())
     if not day:
         return False
-    note_online(db, day)
+    return _note_hub_calendar_day(db, day)
+
+
+def _note_hub_calendar_day(db, hub_day):
+    """Record hub business calendar from verified signed time; forward jump capped per session."""
+    if not isinstance(hub_day, str) or len(hub_day) != 10:
+        return False
+    try:
+        hub_date = date.fromisoformat(hub_day)
+    except ValueError:
+        return False
+    if hub_date.isoformat() != hub_day:
+        return False
+    prev = trusted_day(db)
+    if prev and hub_date <= prev:
+        _meta(db, META_ONLINE, ids.iso(ids.utcnow()))
+        with _lock:
+            _cache.clear()
+        return prev == hub_date
+    today = date.fromisoformat(ids.local_day())
+    effective = today
+    if prev and prev > effective:
+        effective = prev
+    last = ids.parse(_meta(db, 'max_seen'))
+    if last and last.date() > effective:
+        effective = last.date()
+    capped = hub_date
+    if capped > effective + timedelta(days=HUB_CALENDAR_MAX_JUMP_DAYS):
+        capped = effective + timedelta(days=HUB_CALENDAR_MAX_JUMP_DAYS)
+    if prev is None or capped > prev:
+        _meta(db, META_TRUSTED, capped.isoformat())
+    mark = datetime.combine(capped, dt_time(12, 0), tzinfo=timezone.utc)
+    last = ids.parse(_meta(db, 'max_seen'))
+    if not last or mark > last:
+        _meta(db, 'max_seen', ids.iso(mark))
+    _meta(db, META_ONLINE, ids.iso(ids.utcnow()))
+    with _lock:
+        _cache.clear()
     return True
 
 

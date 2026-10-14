@@ -1,3 +1,7 @@
+## 2026-10-14 — PR #37 review: signed hub time only + 7-day cap
+
+**What:** `trial._note_hub_time` no longer falls back to unsigned HTTP `Date`. `licence._note_hub_calendar_day` caps forward trusted-day jumps to `HUB_CALENDAR_MAX_JUMP_DAYS` (7). Tests: `tests/test_hub_calendar_trust.py`.
+
 ## 2026-10-14 — Wire Store client to shared multi-product licence hub
 
 **Why:** Production trial, monthly, and permanent for `al-store` are issued from the shared hub in `coolman1984/Yousef-Transportation` (`feat/owner-panel-paid`, round 6), not Licence Studio.
