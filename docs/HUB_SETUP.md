@@ -29,7 +29,7 @@ Never sent: passwords, phone numbers, sales, customers, stock, amounts. Requests
 ### Shared hub secrets (owner deploys on Cloudflare — not in git)
 
 1. `LICENCE_SIGNING_KEY` — PKCS#8 PEM, trial-only, kid `trial-hub`.
-2. `PAID_SIGNING_KEY` (or `LICENCE_PAID_SIGNING_KEY` on the dev template) — PKCS#8 PEM, kid `paid`, for monthly/permanent from the owner panel.
+2. `PAID_SIGNING_KEY` — PKCS#8 PEM, kid `paid`, for monthly/permanent from the owner panel. The dev `licence-hub/` worker also accepts the legacy name `LICENCE_PAID_SIGNING_KEY` when `PAID_SIGNING_KEY` is unset (`PAID_SIGNING_KEY` wins if both are set).
 3. `LICENCE_PRODUCTS` includes `al-store` (and other products as needed).
 4. Optional per-product overrides: `LICENCE_SIGNING_KEY_AL_STORE`, `PAID_SIGNING_KEY_AL_STORE` (activation codes only; hub calendar uses global trial/paid keys).
 
