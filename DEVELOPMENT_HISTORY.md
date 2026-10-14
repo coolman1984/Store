@@ -1,3 +1,7 @@
+## 2026-10-14 — Dev hub: `LICENCE_PAID_SIGNING_KEY` alias for paid signing
+
+**What:** `licence-hub` `paidSigningKeyForProduct` accepts `PAID_SIGNING_KEY` then `LICENCE_PAID_SIGNING_KEY` (per-product suffixes too). Docs `HUB_SETUP.md` + `wrangler.toml` aligned. Test: `licence-api.test.js`.
+
 ## 2026-10-14 — Shared hub main (PR #34): allowlist, product isolation, remove note_online
 
 **What:** `tools/relay_hosts_allowed.txt` — production hostname `trip-orders-licence-hub.mflma2040.workers.dev` (no keys in git). `licence-hub/src/licence-api.js` synced to Yousef `main` product-isolation API; dev hub keeps `LICENCE_PAID_SIGNING_KEY` alias. Removed public `note_online` (unsigned dates cannot write meta). Tests: second +7-day sync, older signed day rejected; licence online tests use signed hub time only. Docs: `docs/HUB_SETUP.md`.

@@ -95,6 +95,18 @@ export function signingKeyForProduct(env, baseName, productId) {
   return env[baseName] || null;
 }
 
+/** Paid signing PEM: `PAID_SIGNING_KEY` first, then legacy `LICENCE_PAID_SIGNING_KEY` (per-product suffixes too). */
+export function paidSigningKeyForProduct(env, productId) {
+  const suffix = productEnvSuffix(productId);
+  for (const base of ['PAID_SIGNING_KEY', 'LICENCE_PAID_SIGNING_KEY']) {
+    const specific = env[`${base}_${suffix}`];
+    if (specific) return specific;
+  }
+  if (env.PAID_SIGNING_KEY) return env.PAID_SIGNING_KEY;
+  if (env.LICENCE_PAID_SIGNING_KEY) return env.LICENCE_PAID_SIGNING_KEY;
+  return null;
+}
+
 /** First non-empty global or per-product secret in LICENCE_PRODUCTS order. */
 export function anySigningKeyPem(env, baseName) {
   if (env[baseName]) return env[baseName];
@@ -108,7 +120,7 @@ export function anySigningKeyPem(env, baseName) {
 export async function loadSigningKeys(env, productId = 'trip-orders') {
   const keys = { trialKey: null, paidKey: null };
   const trialPem = signingKeyForProduct(env, 'LICENCE_SIGNING_KEY', productId);
-  const paidPem = signingKeyForProduct(env, 'PAID_SIGNING_KEY', productId);
+  const paidPem = paidSigningKeyForProduct(env, productId);
   if (trialPem) keys.trialKey = await importSigningKey(trialPem);
   if (paidPem) keys.paidKey = await importSigningKey(paidPem);
   return keys;
@@ -1017,7 +1029,7 @@ export function ownerCapabilities(env) {
   const byProduct = {};
   for (const productId of products(env)) {
     byProduct[productId] = {
-      paid_available: Boolean(signingKeyForProduct(env, 'PAID_SIGNING_KEY', productId)),
+      paid_available: Boolean(paidSigningKeyForProduct(env, productId)),
       trial_available: Boolean(signingKeyForProduct(env, 'LICENCE_SIGNING_KEY', productId)),
     };
   }

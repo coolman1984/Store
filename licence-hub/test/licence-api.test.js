@@ -6,7 +6,7 @@ import {
   handleLicence, approveRequest, refuseRequest, issueOfflineCustomer, derivePollToken, purgeStaleCodes,
   deviceKey, deviceLockKey, onlineDeviceLockKey, migrateLegacyTrialLocks, trialUsedForDevice,
   trialUsedOnline, REASON_PAID_IN_STUDIO, REASON_PAID_KEY_MISSING, offlineDeviceLockKey,
-  hubCalendarSigned, hubTimeSigningMaterial, ownerCapabilities, loadSigningKeys,
+  hubCalendarSigned, hubTimeSigningMaterial, ownerCapabilities, loadSigningKeys, paidSigningKeyForProduct,
   offlineRequestId, storedGrantMatches, trialUsedForOfflineProduct, wouldDowngradeGrant,
   currentTerm,
 } from '../src/licence-api.js';
@@ -306,6 +306,27 @@ test('paid pending request needs PAID_SIGNING_KEY', async () => {
   ).bind('id1', 'hash', 'trip-orders', 'monthly', '7KD2M-QX9TP', deviceKey('7KD2M-QX9TP'), 'm1', 'n-old', '', '', '', 'pending', 1, 1).run();
   const out = await approveRequest(e, 'id1', keys, { grant: 'paid', paid_until: '2027-01-01' });
   assert.equal(out.refused, true);
+});
+
+test('paidSigningKeyForProduct prefers PAID_SIGNING_KEY over LICENCE_PAID_SIGNING_KEY', () => {
+  const a = pemFromSeed(Buffer.alloc(32, 1));
+  const b = pemFromSeed(Buffer.alloc(32, 2));
+  assert.equal(paidSigningKeyForProduct({ LICENCE_PAID_SIGNING_KEY: a }, 'trip-orders'), a);
+  assert.equal(paidSigningKeyForProduct({ PAID_SIGNING_KEY: a, LICENCE_PAID_SIGNING_KEY: b }, 'trip-orders'), a);
+  assert.equal(paidSigningKeyForProduct({ PAID_SIGNING_KEY_AL_STORE: b, LICENCE_PAID_SIGNING_KEY: a }, 'al-store'), b);
+});
+
+test('loadSigningKeys reads LICENCE_PAID_SIGNING_KEY when PAID_SIGNING_KEY is unset', async () => {
+  const e = env();
+  e.LICENCE_PAID_SIGNING_KEY = pemFromSeed(Buffer.alloc(32, 88));
+  e.LICENCE_SIGNING_KEY = pemFromSeed(Buffer.alloc(32, 9));
+  const keys = await loadSigningKeys(e, 'trip-orders');
+  assert.ok(keys.paidKey);
+  await e.DB.prepare(
+    'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind('id-alias', 'hash', 'trip-orders', 'monthly', '7KD2M-QX9TP', deviceKey('7KD2M-QX9TP'), MACHINE_A, 'n-alias', '', '', '', 'pending', 1, 1).run();
+  const out = await approveRequest(e, 'id-alias', keys, { grant: 'paid', preset: '1m' });
+  assert.ok(out.code);
 });
 
 test('owner can approve paid until date with PAID_SIGNING_KEY', async () => {
