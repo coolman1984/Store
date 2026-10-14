@@ -35,7 +35,7 @@ export async function loadPending(host) {
     const usedNote = item.kind === 'trial' && item.has_customer
       ? '<div class="err">هذا الجهاز لديه عميل مسجّل — الموافقة العادية مرفوضة؛ استخدم «إعادة إصدار» إن فُقد الكود.</div>'
       : '';
-    li.innerHTML = '<div><strong>' + escape(item.shop || '—') + '</strong><div class="muted">' + escape(kindLabel) + ' · ' + escape(item.device) + '</div>' + paidNote + usedNote + '<div class="muted">' + when + '</div></div>';
+    li.innerHTML = '<div><strong>' + escape(item.shop || '—') + '</strong><div class="muted">' + escape(kindLabel) + ' · ' + escape(item.device) + '</div>' + usedNote + '<div class="muted">' + when + '</div></div>';
     const row = document.createElement('div');
     row.className = 'row';
     const ok = document.createElement('button');
@@ -43,8 +43,15 @@ export async function loadPending(host) {
     ok.type = 'button';
     ok.textContent = item.kind === 'trial' ? 'موافق — تجربة' : (item.kind === 'monthly' ? 'موافق — شهري' : 'موافق — دائم');
     ok.addEventListener('click', async () => {
+      let force = false;
+      if (item.kind === 'trial' && item.has_customer) {
+        if (!confirm('إعادة إصدار تجربة لهذا الجهاز؟ (فقدان الكود فقط)')) return;
+        force = true;
+      } else if (item.kind !== 'trial' && item.has_customer) {
+        if (!confirm('إصدار ترخيص مدفوع لهذا الجهاز رغم وجود عميل مسجّل؟')) return;
+        force = true;
+      }
       ok.disabled = true;
-      const force = item.has_customer && confirm('إعادة إصدار تجربة لهذا الجهاز؟ (فقدان الكود فقط)');
       const res = await api('/approve', { method: 'POST', headers: headers(), body: JSON.stringify({ id: item.id, csrf, force }) });
       if (res && res.error === 'paid_in_licence_studio') {
         alert('مفتاح التوقيع المدفوع غير مضبوط على الوسيط (LICENCE_PAID_SIGNING_KEY).');

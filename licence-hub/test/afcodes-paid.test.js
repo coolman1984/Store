@@ -28,3 +28,11 @@ test('paid monthly and perpetual codes differ from trial codes', async () => {
   assert.notEqual(trial.code, monthly.code);
   assert.notEqual(monthly.code, permanent.code);
 });
+
+test('monthly days must be within 1..3660', async () => {
+  const paidPem = pemFromSeed(Buffer.alloc(32, 3));
+  const paidKey = await importSigningKey(paidPem);
+  const device = group(normalize('7KD2MQX9TP'), 5);
+  await assert.rejects(() => issuePaidCode(paidKey, 'al-store', device, 'monthly', new Date(), undefined, { monthlyDays: 0 }), /monthly_days_out_of_range/);
+  await assert.rejects(() => issuePaidCode(paidKey, 'al-store', device, 'monthly', new Date(), undefined, { monthlyDays: 4000 }), /monthly_days_out_of_range/);
+});

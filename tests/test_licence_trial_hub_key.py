@@ -70,6 +70,13 @@ class TrialHubKeyPolicy(unittest.TestCase):
         st = licence.activate(self.shop.db, self._hub(days=7, grace=7))
         self.assertIn(st['state'], ('trial', 'active'))
 
+    def test_trial_hub_stays_trial_only_when_paid_key_is_also_trusted(self):
+        from harness import PRIVATE_PEM, PUBLIC
+        os.environ['STORE_LICENCE_KEYS'] = f'trial-hub:{HUB_PUB},paid:{PUBLIC}'
+        with self.assertRaises(ValueError) as ctx:
+            licence.activate(self.shop.db, self._hub(edition='standard', days=30))
+        self.assertEqual(ctx.exception.args[0], 'trial_key_edition')
+
     def test_paid_hub_key_allows_monthly_and_perpetual(self):
         from harness import PRIVATE_PEM, PUBLIC
         os.environ['STORE_LICENCE_KEYS'] = f'trial-hub:{HUB_PUB},paid:{PUBLIC}'

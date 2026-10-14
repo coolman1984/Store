@@ -95,11 +95,16 @@ def validate_customer_licence_key_lines(lines):
     if trial_hub != 1:
         raise CustomerLicenceError('a customer build must ship exactly one trial-hub public key line')
     kids_seen = set()
+    pub_kids = {}
     for line in normalized:
         kid_l = _licence_key_kid(line).lower()
         if kid_l in kids_seen:
             raise CustomerLicenceError('duplicate licence key id')
         kids_seen.add(kid_l)
+        pub = line.split(':', 1)[1]
+        if pub in pub_kids and pub_kids[pub] != kid_l:
+            raise CustomerLicenceError('the same public key cannot be listed under more than one kid')
+        pub_kids[pub] = kid_l
     return normalized
 
 

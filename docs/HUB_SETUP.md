@@ -37,7 +37,7 @@ openssl pkey -in trial-hub.pem -pubout -outform DER | tail -c 32 | base64 -w0
 2. Generate a **second** Ed25519 pair for paid hub signing (`paid-hub.pem`). Set `npx wrangler secret put LICENCE_PAID_SIGNING_KEY` ← PKCS#8 PEM of **paid-hub.pem** only. The owner panel signs monthly (`standard` edition, 30 days + grace) and permanent codes with this key — same byte format as `server/afcodes.py`.
 3. In customer `licence_keys.txt`, ship at least `trial-hub:<public>` and `paid:<public>` (optional `studio:<public>` for Licence Studio paste codes). Example:  
    `trial-hub:AbCdEfGh...` and `paid:XyZ...` (43-character unpadded base64url raw public keys).
-4. Keep the Licence Studio **private** key off Cloudflare unless you also use Studio for manual paste; hub-paid codes use kid `paid`, not `studio`.
+4. Hub-paid monthly/permanent codes use kid `paid` in the shop installer. Licence Studio (optional manual paste) uses kid `studio` and stays off Cloudflare unless you choose otherwise.
 
 The shop checks every code on the PC with the public keys in `licence_keys.txt`, so a broken or hostile relay cannot invent a paid licence.
 

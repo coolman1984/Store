@@ -1,3 +1,7 @@
+## 2026-10-14 — PR #35 review fixes (owner panel, paid approve race, purge)
+
+**What:** Fixed owner `app.js` `paidNote` ReferenceError; paid approve confirm/cancel; paid concurrent approve returns D1 code; purge retains paid codes longer; cross-language paid signer test; build rejects same pubkey under two kids; malformed `LICENCE_PAID_SIGNING_KEY` blocks paid only.
+
 ## 2026-10-14 — Hub paid signing (`paid:` kid) + customer installer keys
 
 **Why:** Paid monthly/permanent codes are signed on the licence hub (owner panel), not only in Licence Studio; customer builds must ship the `paid:` public key alongside `trial-hub:` while trial-only limits stay on the hub trial key.

@@ -154,6 +154,11 @@ class CustomerRelease(unittest.TestCase):
                     f.write('\n'.join((self.SAMPLE_KEY, self.SAMPLE_STUDIO_KEY, self.SAMPLE_STUDIO_KEY)) + '\n')
                 with self.assertRaises(build_windows.CustomerLicenceError):
                     build_windows.resolve_customer_licence(tmp)
+                with open(os.path.join(tmp, 'licence_keys.txt'), 'w', encoding='utf-8') as f:
+                    pub = 'D' * 43
+                    f.write(f'trial-hub:{pub}\npaid:{pub}\n')
+                with self.assertRaises(build_windows.CustomerLicenceError):
+                    build_windows.resolve_customer_licence(tmp)
         r = self._run_customer_check(STORE_RELEASE_PUBLIC_KEY=self.SAMPLE_KEY,
                                      STORE_RELEASE_RELAY_URL=self.SAMPLE_RELAY)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

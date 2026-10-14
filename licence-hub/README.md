@@ -12,8 +12,8 @@ This worker is **not** the factory telemetry relay (`/ingest`). Deploy it on its
 - Same protocol as the shop app (`server/trial.py`, exercised by `tests/test_trial.py` and `tests/fake_relay.py`).
 - لوحة المالك على `/owner` (عربي، RTL): موافقة على الطلبات (يُعرض الكود بعد الموافقة)، تفعيل يدوي برقم الجهاز، قائمة العملاء.
 - Owner dashboard at `/owner` (Arabic, RTL): pending requests (issued code shown on approve), offline device entry, customer list.
-- توقيع **تجربة فقط** 14 يومًا (منتج `al-store`) بـ Ed25519 في Worker — متوافق مع `server/afcodes.py`. الطلبات الشهرية/الدائمة تُرفض هنا؛ الإصدار المدفوع من Licence Studio.
-- Signs **trial-only** 14-day codes with `LICENCE_SIGNING_KEY` and **monthly/permanent** codes with `LICENCE_PAID_SIGNING_KEY` (`al-store`) — byte-compatible with `server/afcodes.py`. Customer builds trust `trial-hub:` and `paid:` public keys (kid `paid` for hub-paid codes).
+- توقيع تجربة 14 يومًا بـ `LICENCE_SIGNING_KEY` واشتراك شهري/دائم من لوحة المالك بـ `LICENCE_PAID_SIGNING_KEY` — متوافق مع `server/afcodes.py`.
+- Signs trials with `LICENCE_SIGNING_KEY` and **monthly/permanent** from the owner panel with `LICENCE_PAID_SIGNING_KEY` (`al-store`) — byte-compatible with `server/afcodes.py`. Customer builds trust `trial-hub:` and `paid:` public keys (kid `paid` for hub-paid codes; optional `studio:` for Licence Studio paste codes).
 - One trial per PC online: locks both the normalized device code and the stable `machine` hash the app sends. Pending requests expire after a short TTL so a squatted poll token cannot block the real customer forever.
 
 **بديل التوقيع:** Licence Studio على جهاز المالك يبقى الطريقة الأكثر أمانًا للتوقيع؛ هذا القالب يوازن بين الراحة (موافقة من الهاتف) ومخاطر سر التوقيع على Cloudflare (انظر أدناه).
@@ -54,9 +54,9 @@ npx wrangler secret put TELEGRAM_CHAT_ID
 npx wrangler deploy
 ```
 
-ضع المفتاح **العام** في `licence_keys.txt` بصيغة `trial-hub:<public>` للنسخة التي تفرض الأكواد. مفتاح Licence Studio يبقى kid مختلفًا للاشتراكات المدفوعة.
+ضع في `licence_keys.txt` سطر `trial-hub:<public>` و`paid:<public>` (واختياريًا `studio:<public>` لأكواد Licence Studio اليدوية).
 
-Put the matching **public** key in `licence_keys.txt` as `trial-hub:<public>` for builds that enforce codes. Licence Studio uses a different kid for paid editions; remove a public key in a release to revoke a Worker key.
+Put `trial-hub:<public>` and `paid:<public>` in `licence_keys.txt` for customer builds (optional `studio:<public>` for manual Studio codes). Revoke a Worker key by removing its public line in the next release.
 
 See also `docs/HUB_SETUP.md` for how this worker differs from the telemetry relay.
 

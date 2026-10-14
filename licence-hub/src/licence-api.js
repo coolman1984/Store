@@ -365,7 +365,7 @@ async function approvePaidRequest(env, row, paidPrivateKey, options = {}) {
   ).bind('issued', 'approved', signed.code, t, row.id, 'refused', 'delivered').run();
   if (!updated.meta?.changes) {
     const existing = await env.DB.prepare('SELECT * FROM licence_requests WHERE id = ?').bind(row.id).first();
-    if (existing?.code) return signedFromRow(existing, signed);
+    if (existing?.code) return signedFromRow(existing);
     return null;
   }
   const existingCustomer = await env.DB.prepare(
@@ -386,6 +386,10 @@ export async function approveRequest(env, requestId, privateKey, options = {}) {
   if (!row || row.status === 'refused' || row.status === 'delivered') return null;
 
   if (row.kind !== 'trial') {
+    if (options.paidSigningInvalid) {
+      await refuseRequest(env, requestId, 'bad_paid_signing_key');
+      return { refused: true, reason: 'bad_paid_signing_key' };
+    }
     if (!paidPrivateKey) {
       await refuseRequest(env, requestId, REASON_PAID_IN_STUDIO);
       return { refused: true, reason: REASON_PAID_IN_STUDIO };
@@ -512,12 +516,16 @@ export async function issueOfflineCustomer(env, privateKey, device, shop, produc
   return signed;
 }
 
-/** Drop activation codes from delivered rows older than TRIAL_DAYS (scheduled). */
+/** Drop activation codes from old rows (scheduled). Trials use TRIAL_DAYS; paid kinds use a long retention. */
 export async function purgeStaleCodes(env) {
-  const days = Number(env.TRIAL_DAYS || 14);
-  const cutoff = now() - days * 86400;
+  const t = now();
+  const trialCutoff = t - Number(env.TRIAL_DAYS || 14) * 86400;
+  const paidCutoff = t - Number(env.PAID_CODE_RETENTION_DAYS || 3660) * 86400;
   await expireStalePending(env);
   await env.DB.prepare(
-    "UPDATE licence_requests SET code = NULL WHERE code IS NOT NULL AND updated_at < ? AND status IN ('delivered', 'issued')",
-  ).bind(cutoff).run();
+    "UPDATE licence_requests SET code = NULL WHERE code IS NOT NULL AND updated_at < ? AND status IN ('delivered', 'issued') AND kind = 'trial'",
+  ).bind(trialCutoff).run();
+  await env.DB.prepare(
+    "UPDATE licence_requests SET code = NULL WHERE code IS NOT NULL AND updated_at < ? AND status IN ('delivered', 'issued') AND kind IN ('monthly', 'permanent')",
+  ).bind(paidCutoff).run();
 }
