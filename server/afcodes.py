@@ -1,4 +1,4 @@
-# Vendored from Apps-Factory packages/af-license 0.3.1 af_license/codes.py - do not edit here.
+# Vendored from Apps-Factory packages/af-license 0.3.1 @ 4f34038 af_license/codes.py - do not edit here.
 # Update with: python scripts/vendor_licence.py <product repo> (from the Apps-Factory checkout)
 """Licence *codes*: a signed licence short enough to send on WhatsApp and paste into the program.
 

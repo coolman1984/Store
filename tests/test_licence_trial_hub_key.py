@@ -93,22 +93,26 @@ class TrialHubKeyPolicy(unittest.TestCase):
         os.environ['STORE_LICENCE_KEYS'] = f'trial-hub:{key_material}'
         licence._cache.clear()
 
+    def _assert_trial_only_spelling(self, key_material):
+        self._set_trial_hub_key(key_material)
+        st = licence.activate(self.shop.db, self._hub())
+        self.assertIn(st['state'], ('trial', 'active'))
+        self.assertTrue(st['full'])
+        with self.assertRaises(ValueError) as ctx:
+            licence.activate(self.shop.db, self._hub(edition='standard', days=30))
+        self.assertEqual(ctx.exception.args[0], 'trial_key_edition')
+        with self.assertRaises(ValueError) as ctx:
+            licence.activate(self.shop.db, self._hub(edition='perpetual', days=0))
+        self.assertEqual(ctx.exception.args[0], 'trial_key_edition')
+
     def test_trial_hub_key_spellings_stay_trial_only(self):
         raw = base64.urlsafe_b64decode(HUB_PUB + '=' * (-len(HUB_PUB) % 4))
         padded = HUB_PUB + '='
         std = base64.b64encode(raw).decode('ascii')
-        url = HUB_PUB
-        for material in (padded, std, url):
-            self._set_trial_hub_key(material)
-            st = licence.activate(self.shop.db, self._hub())
-            self.assertIn(st['state'], ('trial', 'active'))
-            self.assertTrue(st['full'])
-            with self.assertRaises(ValueError) as ctx:
-                licence.activate(self.shop.db, self._hub(edition='standard', days=30))
-            self.assertEqual(ctx.exception.args[0], 'trial_key_edition')
-            with self.assertRaises(ValueError) as ctx:
-                licence.activate(self.shop.db, self._hub(edition='perpetual', days=0))
-            self.assertEqual(ctx.exception.args[0], 'trial_key_edition')
+        spaced = f'{std[:16]} {std[16:]}'
+        prefixed = f'trial-hub:{HUB_PUB}'
+        for material in (HUB_PUB, padded, std, spaced, prefixed):
+            self._assert_trial_only_spelling(material)
 
     def test_malformed_trial_hub_public_key_is_not_trusted(self):
         self._set_trial_hub_key('not-a-valid-key!!!')
@@ -116,6 +120,8 @@ class TrialHubKeyPolicy(unittest.TestCase):
             licence.activate(self.shop.db, self._hub())
         self.assertEqual(ctx.exception.args[0], 'unknown_key')
         self.assertIsNone(afcodes.canonical_key_bytes('also@@@bad'))
+        r = afcodes.read_code(self._hub(), ['!!!bad-trusted'], 'al-store', self.dev, self.first)
+        self.assertEqual(r.reason, 'unknown_key')
 
 
 if __name__ == '__main__':
